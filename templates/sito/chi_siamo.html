@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chi siamo — Salone Nadia</title>
+    <link rel="stylesheet" href="/static/sito.css">
+</head>
+<body>
+    <header class="site-header">
+        <nav>
+            <a href="/" class="logo">Salone Nadia</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/chi-siamo">Chi siamo</a>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-content">
+        <h1>Chi siamo</h1>
+        <p>
+            Il Salone Nadia è il tuo punto di riferimento per tagli, barba e cura del capello.
+            Con anni di esperienza e un team di professionisti appassionati, offriamo un servizio
+            personalizzato per ogni cliente.
+        </p>
+        <p>
+            Ogni membro del nostro team è specializzato in stili diversi: dal classico al moderno,
+            dal taglio per bambini alla barba curata. Vieni a trovarci per una consulenza gratuita!
+        </p>
+    </section>
+
+    <!-- Chat Widget -->
+    {% include "chat_widget.html" %}
+
+    <footer>
+        <p>&copy; 2026 Salone Nadia. Tutti i diritti riservati.</p>
+    </footer>
+
+    <script src="/static/chat.js"></script>
+</body>
+</html>

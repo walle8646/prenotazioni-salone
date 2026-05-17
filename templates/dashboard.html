@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <h2>Appuntamenti del {{ data_selezionata.strftime('%d/%m/%Y') }}</h2>
+
+    <form class="date-picker" method="GET" action="/admin/dashboard">
+        <input type="date" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
+        <button type="submit" class="btn-small">Vai</button>
+    </form>
+
+    {% if appuntamenti %}
+    <table class="app-table">
+        <thead>
+            <tr>
+                <th>Ora</th>
+                <th>Cliente</th>
+                <th>Servizi</th>
+                <th>Parrucchiere</th>
+                <th>Note</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for app in appuntamenti %}
+            <tr>
+                <td><strong>{{ app.data_ora.strftime('%H:%M') }}</strong></td>
+                <td>
+                    <a href="/admin/cliente/{{ app.cliente.id }}">
+                        {{ app.cliente.nome or '' }} {{ app.cliente.cognome or '' }}
+                    </a>
+                    <br><small>{{ app.cliente.telefono_wa }}</small>
+                </td>
+                <td>{{ app.servizi | join(', ') if app.servizi else '-' }}</td>
+                <td>{{ app.parrucchiere.nome if app.parrucchiere else '-' }}</td>
+                <td>{{ app.richieste_spec or '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">Nessun appuntamento per questa data.</p>
+    {% endif %}
+</div>
+{% endblock %}

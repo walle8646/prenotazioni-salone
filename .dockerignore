@@ -1,0 +1,13 @@
+.git
+.gitignore
+__pycache__
+*.pyc
+.env
+.env.*
+docker-compose.yml
+credentials/
+*.md
+*.docx
+*.pdf
+tests/
+.pytest_cache/

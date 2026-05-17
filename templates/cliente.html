@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}{{ cliente.nome }} {{ cliente.cognome }} - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="cliente-scheda">
+    <h2>{{ cliente.nome or '' }} {{ cliente.cognome or '' }}</h2>
+
+    <div class="info-grid">
+        <div class="info-item">
+            <label>Telefono WhatsApp</label>
+            <span>{{ cliente.telefono_wa }}</span>
+        </div>
+        <div class="info-item">
+            <label>Email</label>
+            <span>{{ cliente.email or 'Non fornita' }}</span>
+        </div>
+        <div class="info-item">
+            <label>Canale</label>
+            <span>{{ cliente.canale_origine }}</span>
+        </div>
+        <div class="info-item">
+            <label>Prima visita</label>
+            <span>{{ cliente.prima_visita.strftime('%d/%m/%Y') if cliente.prima_visita else '-' }}</span>
+        </div>
+        <div class="info-item">
+            <label>Ultima visita</label>
+            <span>{{ cliente.ultima_visita.strftime('%d/%m/%Y') if cliente.ultima_visita else '-' }}</span>
+        </div>
+        <div class="info-item">
+            <label>Note private</label>
+            <span>{{ cliente.note_private or '-' }}</span>
+        </div>
+    </div>
+
+    <h3>Storico appuntamenti</h3>
+    {% if cliente.appuntamenti %}
+    <table class="app-table">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Servizi</th>
+                <th>Stato</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for app in cliente.appuntamenti | sort(attribute='data_ora', reverse=True) %}
+            <tr>
+                <td>{{ app.data_ora.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td>{{ app.servizi | join(', ') if app.servizi else '-' }}</td>
+                <td><span class="badge badge-{{ app.stato.lower() }}">{{ app.stato }}</span></td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p class="empty-state">Nessun appuntamento registrato.</p>
+    {% endif %}
+
+    <a href="/admin/dashboard" class="btn-small">← Torna alla dashboard</a>
+</div>
+{% endblock %}

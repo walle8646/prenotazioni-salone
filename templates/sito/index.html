@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Salone Nadia — Parrucchiere</title>
+    <link rel="stylesheet" href="/static/sito.css">
+</head>
+<body>
+    <header class="site-header">
+        <nav>
+            <a href="/" class="logo">Salone Nadia</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/chi-siamo">Chi siamo</a>
+            </div>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <h1>Salone Nadia</h1>
+        <p>Il tuo barbiere di fiducia</p>
+    </section>
+
+    <section class="orari" id="orari">
+        <h2>Orari di apertura</h2>
+        <div class="orari-grid">
+            {% for giorno, orario in orari.items() %}
+            <div class="orario-item">
+                <span class="giorno">{{ giorno }}</span>
+                <span class="ore">{{ orario }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="servizi" id="servizi">
+        <h2>I nostri servizi</h2>
+        <div class="servizi-grid">
+            {% for servizio in servizi %}
+            <div class="servizio-card">
+                <h3>{{ servizio.nome }}</h3>
+                <span class="durata">{{ servizio.durata }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <section class="contatti" id="contatti">
+        <h2>Contatti</h2>
+        <p>Prenota direttamente dalla chat qui sotto, oppure scrivici su WhatsApp!</p>
+    </section>
+
+    <!-- Chat Widget -->
+    {% include "chat_widget.html" %}
+
+    <footer>
+        <p>&copy; 2026 Salone Nadia. Tutti i diritti riservati.</p>
+    </footer>
+
+    <script src="/static/chat.js"></script>
+</body>
+</html>

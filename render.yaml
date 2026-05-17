@@ -1,0 +1,66 @@
+services:
+  - type: web
+    name: salone-nadia-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: salone-nadia-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: salone-nadia-redis
+          type: redis
+          property: connectionString
+      - key: ADMIN_USERNAME
+        value: "nadia"
+      - key: ADMIN_PASSWORD
+        generateValue: true
+      - key: SECRET_KEY
+        generateValue: true
+      - key: EMAIL_FROM
+        value: "noreply@salonenadia.it"
+      - key: SLOT_DURATION_MIN
+        value: "30"
+      - key: MAX_BOOKING_DAYS_AHEAD
+        value: "30"
+      - key: CANCEL_POLICY_HOURS
+        value: "12"
+      - key: INACTIVITY_DAYS
+        value: "60"
+      - key: SESSION_TTL_SECONDS
+        value: "7200"
+      - key: MAX_HISTORY_MESSAGES
+        value: "20"
+      # Da configurare manualmente nel dashboard Render:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: CLAUDE_MODEL
+        value: "claude-sonnet-4-6"
+      - key: GOOGLE_CREDENTIALS_JSON
+        sync: false
+      - key: GCAL_SALONE_ID
+        sync: false
+      - key: GCAL_PARRUCCHIERE_IDS
+        sync: false
+      - key: META_WA_TOKEN
+        sync: false
+      - key: META_PHONE_NUMBER_ID
+        sync: false
+      - key: META_VERIFY_TOKEN
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+
+  - type: redis
+    name: salone-nadia-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru
+
+databases:
+  - name: salone-nadia-db
+    plan: free
+    databaseName: salone_nadia
+    postgresMajorVersion: "16"

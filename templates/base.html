@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Salone Nadia - Admin{% endblock %}</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <nav class="admin-nav">
+        <div class="nav-brand">Salone Nadia — Pannello Admin</div>
+        <div class="nav-links">
+            <a href="/admin/dashboard">Dashboard</a>
+            <a href="/admin/login">Logout</a>
+        </div>
+    </nav>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
