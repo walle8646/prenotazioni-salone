@@ -58,6 +58,7 @@ services:
     name: salone-nadia-redis
     plan: free
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
 
 databases:
   - name: salone-nadia-db
