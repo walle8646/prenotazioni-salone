@@ -17,7 +17,8 @@
                 <th>Ora</th>
                 <th>Cliente</th>
                 <th>Servizi</th>
-                <th>Parrucchiere</th>
+                <th>Prezzo</th>
+                <th>Operatore</th>
                 <th>Note</th>
             </tr>
         </thead>
@@ -32,11 +33,18 @@
                     <br><small>{{ app.cliente.telefono_wa }}</small>
                 </td>
                 <td>{{ app.servizi | join(', ') if app.servizi else '-' }}</td>
+                <td>{{ prezzo_di(app) }}</td>
                 <td>{{ app.parrucchiere.nome if app.parrucchiere else '-' }}</td>
                 <td>{{ app.richieste_spec or '-' }}</td>
             </tr>
             {% endfor %}
         </tbody>
+        <tfoot>
+            <tr>
+                <td colspan="3"><strong>Totale giornata</strong></td>
+                <td colspan="3"><strong>{{ incasso_previsto }}</strong></td>
+            </tr>
+        </tfoot>
     </table>
     {% else %}
     <p class="empty-state">Nessun appuntamento per questa data.</p>

@@ -23,12 +23,29 @@ async def lifespan(app: FastAPI):
     global app_redis
     # Inizializza PostgreSQL
     await create_tables()
-    # Seed parrucchieri da configurazione e carica cache
-    from services.db_service import seed_parrucchieri, get_parrucchieri_map
+    # Operatori e listino: il database è la fonte di verità, il codice fornisce
+    # i valori iniziali al primo avvio. Entrambi finiscono in una cache in
+    # memoria che il resto dell'applicazione legge a ogni messaggio.
+    from services.db_service import (
+        get_parrucchieri_map,
+        get_servizi_attivi,
+        seed_parrucchieri,
+        seed_servizi,
+    )
+    from services.operatori import verifica_configurazione
+    from services import catalogo
     from prompts.system_prompt import PARRUCCHIERI_MAP, set_parrucchieri_cache
+
+    verifica_configurazione()
     await seed_parrucchieri(PARRUCCHIERI_MAP)
-    parr_map = await get_parrucchieri_map()
-    set_parrucchieri_cache(parr_map)
+    set_parrucchieri_cache(await get_parrucchieri_map())
+
+    await seed_servizi(catalogo.SERVIZI_INIZIALI)
+    servizi = await get_servizi_attivi()
+    catalogo.set_catalogo_cache(servizi)
+    logging.getLogger(__name__).info(
+        "Listino caricato: %s servizi attivi", len(servizi)
+    )
     # Inizializza Redis
     app_redis = aioredis.from_url(settings.redis_url, decode_responses=True)
     app.state.redis = app_redis

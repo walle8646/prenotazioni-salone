@@ -57,8 +57,30 @@ class Settings(BaseSettings):
     max_history_messages: int = 20
 
     @property
+    def parrucchiere_calendar_map(self) -> dict:
+        """Associazione nome operatore → calendar ID.
+
+        GCAL_PARRUCCHIERE_IDS può essere scritta come oggetto JSON
+        ({"Simone Big": "abc@group.calendar.google.com", ...}) oppure, per
+        retrocompatibilità, come semplice lista di ID: in quel caso i nomi non
+        sono noti e la mappa risulta vuota.
+        """
+        try:
+            raw = json.loads(self.gcal_parrucchiere_ids or "{}")
+        except json.JSONDecodeError:
+            return {}
+        return raw if isinstance(raw, dict) else {}
+
+    @property
     def parrucchiere_calendar_ids(self) -> List[str]:
-        return json.loads(self.gcal_parrucchiere_ids)
+        """Elenco dei calendar ID, qualunque sia il formato usato nella env var."""
+        try:
+            raw = json.loads(self.gcal_parrucchiere_ids or "[]")
+        except json.JSONDecodeError:
+            return []
+        if isinstance(raw, dict):
+            return list(raw.values())
+        return list(raw)
 
     @property
     def google_credentials_path(self) -> str:

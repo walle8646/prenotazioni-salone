@@ -1,31 +1,48 @@
 import pytest
-from unittest.mock import AsyncMock
+
+from prompts.system_prompt import PARRUCCHIERI_MAP, set_parrucchieri_cache
+from services.channels import CollectorChannel
+from services.fakes import FakeBackends, FakeRedis
+from services.operatori import OPERATORI
+
+OPERATORE_TEST = OPERATORI[2]  # Francesco
+
+
+@pytest.fixture(autouse=True)
+def parrucchieri_noti():
+    """Popola la cache dei parrucchieri come farebbe l'avvio dell'app."""
+    set_parrucchieri_cache(PARRUCCHIERI_MAP)
+    yield
+    set_parrucchieri_cache({})
 
 
 @pytest.fixture
 def mock_redis():
-    """Redis mock che simula get/set/delete."""
-    redis = AsyncMock()
-    store = {}
+    """Redis in memoria con la stessa interfaccia usata dal codice."""
+    return FakeRedis()
 
-    async def mock_get(key):
-        return store.get(key)
 
-    async def mock_set(key, value, ex=None):
-        store[key] = value
+@pytest.fixture
+def backends():
+    """Calendario, database ed email finti."""
+    return FakeBackends()
 
-    async def mock_delete(key):
-        store.pop(key, None)
 
-    redis.get = mock_get
-    redis.set = mock_set
-    redis.delete = mock_delete
-    return redis
+@pytest.fixture
+def canale():
+    """Canale che raccoglie quello che il bot direbbe, invece di inviarlo."""
+    return CollectorChannel()
+
+
+@pytest.fixture
+def cal_id_operatore():
+    """Calendar ID del primo operatore, usato negli scenari di prenotazione."""
+    return PARRUCCHIERI_MAP[OPERATORE_TEST]
 
 
 @pytest.fixture
 def sample_session():
-    """Sessione di esempio per testing."""
+    """Sessione di esempio."""
     return {
         "stato_flusso": "saluto",
         "history": [],
@@ -40,11 +57,3 @@ def sample_session():
         },
         "last_activity": "2026-05-16T10:00:00",
     }
-
-
-@pytest.fixture
-def mock_claude_response():
-    """Mock per la risposta Claude."""
-    async def _mock(system_prompt, history):
-        return "Ciao! Benvenuto al Salone Nadia. Come posso aiutarti?"
-    return _mock

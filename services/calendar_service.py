@@ -4,6 +4,7 @@ from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta
 from config import settings
 from prompts.system_prompt import get_parrucchieri_map_cached
+from services.slots import generate_slots as _generate_slots
 import asyncio
 import logging
 
@@ -22,30 +23,6 @@ def _get_service():
         settings.google_credentials_path, scopes=SCOPES
     )
     return build("calendar", "v3", credentials=creds)
-
-
-def _generate_slots(date_str: str) -> list[str]:
-    """Genera tutti gli slot possibili per una data (rispettando orari salone)."""
-    date = datetime.strptime(date_str, "%Y-%m-%d")
-    weekday = date.weekday()  # 0=lun, 5=sab, 6=dom
-
-    if weekday in (0, 6):  # lunedì o domenica → chiuso
-        return []
-
-    slots = []
-    if weekday == 5:  # sabato: 08:00-18:00 continuato
-        ranges = [("08:00", "18:00")]
-    else:  # mar-ven: 08:00-12:00, 14:30-19:30
-        ranges = [("08:00", "12:00"), ("14:30", "19:30")]
-
-    for start_s, end_s in ranges:
-        start = datetime.strptime(f"{date_str} {start_s}", "%Y-%m-%d %H:%M")
-        end = datetime.strptime(f"{date_str} {end_s}", "%Y-%m-%d %H:%M")
-        current = start
-        while current + timedelta(minutes=settings.slot_duration_min) <= end:
-            slots.append(current.strftime("%Y-%m-%dT%H:%M"))
-            current += timedelta(minutes=settings.slot_duration_min)
-    return slots
 
 
 async def check_availability(

@@ -10,3 +10,5 @@ credentials/
 .idea/
 .vscode/
 ~$*
+# Foto inviate dai clienti: restano solo sul server, non nel repository
+static/foto/

@@ -14,8 +14,11 @@ from models.orm import Cliente, Parrucchiere, Appuntamento  # noqa: F401 - impor
 
 config = context.config
 
-# Override sqlalchemy.url con il valore dall'env
-config.set_main_option("sqlalchemy.url", settings.database_url)
+# Override sqlalchemy.url con il valore dall'env. Serve la forma asincrona:
+# Render fornisce DATABASE_URL come postgresql://, ma qui sotto l'engine è
+# asincrono e con quel prefisso SQLAlchemy cercherebbe psycopg2, che non è
+# tra le dipendenze.
+config.set_main_option("sqlalchemy.url", settings.async_database_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

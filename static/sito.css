@@ -125,9 +125,35 @@ section h2 {
     color: #2c3e50;
 }
 
+.servizio-card .prezzo {
+    display: block;
+    color: #c0392b;
+    font-size: 1.25rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
 .servizio-card .durata {
+    display: block;
     color: #7f8c8d;
     font-size: 0.9rem;
+}
+
+/* Operatori */
+.operatori-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 1rem;
+}
+
+.operatore-card {
+    background: white;
+    padding: 1rem;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    text-align: center;
+    font-weight: 600;
+    color: #2c3e50;
 }
 
 /* Contatti */

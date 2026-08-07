@@ -40,11 +40,23 @@
             {% for servizio in servizi %}
             <div class="servizio-card">
                 <h3>{{ servizio.nome }}</h3>
+                <span class="prezzo">{{ servizio.prezzo }}</span>
                 <span class="durata">{{ servizio.durata }}</span>
             </div>
             {% endfor %}
         </div>
     </section>
+
+    {% if operatori %}
+    <section class="operatori" id="operatori">
+        <h2>Il team</h2>
+        <div class="operatori-grid">
+            {% for operatore in operatori %}
+            <div class="operatore-card">{{ operatore }}</div>
+            {% endfor %}
+        </div>
+    </section>
+    {% endif %}
 
     <section class="contatti" id="contatti">
         <h2>Contatti</h2>

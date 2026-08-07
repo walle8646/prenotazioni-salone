@@ -6,6 +6,7 @@ from sqlalchemy.orm import selectinload
 from datetime import datetime, date
 from models.database import get_db
 from models.orm import Appuntamento, Cliente, Parrucchiere
+from services import catalogo
 from config import settings
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -73,12 +74,28 @@ async def dashboard(request: Request, data: str = None, db=Depends(get_db)):
     )
     appuntamenti = result.scalars().all()
 
+    def prezzo_di(app) -> str:
+        """Prezzo pattuito alla prenotazione; per i vecchi record lo ricava dal listino."""
+        valore = (
+            float(app.prezzo)
+            if app.prezzo is not None
+            else catalogo.prezzo_totale(app.servizi)
+        )
+        return f"{valore:.2f}".replace(".", ",") + " €" if valore else "-"
+
+    incasso_previsto = sum(
+        float(a.prezzo) if a.prezzo is not None else catalogo.prezzo_totale(a.servizi)
+        for a in appuntamenti
+    )
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
             "request": request,
             "appuntamenti": appuntamenti,
             "data_selezionata": target_date,
+            "prezzo_di": prezzo_di,
+            "incasso_previsto": f"{incasso_previsto:.2f}".replace(".", ",") + " €",
         },
     )
 
