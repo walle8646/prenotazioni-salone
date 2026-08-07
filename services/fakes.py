@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 
 from config import settings
 from services.backends import Backends
-from services.slots import generate_slots
+from services.slots import adesso_salone, generate_slots
 
 
 class FakeRedis:
@@ -90,7 +90,12 @@ class FakeBackends(Backends):
         if date_str in self.giorni_chiusi:
             return []
 
-        possibili = generate_slots(date_str)
+        # Come il calendario vero: niente slot già passati né troppo imminenti.
+        possibili = generate_slots(
+            date_str,
+            adesso=adesso_salone(),
+            anticipo_minimo_min=settings.min_booking_hours_ahead * 60,
+        )
         if not possibili:
             return []
 

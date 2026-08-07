@@ -9,7 +9,11 @@ import pytest
 from services.conversation import handle_incoming_message, handle_incoming_message_web
 from services.fakes import ScriptedClaude
 
-MARTEDI = "2026-05-19"  # giorno di apertura, usato in tutti i test
+from .conftest import prossimo_giorno_aperto
+
+# Calcolato, non fisso: la disponibilità scarta gli slot già passati, quindi
+# una data scritta a mano prima o poi manda in rosso mezza suite.
+GIORNO = prossimo_giorno_aperto()
 
 
 @pytest.mark.asyncio
@@ -19,14 +23,14 @@ async def test_prenotazione_completa(mock_redis, canale, backends, cal_id_operat
         [
             ScriptedClaude.azione(
                 action="CHECK_DISPONIBILITA",
-                data=MARTEDI,
+                data=GIORNO,
                 parrucchiere=cal_id_operatore,
                 durata_min=30,
             ),
             "Francesco è libero alle 09:00, ti va bene?",
             ScriptedClaude.azione(
                 action="CREA_APPUNTAMENTO",
-                slot=f"{MARTEDI}T09:00",
+                slot=f"{GIORNO}T09:00",
                 parrucchiere="Francesco",
                 parrucchiere_cal_id=cal_id_operatore,
                 servizi=["Taglio"],
@@ -62,7 +66,7 @@ async def test_prenotazione_completa(mock_redis, canale, backends, cal_id_operat
     # L'appuntamento è finito nel database
     assert len(backends.appuntamenti) == 1
     appuntamento = backends.appuntamenti[0]
-    assert appuntamento["data_ora"] == f"{MARTEDI}T09:00"
+    assert appuntamento["data_ora"] == f"{GIORNO}T09:00"
     assert appuntamento["servizi"] == ["Taglio"]
     assert appuntamento["parrucchiere"] == "Francesco"
     assert appuntamento["richieste_spec"] == "Corto ai lati"
@@ -87,27 +91,27 @@ async def test_prenotazione_completa(mock_redis, canale, backends, cal_id_operat
 @pytest.mark.asyncio
 async def test_slot_occupato_non_viene_proposto(mock_redis, canale, backends, cal_id_operatore):
     """Dopo una prenotazione, lo stesso orario non risulta più libero per quel parrucchiere."""
-    backends.occupa(cal_id_operatore, f"{MARTEDI}T09:00", 30)
+    backends.occupa(cal_id_operatore, f"{GIORNO}T09:00", 30)
 
-    slots = await backends.check_availability(MARTEDI, cal_id_operatore, 30)
+    slots = await backends.check_availability(GIORNO, cal_id_operatore, 30)
     orari = [s["slot"] for s in slots]
 
-    assert f"{MARTEDI}T09:00" not in orari
-    assert f"{MARTEDI}T09:30" in orari
+    assert f"{GIORNO}T09:00" not in orari
+    assert f"{GIORNO}T09:30" in orari
 
 
 @pytest.mark.asyncio
 async def test_servizio_da_60_minuti_richiede_due_slot(backends, cal_id_operatore):
     """Con 60 minuti servono due slot consecutivi liberi."""
     # Occupo le 09:30: le 09:00 non possono più ospitare un servizio da un'ora
-    backends.occupa(cal_id_operatore, f"{MARTEDI}T09:30", 30)
+    backends.occupa(cal_id_operatore, f"{GIORNO}T09:30", 30)
 
-    slots_30 = [s["slot"] for s in await backends.check_availability(MARTEDI, cal_id_operatore, 30)]
-    slots_60 = [s["slot"] for s in await backends.check_availability(MARTEDI, cal_id_operatore, 60)]
+    slots_30 = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id_operatore, 30)]
+    slots_60 = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id_operatore, 60)]
 
-    assert f"{MARTEDI}T09:00" in slots_30
-    assert f"{MARTEDI}T09:00" not in slots_60
-    assert f"{MARTEDI}T10:00" in slots_60
+    assert f"{GIORNO}T09:00" in slots_30
+    assert f"{GIORNO}T09:00" not in slots_60
+    assert f"{GIORNO}T10:00" in slots_60
 
 
 @pytest.mark.asyncio
@@ -120,15 +124,15 @@ async def test_giorno_chiuso_non_ha_slot(backends):
 @pytest.mark.asyncio
 async def test_chiusura_straordinaria(backends):
     """Una chiusura straordinaria svuota la disponibilità di quel giorno."""
-    assert await backends.check_availability(MARTEDI, None, 30)
-    backends.chiudi_giorno(MARTEDI)
-    assert await backends.check_availability(MARTEDI, None, 30) == []
+    assert await backends.check_availability(GIORNO, None, 30)
+    backends.chiudi_giorno(GIORNO)
+    assert await backends.check_availability(GIORNO, None, 30) == []
 
 
 @pytest.mark.asyncio
 async def test_senza_preferenza_cerca_tutti_i_parrucchieri(backends):
     """Se il cliente non ha preferenze, la ricerca copre tutti i calendari."""
-    slots = await backends.check_availability(MARTEDI, None, 30)
+    slots = await backends.check_availability(GIORNO, None, 30)
     nomi = {s["parrucchiere"] for s in slots}
     assert len(nomi) == len(backends.parrucchieri)
 
@@ -137,7 +141,7 @@ async def test_senza_preferenza_cerca_tutti_i_parrucchieri(backends):
 async def test_cancellazione_libera_lo_slot(mock_redis, canale, backends, cal_id_operatore):
     """Cancellare un appuntamento rimette in circolo l'orario."""
     event_id = await backends.create_event(
-        slot=f"{MARTEDI}T09:00",
+        slot=f"{GIORNO}T09:00",
         parrucchiere_cal_id=cal_id_operatore,
         servizi=["Taglio"],
         durata=30,
@@ -145,13 +149,13 @@ async def test_cancellazione_libera_lo_slot(mock_redis, canale, backends, cal_id
     )
     await backends.create_appointment(
         client_id=1,
-        data_ora=f"{MARTEDI}T09:00",
+        data_ora=f"{GIORNO}T09:00",
         servizi=["Taglio"],
         parrucchiere="Francesco",
         gcal_event_id=event_id,
     )
-    orari = [s["slot"] for s in await backends.check_availability(MARTEDI, cal_id_operatore, 30)]
-    assert f"{MARTEDI}T09:00" not in orari
+    orari = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id_operatore, 30)]
+    assert f"{GIORNO}T09:00" not in orari
 
     claude = ScriptedClaude(
         [
@@ -175,8 +179,8 @@ async def test_cancellazione_libera_lo_slot(mock_redis, canale, backends, cal_id
     )
 
     assert backends.appuntamenti[0]["stato"] == "Cancellato"
-    orari = [s["slot"] for s in await backends.check_availability(MARTEDI, cal_id_operatore, 30)]
-    assert f"{MARTEDI}T09:00" in orari
+    orari = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id_operatore, 30)]
+    assert f"{GIORNO}T09:00" in orari
 
 
 @pytest.mark.asyncio
@@ -202,7 +206,7 @@ async def test_chat_web_mostra_anche_il_testo_prima_dell_azione(mock_redis, back
     claude = ScriptedClaude(
         [
             "Controllo subito!\n"
-            + ScriptedClaude.azione(action="CHECK_DISPONIBILITA", data=MARTEDI, durata_min=30),
+            + ScriptedClaude.azione(action="CHECK_DISPONIBILITA", data=GIORNO, durata_min=30),
             "Ci sono posti liberi martedì mattina.",
         ]
     )
@@ -226,7 +230,7 @@ async def test_foto_allegata_alla_prenotazione(mock_redis, canale, backends, cal
         [
             ScriptedClaude.azione(
                 action="CREA_APPUNTAMENTO",
-                slot=f"{MARTEDI}T10:00",
+                slot=f"{GIORNO}T10:00",
                 parrucchiere="Francesco",
                 parrucchiere_cal_id=cal_id_operatore,
                 servizi=["Taglio"],
@@ -262,7 +266,7 @@ async def test_prezzo_e_durata_del_colore(mock_redis, canale, backends, cal_id_o
         [
             ScriptedClaude.azione(
                 action="CREA_APPUNTAMENTO",
-                slot=f"{MARTEDI}T09:00",
+                slot=f"{GIORNO}T09:00",
                 parrucchiere="Francesco",
                 parrucchiere_cal_id=cal_id_operatore,
                 servizi=["Colore + Taglio + Trattamento capello"],
@@ -287,10 +291,10 @@ async def test_prezzo_e_durata_del_colore(mock_redis, canale, backends, cal_id_o
     assert appuntamento["durata_min"] == 120
     assert appuntamento["prezzo"] == 50.00
     # e le due ore risultano davvero occupate sul calendario
-    liberi = [s["slot"] for s in await backends.check_availability(MARTEDI, cal_id_operatore, 30)]
-    assert f"{MARTEDI}T09:00" not in liberi
-    assert f"{MARTEDI}T10:30" not in liberi
-    assert f"{MARTEDI}T11:00" in liberi
+    liberi = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id_operatore, 30)]
+    assert f"{GIORNO}T09:00" not in liberi
+    assert f"{GIORNO}T10:30" not in liberi
+    assert f"{GIORNO}T11:00" in liberi
 
 
 @pytest.mark.asyncio
@@ -300,7 +304,7 @@ async def test_cliente_dal_sito_e_marcato_come_web(mock_redis, backends, cal_id_
         [
             ScriptedClaude.azione(
                 action="CREA_APPUNTAMENTO",
-                slot=f"{MARTEDI}T09:00",
+                slot=f"{GIORNO}T09:00",
                 parrucchiere="Francesco",
                 parrucchiere_cal_id=cal_id_operatore,
                 servizi=["Taglio"],

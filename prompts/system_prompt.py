@@ -56,9 +56,10 @@ def build_system_prompt(session: dict) -> str:
     giorno_settimana = GIORNI[adesso.weekday()]
 
     parr_map = get_parrucchieri_map_cached()
-    parr_lines = "\n".join(
-        f"- {nome} (cal_id: {cal_id})" for nome, cal_id in parr_map.items()
-    )
+    # Solo i nomi. Gli identificativi dei calendari li risolve il codice: farli
+    # ricopiare al modello voleva dire vederseli restituire troncati, e un
+    # calendario irraggiungibile è indistinguibile da un'agenda piena.
+    parr_lines = "\n".join(f"- {nome}" for nome in parr_map)
 
     return f"""Sei l'assistente virtuale del Salone Nadia.
 Sei cordiale, amichevole e professionale. Parli in italiano.
@@ -83,10 +84,11 @@ Regole sul listino:
 - I servizi da 60 e 120 minuti occupano più slot consecutivi: il sistema li
   verifica automaticamente, a te basta indicare la durata giusta.
 
-## OPERATORI E CALENDAR ID
+## OPERATORI
 {parr_lines}
 
 Tutti gli operatori eseguono tutti i servizi del listino.
+Negli elenchi qui sotto usa sempre il nome esatto dell'operatore, così com'è scritto.
 
 ## FASE CORRENTE: {stato}
 
@@ -117,6 +119,9 @@ Email: {dati.get('email') or 'non ancora raccolta'}
     gli slot. Includi il nome dell'operatore se il cliente non aveva preferenze.
 11. Prima di creare l'appuntamento ricapitola servizio, prezzo, data, ora e
     operatore, e chiedi conferma.
+12. Scrivi in testo semplice, senza markdown. Né WhatsApp né il widget del sito
+    interpretano gli asterischi: al cliente arriverebbe "**Taglio** — 13,50 €"
+    con gli asterischi in bella vista.
 
 ## FLUSSO DA SEGUIRE
 - saluto → chiedi cosa desidera
@@ -131,18 +136,25 @@ Email: {dati.get('email') or 'non ancora raccolta'}
 Quando hai bisogno di dati dal sistema, rispondi con SOLO il JSON dell'azione.
 NON aggiungere MAI testo prima o dopo il JSON.
 
-Senza preferenza di operatore:
-{{"action": "CHECK_DISPONIBILITA", "data": "2026-08-11", "parrucchiere": null, "durata_min": 30}}
+In "parrucchiere" va SEMPRE il nome dell'operatore, mai un identificativo di
+calendario: al calendario giusto ci pensa il sistema.
 
-Con operatore specifico (passa il suo cal_id):
-{{"action": "CHECK_DISPONIBILITA", "data": "2026-08-11", "parrucchiere": "CAL_ID_OPERATORE", "durata_min": 120}}
+Indica sempre in "servizi" quello che il cliente ha scelto, con i nomi esatti
+del listino: serve a calcolare quanto tempo bloccare e a non perdere la scelta
+se la conversazione si allunga.
+
+Senza preferenza di operatore:
+{{"action": "CHECK_DISPONIBILITA", "data": "2026-08-11", "parrucchiere": null, "servizi": ["Taglio"], "durata_min": 30}}
+
+Con operatore specifico:
+{{"action": "CHECK_DISPONIBILITA", "data": "2026-08-11", "parrucchiere": "Francesco", "servizi": ["Colore + Taglio + Trattamento capello"], "durata_min": 120}}
 
 Per creare l'appuntamento passa TUTTI i dati raccolti, usando per "servizi" i
 nomi esatti del listino:
-{{"action": "CREA_APPUNTAMENTO", "slot": "2026-08-11T09:00", "parrucchiere": "Francesco", "parrucchiere_cal_id": "CAL_ID_OPERATORE", "servizi": ["Taglio + Barba"], "durata_min": 30, "nome": "Valerio", "cognome": "Rossi", "email": "valerio@email.it", "richieste_spec": "Corto ai lati"}}
+{{"action": "CREA_APPUNTAMENTO", "slot": "2026-08-11T09:00", "parrucchiere": "Francesco", "servizi": ["Taglio + Barba"], "durata_min": 30, "nome": "Valerio", "cognome": "Rossi", "email": "valerio@email.it", "richieste_spec": "Corto ai lati"}}
 
 Per cancellare:
-{{"action": "CANCELLA_APPUNTAMENTO", "app_id": 123, "gcal_event_id": "evt123", "parrucchiere_cal_id": "CAL_ID_OPERATORE"}}
+{{"action": "CANCELLA_APPUNTAMENTO", "app_id": 123, "gcal_event_id": "evt123", "parrucchiere": "Francesco"}}
 
 IMPORTANTE: Usa SOLO date future a partire da {oggi}. MAI date nel passato.
 Se il cliente dice "oggi", "domani", "martedì prossimo", calcola la data corretta.

@@ -11,6 +11,9 @@ httpx==0.28.*
 websockets==14.*
 resend==2.*
 apscheduler==3.10.*
+# Serve a zoneinfo per risolvere Europe/Rome: le immagini slim non portano
+# sempre il database dei fusi di sistema.
+tzdata==2026.*
 pydantic-settings==2.7.*
 python-dotenv==1.0.*
 jinja2==3.1.*

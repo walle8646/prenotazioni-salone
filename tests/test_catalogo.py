@@ -136,11 +136,14 @@ def test_ogni_operatore_ha_una_voce_di_calendario():
     assert all(cal_id for cal_id in mappa.values())
 
 
-def test_calendari_non_configurati_sono_segnalati():
+def test_calendari_non_configurati_sono_segnalati(monkeypatch):
     """Senza GCAL_PARRUCCHIERE_IDS tutti gli operatori risultano da configurare."""
+    from config import settings
     from services.operatori import senza_calendario
 
-    # In ambiente di test la variabile non è impostata
+    # La condizione va dichiarata, non ereditata dall'ambiente: chi sviluppa in
+    # locale ha un .env con i calendari veri, e il test passava solo per caso.
+    monkeypatch.setattr(settings, "gcal_parrucchiere_ids", "[]")
     assert len(senza_calendario()) == len(OPERATORI)
 
 

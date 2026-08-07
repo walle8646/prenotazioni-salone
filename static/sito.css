@@ -265,6 +265,10 @@ footer {
     max-width: 85%;
     font-size: 0.9rem;
     line-height: 1.4;
+    /* Il bot manda elenchi su più righe: senza questo il browser li appiattisce
+       tutti su una riga sola e il listino diventa illeggibile. */
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
 }
 
 .message.bot {
@@ -333,6 +337,11 @@ footer {
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 500;
+    /* I nomi del listino sono lunghi: il bottone va a capo invece di uscire
+       dal riquadro della chat. */
+    max-width: 100%;
+    white-space: normal;
+    text-align: left;
     transition: all 0.15s;
 }
 

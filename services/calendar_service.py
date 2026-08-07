@@ -4,6 +4,7 @@ from googleapiclient.errors import HttpError
 from datetime import datetime, timedelta
 from config import settings
 from prompts.system_prompt import get_parrucchieri_map_cached
+from services.slots import FUSO_SALONE, adesso_salone
 from services.slots import generate_slots as _generate_slots
 import asyncio
 import logging
@@ -11,6 +12,26 @@ import logging
 logger = logging.getLogger(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/calendar"]
+
+
+def _inizio_slot(slot: str) -> datetime:
+    """Istante di inizio di uno slot ('2026-11-10T15:00') nel fuso del salone."""
+    return datetime.strptime(slot, "%Y-%m-%dT%H:%M").replace(tzinfo=FUSO_SALONE)
+
+
+def _istante(punto: dict) -> datetime | None:
+    """Converte lo start/end di un evento Google in un istante con fuso.
+
+    Gli eventi su tutta la giornata portano solo 'date': valgono dalla
+    mezzanotte del salone.
+    """
+    valore = punto.get("dateTime")
+    if valore:
+        return datetime.fromisoformat(valore)
+    giorno = punto.get("date")
+    if giorno:
+        return datetime.strptime(giorno, "%Y-%m-%d").replace(tzinfo=FUSO_SALONE)
+    return None
 
 
 def _get_cal_id_to_name() -> dict[str, str]:
@@ -32,7 +53,11 @@ async def check_availability(
     Per servizi da 60 min, verifica automaticamente 2 slot consecutivi.
     """
     service = _get_service()
-    possible_slots = _generate_slots(date_str)
+    possible_slots = _generate_slots(
+        date_str,
+        adesso=adesso_salone(),
+        anticipo_minimo_min=settings.min_booking_hours_ahead * 60,
+    )
 
     if not possible_slots:
         return []
@@ -59,8 +84,13 @@ async def check_availability(
 
         # Calendari da controllare
         cal_ids = [parrucchiere_cal_id] if parrucchiere_cal_id else settings.parrucchiere_calendar_ids
+        if not cal_ids:
+            raise RuntimeError(
+                "Nessun calendario configurato: imposta GCAL_PARRUCCHIERE_IDS."
+            )
 
         available = []
+        non_leggibili = []
         for cal_id in cal_ids:
             try:
                 events = service.events().list(
@@ -70,22 +100,21 @@ async def check_availability(
                 ).execute().get("items", [])
             except HttpError as e:
                 logger.warning(f"Calendario {cal_id} non accessibile: {e}")
+                non_leggibili.append(f"{cal_id} (HTTP {e.resp.status})")
                 continue
 
             busy_times = []
             for ev in events:
-                start = ev["start"].get("dateTime", ev["start"].get("date"))
-                end = ev["end"].get("dateTime", ev["end"].get("date"))
-                busy_times.append((start, end))
+                inizio = _istante(ev["start"])
+                fine = _istante(ev["end"])
+                if inizio and fine:
+                    busy_times.append((inizio, fine))
 
             # Trova slot liberi per questo parrucchiere
             free_slots = set()
             for slot in possible_slots:
-                slot_start = f"{slot}:00+02:00"
-                slot_end_dt = datetime.strptime(slot, "%Y-%m-%dT%H:%M") + timedelta(
-                    minutes=settings.slot_duration_min
-                )
-                slot_end = slot_end_dt.strftime("%Y-%m-%dT%H:%M:00+02:00")
+                slot_start = _inizio_slot(slot)
+                slot_end = slot_start + timedelta(minutes=settings.slot_duration_min)
 
                 is_busy = any(
                     not (slot_end <= bs or slot_start >= be)
@@ -118,6 +147,15 @@ async def check_availability(
                     "parrucchiere": nome_parrucchiere,
                     "parrucchiere_cal_id": cal_id,
                 })
+
+        # Un calendario irraggiungibile restituiva una lista vuota, che il bot
+        # riferiva al cliente come "nessuna disponibilità": il salone risultava
+        # pieno mentre era solo mal configurato. Se non se ne è potuto leggere
+        # nemmeno uno, è un guasto e va detto.
+        if non_leggibili and len(non_leggibili) == len(cal_ids):
+            raise RuntimeError(
+                "Nessun calendario leggibile: " + "; ".join(non_leggibili)
+            )
 
         return available
 

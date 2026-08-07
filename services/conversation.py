@@ -17,8 +17,13 @@ import json
 import logging
 import re
 
-from prompts.system_prompt import build_system_prompt
+from prompts.system_prompt import (
+    build_system_prompt,
+    get_cal_id_for_parrucchiere,
+    get_parrucchieri_map_cached,
+)
 from services.channels import Channel, MetaWhatsAppChannel, WebChannel
+from services.operatori import PREFISSO_NON_CONFIGURATO
 from services.session_manager import get_session, save_session
 
 logger = logging.getLogger(__name__)
@@ -26,7 +31,16 @@ logger = logging.getLogger(__name__)
 # Quante volte al massimo Claude può chiedere un'azione prima di dover
 # rispondere al cliente. Evita loop infiniti se il modello continua a
 # richiedere azioni senza mai concludere.
-MAX_ITERATIONS = 3
+#
+# Tre erano poche: quando il cliente chiede "il primo posto libero" il modello
+# interroga più giorni di fila e restava senza iterazioni prima di aver scritto
+# qualcosa, facendo arrivare al cliente il messaggio di errore tecnico.
+MAX_ITERATIONS = 5
+
+# Oltre questa lunghezza una riga non è più una scelta ma un ragionamento, e
+# come bottone non avrebbe senso. I limiti dei singoli canali (WhatsApp accorcia
+# i titoli, il sito no) li dichiara il canale: qui non se ne sa nulla.
+LUNGHEZZA_MASSIMA_OPZIONE = 120
 
 MESSAGGIO_TIPO_NON_SUPPORTATO = (
     "Mi dispiace, al momento posso leggere solo messaggi di testo e foto. "
@@ -59,6 +73,7 @@ def parse_response_with_options(response: str) -> tuple[str, list[dict] | None]:
     lines = response.strip().split("\n")
     options: list[dict] = []
     text_lines: list[str] = []
+    tutte_convertibili = True
 
     for line in lines:
         stripped = line.strip()
@@ -69,7 +84,10 @@ def parse_response_with_options(response: str) -> tuple[str, list[dict] | None]:
             clean_title = re.sub(
                 r"^[\U0001F300-\U0001FAFF☀-➿\s✂️🚿🧔💈]+", "", option_text
             ).strip()
-            if clean_title and len(clean_title) <= 24:
+            # Claude scrive volentieri in markdown, che né WhatsApp né il widget
+            # interpretano: sul bottone comparirebbe "Oggi alle **08:00**".
+            clean_title = clean_title.replace("**", "").replace("__", "").strip()
+            if clean_title and len(clean_title) <= LUNGHEZZA_MASSIMA_OPZIONE:
                 options.append(
                     {
                         "id": f"opt_{len(options)}",
@@ -78,10 +96,14 @@ def parse_response_with_options(response: str) -> tuple[str, list[dict] | None]:
                     }
                 )
                 continue
+            # Una voce troppo lunga per essere una scelta: se convertissimo solo
+            # le altre, il cliente si troverebbe un elenco scritto e dei bottoni
+            # che non gli corrispondono. Meglio lasciare tutto testo.
+            tutte_convertibili = False
         text_lines.append(line)
 
-    # Trattiamo come opzioni solo se ce ne sono almeno due
-    if len(options) >= 2:
+    # Opzioni solo se ce ne sono almeno due e l'elenco è convertibile per intero
+    if len(options) >= 2 and tutte_convertibili:
         clean_text = "\n".join(text_lines).strip() or "Scegli un'opzione:"
         return clean_text, options
 
@@ -120,9 +142,15 @@ def try_parse_action(response: str) -> tuple[dict | None, str | None]:
 
 
 async def deliver(channel: Channel, to: str, response: str) -> None:
-    """Consegna una risposta sul canale, con bottoni se il testo contiene opzioni."""
+    """Consegna una risposta sul canale, con bottoni se il testo contiene opzioni.
+
+    Quanto può essere lungo un titolo cliccabile lo sa solo il canale: WhatsApp
+    ha limiti stretti, il widget del sito no. Se le opzioni non stanno nei
+    limiti si consegna il testo originale, invece di mostrare bottoni che non
+    corrispondono a quello che c'è scritto sopra.
+    """
     text, options = parse_response_with_options(response)
-    if options:
+    if options and channel.opzioni_sostenibili(options):
         await channel.send_options(to, text, options)
     else:
         await channel.send_text(to, response)
@@ -245,11 +273,14 @@ async def execute_action(action: dict, phone: str, session: dict, backends=None)
 
     try:
         if action_type == "CHECK_DISPONIBILITA":
-            return await _check_disponibilita(action, backends)
+            return await _check_disponibilita(action, session, backends)
         if action_type == "CREA_APPUNTAMENTO":
             return await _crea_appuntamento(action, phone, session, backends)
         if action_type == "CANCELLA_APPUNTAMENTO":
             return await _cancella_appuntamento(action, backends)
+    except OperatoreSconosciuto as e:
+        logger.warning("Operatore non risolto nell'azione %s: %s", action_type, e)
+        return {"errore": str(e)}
     except KeyError as e:
         logger.error("Azione %s incompleta, manca il campo %s", action_type, e)
         return {"errore": f"Dato mancante nell'azione: {e}. Chiedilo al cliente."}
@@ -261,13 +292,116 @@ async def execute_action(action: dict, phone: str, session: dict, backends=None)
     return {"errore": f"Azione '{action_type}' non riconosciuta"}
 
 
-async def _check_disponibilita(action: dict, backends) -> dict:
+class OperatoreSconosciuto(Exception):
+    """Il nome di operatore indicato non corrisponde a nessun calendario."""
+
+
+def _risolvi_calendario(valore: str | None) -> str | None:
+    """Trasforma il nome di un operatore nell'id del suo calendario Google.
+
+    Claude indica l'operatore per nome: farfli ricopiare l'id del calendario
+    (novanta caratteri opachi) significava vederlo troncato, e un calendario
+    inesistente risponde 404, che il chiamante leggeva come "nessuno slot
+    libero". Meglio risolvere qui e fallire in modo esplicito.
+
+    None significa "nessuna preferenza": vanno controllati tutti i calendari.
+    """
+    if not valore:
+        return None
+
+    mappa = get_parrucchieri_map_cached()
+
+    # Retrocompatibilità: se arriva già un id di calendario, lo si accetta.
+    if valore in mappa.values():
+        return valore
+
+    cal_id = get_cal_id_for_parrucchiere(valore)
+    if cal_id is None:
+        raise OperatoreSconosciuto(
+            f"'{valore}' non è un operatore del salone. "
+            f"Operatori validi: {', '.join(mappa)}."
+        )
+    if cal_id.startswith(PREFISSO_NON_CONFIGURATO):
+        raise OperatoreSconosciuto(
+            f"L'operatore {valore} non ha ancora un calendario configurato: "
+            "non è possibile verificare la sua disponibilità né prenotare."
+        )
+    return cal_id
+
+
+# Fasi del flusso, nell'ordine in cui i dati si accumulano. Servono a tenere
+# onesta la voce "FASE CORRENTE" del prompt, che altrimenti resta "saluto" per
+# tutta la conversazione.
+_FASI = (
+    ("nome", "email"),
+    ("slot", "intake"),
+    ("parrucchiere", "scelta_slot"),
+    ("servizio", "scelta_operatore"),
+)
+
+
+def _ricorda(session: dict, **campi) -> None:
+    """Annota nella sessione quello che si è appena appreso.
+
+    Lo storico viene troncato agli ultimi `max_history_messages` messaggi: dal
+    sesto turno in poi la richiesta iniziale del cliente non c'è più. Questi
+    dati sopravvivono alla troncatura e finiscono nel prompt, quindi vanno
+    scritti appena si conoscono, non a prenotazione avvenuta.
+    """
+    dati = session.setdefault("dati_temp", {})
+    cambiato = False
+    for chiave, valore in campi.items():
+        if valore and dati.get(chiave) != valore:
+            dati[chiave] = valore
+            cambiato = True
+
+    if not cambiato or session.get("stato_flusso") == "confermato":
+        return
+
+    for chiave, fase in _FASI:
+        if dati.get(chiave):
+            session["stato_flusso"] = fase
+            return
+    session["stato_flusso"] = "scelta_servizio"
+
+
+def _descrivi_servizi(servizi) -> str:
+    """Nome leggibile dei servizi scelti, normalizzato sul listino."""
+    from services import catalogo
+
+    risolti = catalogo.risolvi(servizi)
+    if risolti:
+        return ", ".join(s.nome for s in risolti)
+    if isinstance(servizi, str):
+        return servizi
+    return ", ".join(str(s) for s in servizi or [])
+
+
+async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
     from config import settings
+    from services import catalogo
+
+    servizi = action.get("servizi") or []
+
+    # La durata la decide il catalogo anche in fase di ricerca, non solo di
+    # creazione: se il modello sottostima (trenta minuti per un colore che ne
+    # dura centoventi) verrebbero proposti slot liberi solo in apparenza, e la
+    # prenotazione finirebbe sopra l'appuntamento successivo.
+    if servizi:
+        durata = catalogo.durata_totale(servizi)
+    else:
+        durata = action.get("durata_min") or settings.slot_duration_min
+
+    _ricorda(
+        session,
+        servizio=_descrivi_servizi(servizi) if servizi else None,
+        parrucchiere=action.get("parrucchiere"),
+    )
 
     slots = await backends.check_availability(
         action.get("data"),
-        action.get("parrucchiere"),
-        action.get("durata_min") or settings.slot_duration_min,
+        _risolvi_calendario(action.get("parrucchiere")),
+        durata,
     )
     if not slots:
         return {
@@ -305,22 +439,36 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     if phone and not phone.startswith("web_"):
         descrizione_parts.append(f"WhatsApp: {phone}")
 
+    # Il calendario si ricava dal nome dell'operatore; l'id esplicito resta
+    # accettato per retrocompatibilità con le sessioni già in corso.
+    cal_id = _risolvi_calendario(
+        action.get("parrucchiere_cal_id") or action.get("parrucchiere")
+    )
+    if cal_id is None:
+        raise OperatoreSconosciuto(
+            "Manca l'operatore: non so su quale calendario scrivere l'appuntamento."
+        )
+
     event_id = await backends.create_event(
         slot=action["slot"],
-        parrucchiere_cal_id=action["parrucchiere_cal_id"],
+        parrucchiere_cal_id=cal_id,
         servizi=servizi,
         durata=durata,
         cliente_nome=nome_completo,
         descrizione="\n".join(descrizione_parts),
     )
 
-    # Aggiorna la sessione con i dati confermati
-    dati["nome"] = nome
-    dati["cognome"] = cognome
-    dati["slot"] = action["slot"]
-    dati["parrucchiere"] = action.get("parrucchiere")
-    if email:
-        dati["email"] = email
+    # Aggiorna la sessione con i dati confermati. Passa da _ricorda così i
+    # campi vuoti non cancellano quello che si sapeva già.
+    _ricorda(
+        session,
+        nome=nome,
+        cognome=cognome,
+        slot=action["slot"],
+        parrucchiere=action.get("parrucchiere"),
+        email=email,
+        servizio=_descrivi_servizi(servizi) if servizi else None,
+    )
 
     # Dal sito l'identificativo di sessione cambia a ogni visita: è l'email a
     # dire se la persona è già conosciuta, e il canale va registrato per quello
@@ -379,6 +527,9 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
 async def _cancella_appuntamento(action: dict, backends) -> dict:
     gcal_event_id = action.get("gcal_event_id")
     if gcal_event_id:
-        await backends.delete_event(gcal_event_id, action.get("parrucchiere_cal_id"))
+        cal_id = _risolvi_calendario(
+            action.get("parrucchiere_cal_id") or action.get("parrucchiere")
+        )
+        await backends.delete_event(gcal_event_id, cal_id)
     await backends.update_appointment_status(action["app_id"], "Cancellato")
     return {"cancellazione": "completata"}

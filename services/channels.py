@@ -22,6 +22,17 @@ class Channel:
     name = "base"
     # I canali che sanno mostrare bottoni o liste cliccabili mettono True.
     supports_options = False
+    # Lunghezza massima di un titolo cliccabile. None significa nessun limite:
+    # è il caso del widget del sito, dove il bottone è un elemento HTML e può
+    # contenere quello che vuole.
+    lunghezza_massima_opzione: int | None = None
+
+    def opzioni_sostenibili(self, options: list[dict]) -> bool:
+        """True se questo canale può mostrare tutte le opzioni senza storpiarle."""
+        limite = self.lunghezza_massima_opzione
+        if limite is None:
+            return True
+        return all(len(o["title"]) <= limite for o in options)
 
     async def send_text(self, to: str, text: str) -> None:
         raise NotImplementedError
@@ -41,6 +52,11 @@ class MetaWhatsAppChannel(Channel):
 
     name = "whatsapp"
     supports_options = True
+    # Meta accorcia i titoli a 20 caratteri per i bottoni e 24 per le righe di
+    # una lista. Un titolo tagliato tornerebbe indietro tagliato anche nella
+    # risposta del cliente, e il listino non lo riconoscerebbe più: meglio
+    # rinunciare ai bottoni e mandare l'elenco come testo.
+    lunghezza_massima_opzione = 20
 
     async def send_text(self, to: str, text: str) -> None:
         from services.whatsapp_service import send_text_message

@@ -1,11 +1,29 @@
+from datetime import date, timedelta
+
 import pytest
 
 from prompts.system_prompt import PARRUCCHIERI_MAP, set_parrucchieri_cache
 from services.channels import CollectorChannel
 from services.fakes import FakeBackends, FakeRedis
 from services.operatori import OPERATORI
+from services.slots import is_open
 
 OPERATORE_TEST = OPERATORI[2]  # Francesco
+
+
+def prossimo_giorno_aperto(minimo_giorni_avanti: int = 7) -> str:
+    """Una data futura in cui il salone è aperto.
+
+    I test non devono invecchiare. Una data fissa col passare dei mesi finisce
+    nel passato, e la disponibilità — che ora scarta gli slot già trascorsi —
+    smette di proporne, facendo fallire test che non c'entrano niente.
+    """
+    giorno = date.today() + timedelta(days=minimo_giorni_avanti)
+    for _ in range(14):
+        if is_open(giorno.isoformat()):
+            return giorno.isoformat()
+        giorno += timedelta(days=1)
+    raise RuntimeError("nessun giorno di apertura nelle prossime due settimane")
 
 
 @pytest.fixture(autouse=True)
