@@ -101,6 +101,14 @@ Fidarsi del numero dichiarato dal modello significa proporre slot liberi solo in
 apparenza: un colore da due ore prenotato come mezz'ora finisce sopra
 l'appuntamento successivo.
 
+**Il seed degli operatori riempie solo quello che manca.** `seed_parrucchieri`
+gira a ogni avvio: prima riattivava chi era nell'elenco del codice e
+disattivava chi non c'era, e col pannello vorrebbe dire vedersi sparire al
+deploy successivo l'operatore appena assunto e tornare al lavoro quello appena
+messo a riposo. Il calendario della configurazione sovrascrive solo un
+segnaposto (`sovrascrive_il_calendario()`): quando in tabella c'è un
+calendario vero, a cambiarlo è il pannello.
+
 **"Indifferente" lo aggiunge il codice, non il modello** (`con_indifferente()`).
 Il prompt lo chiede da sempre e quasi sempre viene rispettato, ma "quasi" non
 basta per l'unica via d'uscita di chi non ha preferenze: senza quella voce
@@ -125,10 +133,33 @@ storico viene troncato agli ultimi `max_history_messages` messaggi e ogni turno
 ne aggiunge quattro: dal sesto turno la richiesta iniziale del cliente non c'è
 più, e senza quei dati il bot ricomincia a chiedere cosa voleva.
 
+## Pannello di gestione
+
+Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata),
+**Clienti** (elenco con ricerca e scheda singola), **Listino** e **Operatori**
+(modifica in linea, una riga per form).
+
+Due regole valgono per tutte e due le schermate di modifica.
+
+**Dopo ogni scrittura si ricarica la cache** (`_ricarica_listino()`,
+`_ricarica_operatori()` in `routers/admin.py`). Bot, prompt e sito leggono il
+listino e gli operatori da una copia in memoria, non dal database: senza
+quella riga il prezzo corretto resterebbe quello vecchio in bocca al bot fino
+al riavvio. La copia è per processo, quindi con più worker uvicorn andrebbe
+ripensata; oggi il processo è uno solo.
+
+**Non si cancella niente, si sospende.** Un servizio tolto dal listino e un
+operatore a riposo spariscono dalle scelte del bot ma restano negli
+appuntamenti già fatti, che altrimenti diventerebbero illeggibili.
+
+Le righe di modifica non sono in una tabella: ogni riga è un form a sé, e un
+`<form>` dentro un `<tr>` non è HTML valido — il browser lo sposta fuori dalla
+tabella e i campi smettono di essere inviati. Le colonne le fa una griglia CSS.
+
 ## Listino e operatori
 
-A runtime il listino vive nella tabella `servizi` del database, così il futuro
-pannello di gestione potrà cambiarlo senza toccare il codice.
+A runtime il listino vive nella tabella `servizi` del database, così il
+pannello di gestione può cambiarlo senza toccare il codice.
 `services/catalogo.py` contiene il listino iniziale con cui la tabella viene
 riempita al primo avvio, e fa da fallback per test e simulatore. Da lì leggono
 il system prompt, il sito, il calcolo della durata e i totali in dashboard.
@@ -197,10 +228,6 @@ processo sempre acceso. E il disco è effimero: le foto salvate da
 - **WhatsApp** gira su un numero di prova di Meta, che consegna solo ai
   destinatari autorizzati a mano (massimo cinque). Per aprirlo ai clienti serve
   un numero proprio, e a quel punto la verifica dell'azienda.
-- Pannello CRM da costruire: schermate CRUD su `servizi` e `parrucchieri`, più
-  anagrafica clienti. Oggi il pannello mostra solo gli appuntamenti del giorno.
-- `max_booking_days_ahead` è configurato ma non applicato: si può prenotare a
-  qualunque distanza.
 - `cancel_notify` in `routers/admin.py` è un endpoint vuoto.
 - Per ricominciare da capo il cliente deve scrivere "ricominciamo da capo" (o
   "reset", "azzera tutto": le riconosce `vuole_ricominciare()`, e fra queste

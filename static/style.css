@@ -186,6 +186,91 @@ body {
     border-radius: 8px;
 }
 
+/* Gestione: listino e operatori.
+   Righe in griglia e non in tabella, perché ogni riga è un form a sé e un
+   <form> dentro un <tr> non è HTML valido. */
+.gestione h2 {
+    margin-bottom: 0.5rem;
+}
+
+.gestione h3 {
+    margin: 2rem 0 0.7rem;
+    font-size: 1.05rem;
+}
+
+.nota {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    margin-bottom: 1.2rem;
+}
+
+.griglia-intestazione {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #7f8c8d;
+    padding: 0 1rem 0.4rem;
+}
+
+.riga-gestione {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: white;
+    padding: 0.6rem 1rem;
+    margin-bottom: 0.4rem;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+
+.riga-gestione > form:first-child {
+    flex: 1;
+}
+
+.griglia-servizi {
+    display: grid;
+    grid-template-columns: 4rem 1fr 5.5rem 5rem 1.4fr auto;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.griglia-operatori {
+    display: grid;
+    grid-template-columns: 1fr 2fr auto;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.riga-gestione input {
+    padding: 0.45rem 0.6rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+    min-width: 0;
+}
+
+.riga-sospesa {
+    opacity: 0.55;
+}
+
+.btn-neutro {
+    background: #7f8c8d;
+}
+
+.btn-neutro:hover {
+    background: #6c7a7b;
+}
+
+.campo-da-configurare {
+    border-color: #e67e22;
+    background: #fef5ec;
+}
+
+.avviso-riga {
+    color: #b9531a;
+    font-size: 0.85rem;
+    margin: -0.1rem 0 0.7rem 1rem;
+}
+
 /* Cliente scheda */
 .cliente-scheda h2 {
     margin-bottom: 1.5rem;

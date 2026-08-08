@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Operatori - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <h2>Operatori</h2>
+    <p class="nota">
+        Ogni operatore ha bisogno di un calendario Google dedicato, condiviso
+        con il service account del bot come <strong>writer</strong>. Senza,
+        le prenotazioni con quella persona falliscono.
+    </p>
+
+    {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
+
+    <div class="griglia-intestazione griglia-operatori">
+        <span>Nome</span>
+        <span>Calendario Google</span>
+        <span></span>
+    </div>
+
+    {% for o in operatori %}
+    <div class="riga-gestione {{ '' if o.attivo else 'riga-sospesa' }}">
+        <form method="POST" action="/admin/operatori/{{ o.id }}" class="griglia-operatori">
+            <input type="text" name="nome" value="{{ o.nome }}" required aria-label="Nome">
+            <input type="text" name="gcal_calendar_id" value="{{ o.gcal_calendar_id }}"
+                   required aria-label="Calendar ID"
+                   class="{{ 'campo-da-configurare' if o.gcal_calendar_id.startswith(prefisso_non_configurato) else '' }}">
+            <button type="submit" class="btn-small">Salva</button>
+        </form>
+        <form method="POST" action="/admin/operatori/{{ o.id }}/stato" class="azione-secondaria">
+            <button type="submit" class="btn-small btn-neutro">
+                {{ 'Metti a riposo' if o.attivo else 'Rimetti in servizio' }}
+            </button>
+        </form>
+    </div>
+    {% if o.gcal_calendar_id.startswith(prefisso_non_configurato) %}
+    <p class="avviso-riga">
+        {{ o.nome }} non ha ancora un calendario vero: le prenotazioni con lui
+        falliranno finché non ne incolli qui l'identificativo.
+    </p>
+    {% endif %}
+    {% endfor %}
+
+    <h3>Aggiungi un operatore</h3>
+    <div class="riga-gestione">
+        <form method="POST" action="/admin/operatori" class="griglia-operatori">
+            <input type="text" name="nome" placeholder="Nome" required aria-label="Nome">
+            <input type="text" name="gcal_calendar_id"
+                   placeholder="xxxxx@group.calendar.google.com" required aria-label="Calendar ID">
+            <button type="submit" class="btn-small">Aggiungi</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Clienti - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <h2>Clienti</h2>
+
+    <form class="date-picker" method="GET" action="/admin/clienti">
+        <input type="search" name="q" value="{{ q }}" placeholder="Nome, cognome, telefono o email">
+        <button type="submit" class="btn-small">Cerca</button>
+        {% if q %}<a href="/admin/clienti" class="btn-small btn-neutro">Azzera</a>{% endif %}
+    </form>
+
+    {% if clienti %}
+    <table class="app-table">
+        <thead>
+            <tr>
+                <th>Cliente</th>
+                <th>Telefono</th>
+                <th>Email</th>
+                <th>Da</th>
+                <th>Prima visita</th>
+                <th>Ultima visita</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for c in clienti %}
+            <tr>
+                <td>
+                    <a href="/admin/cliente/{{ c.id }}">
+                        {{ (c.nome or '') ~ ' ' ~ (c.cognome or '') if c.nome or c.cognome else 'Senza nome' }}
+                    </a>
+                </td>
+                {# I clienti del sito che non hanno lasciato il numero hanno un
+                   segnaposto "web_...": mostrarlo come telefono confonderebbe. #}
+                <td>{{ c.telefono_wa if not c.telefono_wa.startswith('web_') else '-' }}</td>
+                <td>{{ c.email or '-' }}</td>
+                <td>{{ c.canale_origine or '-' }}</td>
+                <td>{{ c.prima_visita.strftime('%d/%m/%Y') if c.prima_visita else '-' }}</td>
+                <td>{{ c.ultima_visita.strftime('%d/%m/%Y') if c.ultima_visita else '-' }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="nota">
+        {{ clienti|length }} client{{ 'e' if clienti|length == 1 else 'i' }}
+        {%- if clienti|length == 200 %}, mostrati i primi 200: restringi la ricerca{% endif %}.
+    </p>
+    {% else %}
+    <p class="empty-state">
+        {% if q %}Nessun cliente trovato per "{{ q }}".{% else %}Ancora nessun cliente.{% endif %}
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

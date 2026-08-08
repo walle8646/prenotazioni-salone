@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Listino - Salone Nadia{% endblock %}
+
+{% block content %}
+{# Niente tabella: ogni riga è un form a sé, e un <form> dentro un <tr> non è
+   HTML valido — il browser lo sposta fuori dalla tabella e i campi smettono
+   di essere inviati. Qui le colonne le fa una griglia CSS. #}
+<div class="gestione">
+    <h2>Listino servizi</h2>
+    <p class="nota">
+        Prezzi e durate valgono subito, anche per le conversazioni già aperte:
+        il bot rilegge il listino a ogni messaggio. Gli appuntamenti già presi
+        mantengono la cifra pattuita quel giorno.
+    </p>
+
+    {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
+
+    <div class="griglia-intestazione griglia-servizi">
+        <span>Ord.</span>
+        <span>Nome</span>
+        <span>Prezzo</span>
+        <span>Durata</span>
+        <span>Come lo chiamano i clienti</span>
+        <span></span>
+    </div>
+
+    {% for s in servizi %}
+    <div class="riga-gestione {{ '' if s.attivo else 'riga-sospesa' }}">
+        <form method="POST" action="/admin/servizi/{{ s.id }}" class="griglia-servizi">
+            <input type="number" name="ordine" value="{{ s.ordine or 0 }}" aria-label="Ordine">
+            <input type="text" name="nome" value="{{ s.nome }}" required aria-label="Nome">
+            <input type="text" name="prezzo" value="{{ '%.2f'|format(s.prezzo|float) }}"
+                   required aria-label="Prezzo in euro">
+            <input type="number" name="durata_min" value="{{ s.durata_min }}" min="5" step="5"
+                   required aria-label="Durata in minuti">
+            <input type="text" name="alias" value="{{ (s.alias or []) | join(', ') }}"
+                   aria-label="Alias" placeholder="taglio e barba, taglio+barba">
+            <button type="submit" class="btn-small">Salva</button>
+        </form>
+        <form method="POST" action="/admin/servizi/{{ s.id }}/stato" class="azione-secondaria">
+            <button type="submit" class="btn-small btn-neutro">
+                {{ 'Sospendi' if s.attivo else 'Riattiva' }}
+            </button>
+        </form>
+    </div>
+    {% endfor %}
+
+    <h3>Aggiungi una voce</h3>
+    <div class="riga-gestione">
+        <form method="POST" action="/admin/servizi" class="griglia-servizi">
+            <input type="number" name="ordine" value="{{ servizi|length }}" aria-label="Ordine">
+            <input type="text" name="nome" placeholder="Nome del servizio" required aria-label="Nome">
+            <input type="text" name="prezzo" placeholder="13,50" required aria-label="Prezzo">
+            <input type="number" name="durata_min" value="30" min="5" step="5" required aria-label="Durata">
+            <input type="text" name="alias" placeholder="altri modi di chiamarlo, separati da virgola"
+                   aria-label="Alias">
+            <button type="submit" class="btn-small">Aggiungi</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -7,12 +7,31 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def seed_parrucchieri(parrucchieri_map: dict[str, str]):
-    """Inserisce o aggiorna gli operatori nel database dal dizionario nome→cal_id.
+def sovrascrive_il_calendario(in_tabella: str | None, da_configurazione: str) -> bool:
+    """Se il calendario della configurazione deve rimpiazzare quello in tabella.
 
-    Viene eseguita a ogni avvio: aggiunge i nuovi, aggiorna i calendari cambiati
-    e disattiva quelli che non sono più in elenco (senza cancellarli, così lo
-    storico degli appuntamenti resta leggibile).
+    Solo finché in tabella c'è un segnaposto. Quando c'è un calendario vero è
+    il pannello a cambiarlo, e un riavvio non deve disfare quel lavoro.
+    """
+    from services.operatori import PREFISSO_NON_CONFIGURATO
+
+    return (in_tabella or "").startswith(PREFISSO_NON_CONFIGURATO) and not (
+        da_configurazione or ""
+    ).startswith(PREFISSO_NON_CONFIGURATO)
+
+
+async def seed_parrucchieri(parrucchieri_map: dict[str, str]):
+    """Inserisce gli operatori mancanti, dal dizionario nome→cal_id.
+
+    Riempie soltanto quello che manca, come fa `seed_servizi`. Prima invece, a
+    ogni avvio, riattivava chi era nell'elenco del codice e disattivava chi non
+    c'era: con un pannello di gestione vorrebbe dire vedersi sparire al deploy
+    successivo l'operatore appena assunto, e tornare al lavoro quello appena
+    messo a riposo. La fonte di verità è il database; da qui passa solo la
+    prima configurazione.
+
+    Il calendar ID della configurazione sovrascrive solo un segnaposto: quando
+    in tabella c'è già un calendario vero, a cambiarlo è il pannello.
     """
     async with async_session() as db:
         for nome, cal_id in parrucchieri_map.items():
@@ -20,23 +39,14 @@ async def seed_parrucchieri(parrucchieri_map: dict[str, str]):
                 select(Parrucchiere).where(Parrucchiere.nome == nome)
             )
             parr = result.scalar_one_or_none()
-            if parr:
-                if parr.gcal_calendar_id != cal_id:
-                    parr.gcal_calendar_id = cal_id
-                    logger.info(f"Aggiornato calendar ID per {nome}")
-                if not parr.attivo:
-                    parr.attivo = True
-                    logger.info(f"Riattivato operatore: {nome}")
-            else:
+            if parr is None:
                 db.add(Parrucchiere(nome=nome, gcal_calendar_id=cal_id, attivo=True))
-                logger.info(f"Creato operatore: {nome}")
+                logger.info("Creato operatore: %s", nome)
+                continue
 
-        # Disattiva chi non è più nell'elenco degli operatori
-        result = await db.execute(select(Parrucchiere).where(Parrucchiere.attivo == True))
-        for parr in result.scalars().all():
-            if parr.nome not in parrucchieri_map:
-                parr.attivo = False
-                logger.info(f"Disattivato operatore non più in elenco: {parr.nome}")
+            if sovrascrive_il_calendario(parr.gcal_calendar_id, cal_id):
+                parr.gcal_calendar_id = cal_id
+                logger.info("Configurato il calendario di %s", nome)
 
         await db.commit()
 
