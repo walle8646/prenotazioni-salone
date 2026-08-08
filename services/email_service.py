@@ -1,60 +1,100 @@
-import resend
-from config import settings
+"""Invio delle email di conferma e promemoria, via SMTP.
+
+Si spedisce dalla casella del salone invece che da un servizio esterno: il
+mittente è l'indirizzo che i clienti già conoscono, e soprattutto le risposte
+arrivano dove qualcuno le legge — cosa che con un noreply@ non succede.
+
+Nessuna dipendenza aggiuntiva: smtplib sta nella libreria standard, e la
+chiamata bloccante finisce in un thread come già si fa per Google Calendar.
+
+Un invio fallito non deve mai far fallire una prenotazione: l'appuntamento è
+sul calendario e nel database comunque, e l'email è un di più. Per questo qui
+gli errori si annotano nei log e basta.
+"""
+
+import asyncio
 import logging
+import smtplib
+from email.message import EmailMessage
+
+from config import settings
 
 logger = logging.getLogger(__name__)
 
-resend.api_key = settings.resend_api_key
+
+def _configurato() -> bool:
+    return bool(settings.smtp_user and settings.smtp_password)
+
+
+def _mittente() -> str:
+    return settings.email_from or settings.smtp_user
+
+
+async def _invia(destinatario: str, oggetto: str, html: str) -> None:
+    if not destinatario:
+        return
+    if not _configurato():
+        logger.info(
+            "Email a %s non inviata: SMTP non configurato (SMTP_USER/SMTP_PASSWORD)",
+            destinatario,
+        )
+        return
+
+    messaggio = EmailMessage()
+    messaggio["From"] = f"Salone Nadia <{_mittente()}>"
+    messaggio["To"] = destinatario
+    messaggio["Subject"] = oggetto
+    messaggio.set_content(
+        "Questo messaggio è in formato HTML: per leggerlo serve un programma "
+        "di posta che sappia mostrarlo."
+    )
+    messaggio.add_alternative(html, subtype="html")
+
+    def _spedisci() -> None:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
+            server.starttls()
+            server.login(settings.smtp_user, settings.smtp_password)
+            server.send_message(messaggio)
+
+    try:
+        await asyncio.to_thread(_spedisci)
+        logger.info("Email inviata a %s: %s", destinatario, oggetto)
+    except Exception as e:  # noqa: BLE001 - l'email non deve far fallire la prenotazione
+        logger.error("Invio email a %s fallito: %s", destinatario, e)
 
 
 async def send_confirmation_email(
     to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list
 ):
     """Invia email di conferma appuntamento."""
-    if not to or not settings.resend_api_key:
-        return
-
-    servizi_str = ", ".join(servizi)
-    try:
-        resend.Emails.send({
-            "from": f"Salone Nadia <{settings.email_from}>",
-            "to": to,
-            "subject": "Conferma appuntamento - Salone Nadia",
-            "html": f"""
-                <h2>Ciao {nome}!</h2>
-                <p>Il tuo appuntamento è confermato:</p>
-                <ul>
-                    <li><strong>Data e ora:</strong> {data_ora}</li>
-                    <li><strong>Servizio:</strong> {servizi_str}</li>
-                    <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
-                </ul>
-                <p>Per cancellare o modificare, scrivici su WhatsApp o rispondi a questa email.</p>
-                <p>A presto!<br>Salone Nadia</p>
-            """,
-        })
-        logger.info(f"Email conferma inviata a {to}")
-    except Exception as e:
-        logger.error(f"Errore invio email conferma a {to}: {e}")
+    servizi_str = ", ".join(servizi or [])
+    await _invia(
+        to,
+        "Conferma appuntamento - Salone Nadia",
+        f"""
+            <h2>Ciao {nome}!</h2>
+            <p>Il tuo appuntamento è confermato:</p>
+            <ul>
+                <li><strong>Data e ora:</strong> {data_ora}</li>
+                <li><strong>Servizio:</strong> {servizi_str}</li>
+                <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
+            </ul>
+            <p>Per cancellare o modificare, scrivici su WhatsApp o rispondi a questa email.</p>
+            <p>A presto!<br>Salone Nadia</p>
+        """,
+    )
 
 
 async def send_reminder_email(to: str, nome: str, orario: str, parrucchiere: str):
     """Invia email di promemoria appuntamento."""
-    if not to or not settings.resend_api_key:
-        return
-
-    try:
-        resend.Emails.send({
-            "from": f"Salone Nadia <{settings.email_from}>",
-            "to": to,
-            "subject": "Promemoria: appuntamento domani - Salone Nadia",
-            "html": f"""
-                <h2>Ciao {nome}!</h2>
-                <p>Ti ricordiamo il tuo appuntamento di <strong>domani alle {orario}</strong>
-                con <strong>{parrucchiere}</strong>.</p>
-                <p>Per cancellare, scrivici su WhatsApp entro 12 ore.</p>
-                <p>A domani!<br>Salone Nadia</p>
-            """,
-        })
-        logger.info(f"Email reminder inviata a {to}")
-    except Exception as e:
-        logger.error(f"Errore invio email reminder a {to}: {e}")
+    await _invia(
+        to,
+        "Promemoria: appuntamento domani - Salone Nadia",
+        f"""
+            <h2>Ciao {nome}!</h2>
+            <p>Ti ricordiamo il tuo appuntamento di <strong>domani alle {orario}</strong>
+            con <strong>{parrucchiere}</strong>.</p>
+            <p>Per cancellare, scrivici su WhatsApp entro 12 ore.</p>
+            <p>A domani!<br>Salone Nadia</p>
+        """,
+    )

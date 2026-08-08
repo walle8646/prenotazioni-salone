@@ -20,8 +20,15 @@ services:
         generateValue: true
       - key: SECRET_KEY
         generateValue: true
-      - key: EMAIL_FROM
-        value: "noreply@salonenadia.it"
+      - key: SMTP_HOST
+        value: "smtp.gmail.com"
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      # Password per le app di Google, non quella dell'account
+      - key: SMTP_PASSWORD
+        sync: false
       - key: SLOT_DURATION_MIN
         value: "30"
       - key: MAX_BOOKING_DAYS_AHEAD
@@ -53,8 +60,6 @@ services:
       - key: META_PHONE_NUMBER_ID
         sync: false
       - key: META_VERIFY_TOKEN
-        sync: false
-      - key: RESEND_API_KEY
         sync: false
 
   - type: redis

@@ -9,7 +9,6 @@ asyncpg==0.30.*
 alembic==1.14.*
 httpx==0.28.*
 websockets==14.*
-resend==2.*
 apscheduler==3.10.*
 # Serve a zoneinfo per risolvere Europe/Rome: le immagini slim non portano
 # sempre il database dei fusi di sistema.

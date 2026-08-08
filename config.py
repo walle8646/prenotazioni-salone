@@ -40,9 +40,17 @@ class Settings(BaseSettings):
     admin_password: str = ""
     secret_key: str = "dev-secret-change-me"
 
-    # Email
-    resend_api_key: str = ""
-    email_from: str = "noreply@salonenadia.it"
+    # Email: si spedisce dalla casella del salone via SMTP, così il mittente è
+    # l'indirizzo che i clienti conoscono e le risposte arrivano a qualcuno.
+    # Con Gmail la password NON è quella dell'account ma una "password per le
+    # app", generata dalle impostazioni di sicurezza di Google.
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    # Se vuoto si usa smtp_user: Gmail riscrive comunque il mittente con
+    # l'indirizzo autenticato, quindi dichiararne un altro sarebbe finzione.
+    email_from: str = ""
 
     # Numero del salone, dato al cliente quando non può disdire da solo perché
     # è troppo tardi. Vuoto: il bot dice genericamente di telefonare.
@@ -103,6 +111,10 @@ class Settings(BaseSettings):
 
     class Config:
         env_file = ".env"
+        # Una variabile di troppo non deve impedire l'avvio. Succede ogni volta
+        # che si cambia servizio e resta in giro la chiave del precedente: senza
+        # questo, l'applicazione non parte più e il motivo non è evidente.
+        extra = "ignore"
 
 
 settings = Settings()

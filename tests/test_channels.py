@@ -2,6 +2,8 @@
 
 import pytest
 
+from services import email_service
+
 from services.channels import Channel, CollectorChannel, WebChannel
 
 
@@ -58,3 +60,50 @@ async def test_web_channel_senza_opzioni():
     canale = WebChannel()
     await canale.send_text("web_1", "A che ora preferisci?")
     assert canale.payload() == {"text": "A che ora preferisci?", "options": None}
+
+
+# ------------------------------------------------------------------ email SMTP
+
+
+@pytest.mark.asyncio
+async def test_senza_configurazione_non_si_tenta_nessun_invio(monkeypatch):
+    """Un salone che non ha ancora messo la casella non deve vedere errori."""
+    from config import settings
+
+    monkeypatch.setattr(settings, "smtp_user", "")
+    monkeypatch.setattr(settings, "smtp_password", "")
+
+    def esplodi(*args, **kwargs):  # pragma: no cover - non deve essere chiamata
+        raise AssertionError("non si deve nemmeno provare a connettersi")
+
+    monkeypatch.setattr("smtplib.SMTP", esplodi)
+
+    await email_service.send_confirmation_email(
+        to="cliente@example.it",
+        nome="Mario",
+        data_ora="2026-08-11T09:00",
+        parrucchiere="Francesco",
+        servizi=["Taglio"],
+    )
+
+
+@pytest.mark.asyncio
+async def test_un_invio_fallito_non_fa_fallire_la_prenotazione(monkeypatch):
+    """L'appuntamento è già sul calendario: l'email è un di più."""
+    from config import settings
+
+    monkeypatch.setattr(settings, "smtp_user", "salone@gmail.com")
+    monkeypatch.setattr(settings, "smtp_password", "finta")
+
+    def rifiuta(*args, **kwargs):
+        raise OSError("server non raggiungibile")
+
+    monkeypatch.setattr("smtplib.SMTP", rifiuta)
+
+    # Non deve sollevare
+    await email_service.send_reminder_email(
+        to="cliente@example.it",
+        nome="Mario",
+        orario="09:00",
+        parrucchiere="Francesco",
+    )
