@@ -102,8 +102,16 @@ apparenza: un colore da due ore prenotato come mezz'ora finisce sopra
 l'appuntamento successivo.
 
 **Quanto può essere lungo un titolo cliccabile lo dichiara il canale**
-(`Channel.lunghezza_massima_opzione`), non chi analizza il testo: WhatsApp
-taglia a venti caratteri, il widget del sito non ha limiti.
+(`Channel.lunghezza_massima_opzione`), non chi analizza il testo: il widget del
+sito non ha limiti, WhatsApp sì e diversi a seconda della forma. Un bottone
+(fino a tre scelte) ha il solo titolo da venti caratteri: se una voce non ci sta
+si rinuncia ai bottoni, perché quel titolo è anche ciò che torna indietro
+quando il cliente tocca, e il listino non riconoscerebbe il troncone. Una riga
+di lista (da quattro scelte in su) ha invece un titolo da ventiquattro e una
+descrizione da settantadue, che Meta ci restituisce insieme alla scelta: lì la
+voce sta per intero, il titolo si può accorciare, e `routers/webhook.py` legge
+la descrizione. Senza, bastava una voce lunga perché l'intero elenco dei
+servizi arrivasse come testo — proprio la prima scelta, e la più importante.
 
 **La sessione annota servizio e operatore al primo `CHECK_DISPONIBILITA`.** Lo
 storico viene troncato agli ultimi `max_history_messages` messaggi e ogni turno
@@ -182,10 +190,6 @@ processo sempre acceso. E il disco è effimero: le foto salvate da
 - **WhatsApp** gira su un numero di prova di Meta, che consegna solo ai
   destinatari autorizzati a mano (massimo cinque). Per aprirlo ai clienti serve
   un numero proprio, e a quel punto la verifica dell'azienda.
-- Sulle liste di WhatsApp i titoli si fermano a venti caratteri, quindi le voci
-  di listino lunghe non diventano bottoni e l'elenco dei servizi arriva come
-  testo. Le righe hanno anche una descrizione da 72 caratteri, oggi non usata:
-  è lì che starebbe il nome per esteso.
 - Pannello CRM da costruire: schermate CRUD su `servizi` e `parrucchieri`, più
   anagrafica clienti. Oggi il pannello mostra solo gli appuntamenti del giorno.
 - `max_booking_days_ahead` è configurato ma non applicato: si può prenotare a

@@ -4,7 +4,12 @@ import pytest
 
 from services import email_service
 
-from services.channels import Channel, CollectorChannel, WebChannel
+from services.channels import (
+    Channel,
+    CollectorChannel,
+    MetaWhatsAppChannel,
+    WebChannel,
+)
 
 
 class CanaleSenzaBottoni(Channel):
@@ -60,6 +65,101 @@ async def test_web_channel_senza_opzioni():
     canale = WebChannel()
     await canale.send_text("web_1", "A che ora preferisci?")
     assert canale.payload() == {"text": "A che ora preferisci?", "options": None}
+
+
+# ------------------------------------------------- scelte cliccabili su WhatsApp
+
+
+SERVIZI = [
+    {"id": "opt_0", "title": "Taglio", "description": "Taglio — 13,50 € — 30 min"},
+    {
+        "id": "opt_1",
+        "title": "Taglio + Shampoo",
+        "description": "Taglio + Shampoo — 17,50 € — 30 min",
+    },
+    {"id": "opt_2", "title": "Barba", "description": "Barba — 8,00 € — 30 min"},
+    {
+        "id": "opt_3",
+        "title": "Taglio + Shampoo + Trattamento barba con oli e panno bagnato",
+        "description": (
+            "Taglio + Shampoo + Trattamento barba con oli e panno bagnato — 45,00 €"
+        ),
+    },
+]
+
+
+def test_una_voce_lunga_non_fa_piu_perdere_i_bottoni_a_tutto_il_listino():
+    """Su una lista il titolo si accorcia, ma la voce resta nella descrizione.
+
+    Prima bastava una voce sopra i 20 caratteri perché l'intero elenco dei
+    servizi arrivasse come testo: proprio la prima scelta, e la più importante.
+    """
+    assert MetaWhatsAppChannel().opzioni_sostenibili(SERVIZI) is True
+
+
+def test_su_tre_scelte_il_titolo_lungo_fa_ancora_rinunciare_ai_bottoni():
+    """Un bottone ha solo il titolo: accorciarlo perderebbe la voce."""
+    bottoni = [
+        {"id": "opt_0", "title": "Taglio"},
+        {"id": "opt_1", "title": "Colore + Taglio + Trattamento capello"},
+    ]
+
+    assert MetaWhatsAppChannel().opzioni_sostenibili(bottoni) is False
+
+
+def test_oltre_dieci_righe_si_torna_al_testo():
+    """Meta scarta le righe in eccesso senza dirlo: il cliente leggerebbe
+    scelte che non può toccare."""
+    troppe = [{"id": f"opt_{i}", "title": f"Voce {i}"} for i in range(11)]
+
+    assert MetaWhatsAppChannel().opzioni_sostenibili(troppe) is False
+
+
+def test_la_riga_accorciata_conserva_la_voce_per_intero():
+    riga = MetaWhatsAppChannel()._riga(SERVIZI[3])
+
+    assert len(riga["title"]) <= MetaWhatsAppChannel.LUNGHEZZA_TITOLO_RIGA
+    assert riga["title"].endswith("…"), "il taglio deve vedersi"
+    assert riga["description"] == SERVIZI[3]["description"]
+    assert "panno bagnato" in riga["description"], (
+        "è la descrizione che torna indietro quando il cliente tocca la riga"
+    )
+
+
+def test_una_descrizione_troppo_lunga_si_ferma_su_un_separatore():
+    """Meta ne accetta 72: tagliata di netto lascerebbe un trattino sospeso,
+    e questa è la riga che torna indietro quando il cliente tocca."""
+    riga = MetaWhatsAppChannel()._riga(
+        {
+            "id": "opt_0",
+            "title": "Taglio + Shampoo + Trattamento barba con oli e panno bagnato",
+            "description": (
+                "Taglio + Shampoo + Trattamento barba con oli e panno bagnato"
+                " — 45,00 € — 1 ora"
+            ),
+        }
+    )
+
+    assert len(riga["description"]) <= MetaWhatsAppChannel.LUNGHEZZA_DESCRIZIONE_RIGA
+    assert riga["description"].endswith("45,00 €")
+    assert "Trattamento barba con oli e panno bagnato" in riga["description"], (
+        "il nome del servizio deve sopravvivere al taglio"
+    )
+
+
+def test_una_voce_corta_non_viene_toccata():
+    riga = MetaWhatsAppChannel()._riga(SERVIZI[0])
+
+    assert riga["title"] == "Taglio"
+
+
+def test_una_voce_lunga_senza_descrizione_se_ne_costruisce_una():
+    """Altrimenti tornerebbe indietro solo il troncone del titolo."""
+    riga = MetaWhatsAppChannel()._riga(
+        {"id": "opt_0", "title": "Colore + Taglio + Trattamento capello"}
+    )
+
+    assert riga["description"] == "Colore + Taglio + Trattamento capello"
 
 
 # ----------------------------------------------------- accesso al pannello

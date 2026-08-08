@@ -94,7 +94,10 @@ async def receive_message(request: Request, background: BackgroundTasks):
             return {"status": "ignored"}
 
         message = value["messages"][0]
-        contact = value["contacts"][0]
+        # Il nome del profilo è un di più: se manca si prenota lo stesso, e
+        # perdere il messaggio per quello sarebbe sproporzionato.
+        contatti = value.get("contacts") or [{}]
+        contact = contatti[0]
         phone_number = message["from"]  # numero WhatsApp del cliente
         msg_type = message["type"]  # text, image, audio, etc.
 
@@ -112,7 +115,11 @@ async def receive_message(request: Request, background: BackgroundTasks):
             if itype == "button_reply":
                 text = interactive["button_reply"]["title"]
             elif itype == "list_reply":
-                text = interactive["list_reply"]["title"]
+                scelta = interactive["list_reply"]
+                # Il titolo di una riga si ferma a 24 caratteri, quindi le voci
+                # lunghe del listino arrivano accorciate. La descrizione porta
+                # la voce per intero ed è quella che il bot deve leggere.
+                text = scelta.get("description") or scelta["title"]
             else:
                 text = None
             media_id = None

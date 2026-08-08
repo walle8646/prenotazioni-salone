@@ -87,6 +87,28 @@ def test_opzioni_con_emoji():
     assert [o["title"] for o in opzioni] == ["Taglio", "Barba"]
 
 
+def test_prezzo_e_durata_escono_dal_titolo():
+    """Sul bottone di WhatsApp ci stanno pochi caratteri, e il prezzo è già
+    scritto nel messaggio sopra."""
+    _, opzioni = parse_response_with_options(
+        "Quale preferisci?\n"
+        "- Taglio — 13,50 € — 30 min\n"
+        "- Taglio + Shampoo — 17,50 € — 30 min"
+    )
+
+    assert [o["title"] for o in opzioni] == ["Taglio", "Taglio + Shampoo"]
+    assert opzioni[0]["description"] == "Taglio — 13,50 € — 30 min", (
+        "la riga intera serve: è quella che torna indietro quando si tocca"
+    )
+
+
+def test_un_orario_col_trattino_resta_intero():
+    """Il taglio vale sui separatori, non su qualunque trattino."""
+    _, opzioni = parse_response_with_options("Quando?\n- Martedì 11-08 alle 09:00\n- Giovedì")
+
+    assert opzioni[0]["title"] == "Martedì 11-08 alle 09:00"
+
+
 def test_un_opzione_non_porta_una_descrizione_uguale_al_titolo():
     """Nelle liste di WhatsApp titolo e descrizione finiscono uno sotto l'altro.
 

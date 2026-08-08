@@ -168,6 +168,60 @@ def test_messaggi_diversi_vengono_elaborati_entrambi(client):
     assert [e["text"] for e in client.elaborati] == ["ciao", "taglio"]
 
 
+def _scelta_da_lista(list_reply: dict) -> dict:
+    return {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "id": "wamid.scelta",
+                                    "from": "393331234567",
+                                    "type": "interactive",
+                                    "interactive": {
+                                        "type": "list_reply",
+                                        "list_reply": list_reply,
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+
+def test_di_una_riga_accorciata_si_legge_la_descrizione(client):
+    """Il titolo si ferma a 24 caratteri: il listino non riconoscerebbe il troncone."""
+    intero = "Taglio + Shampoo + Trattamento barba con oli e panno bagnato — 45,00 €"
+
+    client.post(
+        "/webhook/whatsapp",
+        json=_scelta_da_lista(
+            {
+                "id": "opt_3",
+                "title": "Taglio + Shampoo + Tra…",
+                "description": intero,
+            }
+        ),
+    )
+
+    assert client.elaborati[0]["text"] == intero
+
+
+def test_senza_descrizione_si_legge_il_titolo(client):
+    """Le voci corte non ne hanno una, e vanno bene così."""
+    client.post(
+        "/webhook/whatsapp",
+        json=_scelta_da_lista({"id": "opt_0", "title": "Indifferente"}),
+    )
+
+    assert client.elaborati[0]["text"] == "Indifferente"
+
+
 def test_le_notifiche_di_stato_vengono_ignorate(client):
     """Consegnato, letto e simili non sono messaggi del cliente."""
     risposta = client.post(

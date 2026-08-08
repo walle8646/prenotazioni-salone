@@ -12,6 +12,7 @@ basta scrivere una nuova classe qui sotto: il resto del codice non cambia.
 from __future__ import annotations
 
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -47,16 +48,69 @@ class Channel:
         await self.send_text(to, "\n".join(righe))
 
 
+def _accorcia(testo: str, limite: int) -> str:
+    if len(testo) <= limite:
+        return testo
+    return testo[: limite - 1].rstrip() + "…"
+
+
+def _accorcia_ai_separatori(testo: str, limite: int) -> str:
+    """Come `_accorcia`, ma taglia dove finisce un pezzo dell'informazione.
+
+    "Taglio + ... — 45,00 € — 1 ora" sfora di sei caratteri: tagliarlo di
+    netto lascerebbe un trattino sospeso, e questa riga non serve solo a
+    leggere, è quella che torna indietro quando il cliente la tocca.
+    """
+    if len(testo) <= limite:
+        return testo
+    separatori = [m.start() for m in re.finditer(r"\s[—–-]\s", testo)]
+    validi = [pos for pos in separatori if pos <= limite]
+    if validi:
+        return testo[: validi[-1]].rstrip()
+    return _accorcia(testo, limite)
+
+
 class MetaWhatsAppChannel(Channel):
     """WhatsApp tramite Cloud API di Meta (il canale di produzione)."""
 
     name = "whatsapp"
     supports_options = True
-    # Meta accorcia i titoli a 20 caratteri per i bottoni e 24 per le righe di
-    # una lista. Un titolo tagliato tornerebbe indietro tagliato anche nella
-    # risposta del cliente, e il listino non lo riconoscerebbe più: meglio
-    # rinunciare ai bottoni e mandare l'elenco come testo.
+    # Un bottone ha il solo titolo, lungo al massimo 20 caratteri. Se non ci
+    # sta per intero tornerebbe indietro tagliato nella risposta del cliente, e
+    # il listino non lo riconoscerebbe più: meglio rinunciare ai bottoni.
     lunghezza_massima_opzione = 20
+    # Una riga di lista concede 24 caratteri al titolo, ma ne ha altri 72 per
+    # la descrizione, che Meta ci restituisce insieme alla scelta. Lì la voce
+    # sta per intero, quindi il titolo si può accorciare senza perdere nulla.
+    LUNGHEZZA_TITOLO_RIGA = 24
+    LUNGHEZZA_DESCRIZIONE_RIGA = 72
+    MASSIMO_RIGHE = 10
+
+    def _come_lista(self, options: list[dict]) -> bool:
+        # Fino a tre scelte Meta vuole i bottoni, oltre serve una lista.
+        return len(options) > 3
+
+    def opzioni_sostenibili(self, options: list[dict]) -> bool:
+        if not self._come_lista(options):
+            return super().opzioni_sostenibili(options)
+        # Oltre la decima riga Meta scarta le altre in silenzio: al cliente
+        # resterebbero scelte che ha letto nel messaggio e non può toccare.
+        return len(options) <= self.MASSIMO_RIGHE
+
+    def _riga(self, opzione: dict) -> dict:
+        titolo = _accorcia(opzione["title"], self.LUNGHEZZA_TITOLO_RIGA)
+        descrizione = opzione.get("description") or ""
+        if titolo != opzione["title"] and not descrizione:
+            # Senza descrizione, di una voce accorciata tornerebbe indietro
+            # solo il troncone: la voce per intero deve stare da qualche parte.
+            descrizione = opzione["title"]
+        return {
+            "id": opzione["id"],
+            "title": titolo,
+            "description": _accorcia_ai_separatori(
+                descrizione, self.LUNGHEZZA_DESCRIZIONE_RIGA
+            ),
+        }
 
     async def send_text(self, to: str, text: str) -> None:
         from services.whatsapp_service import send_text_message
@@ -69,11 +123,12 @@ class MetaWhatsAppChannel(Channel):
             send_interactive_list,
         )
 
-        if len(options) <= 3:
+        if not self._come_lista(options):
             bottoni = [{"id": o["id"], "title": o["title"]} for o in options]
             await send_interactive_buttons(to, text, bottoni)
         else:
-            await send_interactive_list(to, text, "Scegli", options)
+            righe = [self._riga(o) for o in options]
+            await send_interactive_list(to, text, "Scegli", righe)
 
 
 class WebChannel(Channel):

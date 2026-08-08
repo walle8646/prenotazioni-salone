@@ -69,6 +69,19 @@ def _backends_reali():
     return RealBackends()
 
 
+def _nome_della_voce(testo: str) -> str:
+    """La parte di una scelta che la identifica, senza prezzo né durata.
+
+    Claude scrive le scelte come "Taglio + Shampoo — 17,50 € — 30 min". Sul
+    bottone serve solo "Taglio + Shampoo": il resto occupa i pochi caratteri
+    che WhatsApp concede al titolo, ed è già scritto nel messaggio sopra.
+    """
+    separatore = re.search(r"\s[—–-]\s", testo)
+    if not separatore:
+        return testo
+    return testo[: separatore.start()].strip() or testo
+
+
 def parse_response_with_options(response: str) -> tuple[str, list[dict] | None]:
     """Estrae dalla risposta di Claude le eventuali opzioni cliccabili.
 
@@ -93,10 +106,17 @@ def parse_response_with_options(response: str) -> tuple[str, list[dict] | None]:
             # interpretano: sul bottone comparirebbe "Oggi alle **08:00**".
             clean_title = clean_title.replace("**", "").replace("__", "").strip()
             if clean_title and len(clean_title) <= LUNGHEZZA_MASSIMA_OPZIONE:
-                # Niente descrizione: conterrebbe la stessa riga del titolo, e
-                # nelle liste di WhatsApp le due cose vengono stampate una sotto
-                # l'altra. Al cliente arrivava "Indifferente" scritto due volte.
-                options.append({"id": f"opt_{len(options)}", "title": clean_title})
+                nome = _nome_della_voce(clean_title)
+                opzione = {"id": f"opt_{len(options)}", "title": nome}
+                # La descrizione porta la riga per intero, e serve a due cose:
+                # mostrare prezzo e durata sotto al titolo, ed essere ciò che
+                # torna indietro quando il cliente tocca la riga, anche se il
+                # titolo è stato accorciato. Quando coincide col titolo resta
+                # vuota: WhatsApp le stampa entrambe, e al cliente arrivava
+                # "Indifferente" scritto due volte.
+                if clean_title != nome:
+                    opzione["description"] = clean_title
+                options.append(opzione)
                 continue
             # Una voce troppo lunga per essere una scelta: se convertissimo solo
             # le altre, il cliente si troverebbe un elenco scritto e dei bottoni
