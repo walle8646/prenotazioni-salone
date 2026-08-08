@@ -80,6 +80,7 @@
                 return;
             }
             if (data.type === 'message') {
+                nascondiStaScrivendo();
                 appendMessage(data.text, 'bot');
                 // Se ci sono opzioni, mostra i bottoni
                 if (data.options && data.options.length > 0) {
@@ -90,6 +91,9 @@
 
         ws.onclose = () => {
             console.log('Chat WebSocket disconnected');
+            // Se cade la connessione nessuno risponderà più a quel messaggio:
+            // lasciare i puntini animati sarebbe una promessa non mantenuta.
+            nascondiStaScrivendo();
             ws = null;
             setTimeout(() => {
                 if (isOpen) connectWebSocket();
@@ -109,12 +113,36 @@
         ws.send(JSON.stringify({ text: text }));
         appendMessage(text, 'user');
         input.value = '';
+        mostraStaScrivendo();
     }
 
     sendBtn.addEventListener('click', () => sendMessage());
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
     });
+
+    // "Nadia sta scrivendo": una risposta può richiedere qualche secondo, fra
+    // il modello e la lettura dei calendari. Senza segnale il riquadro sembra
+    // fermo, e il cliente riscrive o se ne va.
+    let indicatore = null;
+
+    function mostraStaScrivendo() {
+        if (indicatore) return;
+        indicatore = document.createElement('div');
+        indicatore.className = 'message bot sta-scrivendo';
+        indicatore.setAttribute('aria-label', 'Nadia sta scrivendo');
+        for (let i = 0; i < 3; i++) {
+            indicatore.appendChild(document.createElement('span'));
+        }
+        messages.appendChild(indicatore);
+        messages.scrollTop = messages.scrollHeight;
+    }
+
+    function nascondiStaScrivendo() {
+        if (!indicatore) return;
+        indicatore.remove();
+        indicatore = null;
+    }
 
     // Append message to chat
     function appendMessage(text, sender) {
