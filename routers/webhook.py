@@ -1,8 +1,47 @@
-from fastapi import APIRouter, Request, Query, HTTPException
+from fastapi import APIRouter, BackgroundTasks, Request, Query, HTTPException
 from config import settings
 from services.conversation import handle_incoming_message
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/webhook")
+
+# Per quanto tempo ricordarsi di un messaggio già visto. Meta rimanda quelli
+# che considera non consegnati, e senza memoria il cliente riceverebbe la
+# stessa risposta due volte.
+MEMORIA_MESSAGGI_SECONDI = 3600
+
+
+async def _gia_visto(redis, message_id: str) -> bool:
+    """True se questo messaggio era già arrivato.
+
+    Meta non garantisce una consegna sola: in caso di dubbio rimanda. Senza
+    questo controllo il bot rielaborerebbe lo stesso messaggio, con una seconda
+    chiamata a Claude e una seconda risposta al cliente.
+    """
+    if not message_id or redis is None:
+        return False
+    try:
+        primo = await redis.set(
+            f"wa:visto:{message_id}", "1", ex=MEMORIA_MESSAGGI_SECONDI, nx=True
+        )
+        return not primo
+    except Exception:  # noqa: BLE001 - Redis giù non deve bloccare i messaggi
+        logger.exception("Controllo dei messaggi già visti non riuscito")
+        return False
+
+
+async def _elabora(redis, **argomenti) -> None:
+    """Esegue la conversazione dopo che a Meta è già stato risposto.
+
+    Gli errori si fermano qui: la risposta HTTP è partita da un pezzo, e
+    lasciar propagare un'eccezione servirebbe solo a sporcare i log del server.
+    """
+    try:
+        await handle_incoming_message(redis=redis, **argomenti)
+    except Exception:  # noqa: BLE001
+        logger.exception("Elaborazione del messaggio WhatsApp fallita")
 
 
 # GET — Meta webhook verification (challenge handshake)
@@ -19,7 +58,15 @@ async def verify_webhook(
 
 # POST — Riceve messaggi in entrata
 @router.post("/whatsapp")
-async def receive_message(request: Request):
+async def receive_message(request: Request, background: BackgroundTasks):
+    """Prende in carico il messaggio e risponde subito.
+
+    Meta aspetta pochi secondi: se non riceve conferma considera il messaggio
+    non consegnato e lo rimanda. Interrogare Claude e Google prima di
+    rispondere — una decina di secondi — significava farsi rimandare il
+    messaggio e far arrivare al cliente due o tre volte la stessa risposta.
+    Qui si conferma la ricezione e si lavora dopo.
+    """
     body = await request.json()
 
     # Estrai il messaggio dal payload Meta
@@ -63,10 +110,16 @@ async def receive_message(request: Request):
     except (KeyError, IndexError):
         return {"status": "parse_error"}
 
-    # Processa il messaggio
     redis = request.app.state.redis
-    await handle_incoming_message(
-        redis=redis,
+
+    if await _gia_visto(redis, message.get("id")):
+        logger.info("Messaggio %s già elaborato, ignorato", message.get("id"))
+        return {"status": "duplicato"}
+
+    # Dopo la risposta, non prima: è tutto il punto di questa funzione.
+    background.add_task(
+        _elabora,
+        redis,
         phone=phone_number,
         text=text,
         msg_type=msg_type,
