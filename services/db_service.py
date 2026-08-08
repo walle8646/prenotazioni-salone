@@ -233,17 +233,27 @@ async def get_appuntamenti_per_telefono(telefono: str, limite: int = 10) -> dict
     Restituisce None se quel numero non è in anagrafica. Include l'id
     dell'appuntamento e quello dell'evento Google, che servono per cancellare.
     """
-    from sqlalchemy.orm import selectinload
-
     if not telefono:
         return None
+    return await _appuntamenti_del_cliente(Cliente.telefono_wa == telefono, limite)
+
+
+async def get_appuntamenti_per_email(email: str, limite: int = 10) -> dict | None:
+    """Come sopra, ma cercando per email: è la strada del sito, dopo la verifica."""
+    if not email:
+        return None
+    return await _appuntamenti_del_cliente(Cliente.email == email, limite)
+
+
+async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
+    from sqlalchemy.orm import selectinload
 
     adesso = datetime.now()
 
     async with async_session() as db:
         cliente = (
-            await db.execute(select(Cliente).where(Cliente.telefono_wa == telefono))
-        ).scalar_one_or_none()
+            await db.execute(select(Cliente).where(condizione))
+        ).scalars().first()
         if cliente is None:
             return None
 

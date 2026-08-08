@@ -838,6 +838,132 @@ async def test_non_si_disdice_l_appuntamento_di_un_altro(monkeypatch):
     assert backends.appuntamenti[0]["stato"] == "Confermato"
 
 
+# ------------------------------------------- codice di verifica dal sito web
+#
+# Dal sito non sappiamo chi scrive: l'identità la prova la casella di posta,
+# come su WhatsApp la prova il numero. Il codice vive nella sessione, lato
+# server, e non passa mai dal modello.
+
+
+async def _cliente_con_email(backends, email="mario@example.it"):
+    cliente = await backends.find_or_create_client(
+        phone="web_vecchia_sessione", nome="Mario", cognome="Rossi", email=email
+    )
+    await backends.create_appointment(
+        client_id=cliente["id"],
+        data_ora=f"{GIORNO}T09:00",
+        servizi=["Taglio"],
+        parrucchiere="Francesco",
+        gcal_event_id="evt_web",
+        durata_min=30,
+    )
+
+
+@pytest.mark.asyncio
+async def test_dal_sito_lo_storico_si_sblocca_col_codice():
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+    await _cliente_con_email(backends)
+
+    sessione = {"stato_flusso": "saluto", "dati_temp": {}}
+    web = "web_0123456789ab"
+
+    # Senza verifica non si vede niente
+    primo = await execute_action(
+        {"action": "STORICO_APPUNTAMENTI"}, web, sessione, backends
+    )
+    assert "errore" in primo
+
+    # Il codice parte per email
+    invio = await execute_action(
+        {"action": "INVIA_CODICE_VERIFICA", "email": "mario@example.it"},
+        web,
+        sessione,
+        backends,
+    )
+    assert invio["codice_inviato"] is True
+    assert backends.codici_inviati[0]["to"] == "mario@example.it"
+
+    # Il codice non deve comparire nel risultato: finirebbe nello storico
+    assert "codice" not in invio
+
+    codice = backends.codici_inviati[0]["codice"]
+    assert len(codice) == 6 and codice.isdigit()
+
+    # Un codice sbagliato non sblocca
+    sbagliato = await execute_action(
+        {"action": "VERIFICA_CODICE", "codice": "000000"}, web, sessione, backends
+    )
+    if sbagliato.get("verificato") is not False:  # pragma: no cover - improbabile
+        pytest.skip("il codice generato era proprio 000000")
+    assert "email_verificata" not in sessione
+
+    # Quello giusto sì
+    giusto = await execute_action(
+        {"action": "VERIFICA_CODICE", "codice": codice}, web, sessione, backends
+    )
+    assert giusto["verificato"] is True
+    assert sessione["email_verificata"] == "mario@example.it"
+
+    storico = await execute_action(
+        {"action": "STORICO_APPUNTAMENTI"}, web, sessione, backends
+    )
+    assert storico["cliente_conosciuto"] is True
+    assert len(storico["appuntamenti"]) == 1
+
+
+@pytest.mark.asyncio
+async def test_il_codice_scade_dopo_troppi_tentativi():
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import MAX_TENTATIVI_CODICE, execute_action
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+    sessione = {"stato_flusso": "saluto", "dati_temp": {}}
+    web = "web_0123456789ab"
+
+    await execute_action(
+        {"action": "INVIA_CODICE_VERIFICA", "email": "mario@example.it"},
+        web,
+        sessione,
+        backends,
+    )
+
+    for _ in range(MAX_TENTATIVI_CODICE + 1):
+        esito = await execute_action(
+            {"action": "VERIFICA_CODICE", "codice": "999999"}, web, sessione, backends
+        )
+
+    assert esito["verificato"] is False
+    assert "verifica" not in sessione, "il codice bruciato va buttato via"
+    assert "email_verificata" not in sessione
+
+
+@pytest.mark.asyncio
+async def test_su_whatsapp_il_codice_non_serve():
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+
+    esito = await execute_action(
+        {"action": "INVIA_CODICE_VERIFICA", "email": "mario@example.it"},
+        "393331234567",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" in esito
+    assert not backends.codici_inviati
+
+
 def test_il_markdown_non_finisce_nelle_etichette():
     """Claude scrive **grassetto**, che nessuno dei due canali interpreta."""
     risposta = "Ecco gli orari:\n- Oggi alle **08:00**\n- Oggi alle **08:30**"

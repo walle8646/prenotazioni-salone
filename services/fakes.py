@@ -61,6 +61,7 @@ class FakeBackends(Backends):
         self.clienti: list[dict] = []
         self.appuntamenti: list[dict] = []
         self.email_inviate: list[dict] = []
+        self.codici_inviati: list[dict] = []
         self.foto_salvate: list[str] = []
         self.giorni_chiusi: set[str] = set()
         self._contatore = 0
@@ -194,9 +195,16 @@ class FakeBackends(Backends):
                 app["stato"] = status
 
     async def get_appuntamenti_per_telefono(self, telefono):
-        cliente = next(
-            (c for c in self.clienti if c.get("telefono") == telefono), None
+        return self._appuntamenti_di(
+            next((c for c in self.clienti if c.get("telefono") == telefono), None)
         )
+
+    async def get_appuntamenti_per_email(self, email):
+        return self._appuntamenti_di(
+            next((c for c in self.clienti if email and c.get("email") == email), None)
+        )
+
+    def _appuntamenti_di(self, cliente):
         if cliente is None:
             return None
 
@@ -249,6 +257,9 @@ class FakeBackends(Backends):
                 "servizi": servizi,
             }
         )
+
+    async def send_verification_code(self, to, codice):
+        self.codici_inviati.append({"to": to, "codice": codice})
 
 
 class ScriptedClaude:

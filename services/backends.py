@@ -60,6 +60,13 @@ class Backends:
         """Cliente e suoi appuntamenti. None se quel numero non è in anagrafica."""
         raise NotImplementedError
 
+    async def get_appuntamenti_per_email(self, email: str) -> dict | None:
+        """Come sopra ma per email: è la strada del sito, dopo la verifica."""
+        raise NotImplementedError
+
+    async def send_verification_code(self, to: str, codice: str) -> None:
+        raise NotImplementedError
+
     async def download_media(self, media_id: str):
         raise NotImplementedError
 
@@ -123,6 +130,16 @@ class RealBackends(Backends):
         from services.db_service import get_appuntamenti_per_telefono
 
         return await get_appuntamenti_per_telefono(telefono)
+
+    async def get_appuntamenti_per_email(self, email):
+        from services.db_service import get_appuntamenti_per_email
+
+        return await get_appuntamenti_per_email(email)
+
+    async def send_verification_code(self, to, codice):
+        from services.email_service import send_verification_code
+
+        await send_verification_code(to=to, codice=codice)
 
     async def download_media(self, media_id):
         from services.whatsapp_service import download_media

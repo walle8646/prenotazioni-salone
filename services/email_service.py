@@ -112,6 +112,21 @@ async def send_confirmation_email(
     )
 
 
+async def send_verification_code(to: str, codice: str):
+    """Invia il codice che sblocca lo storico dalla chat del sito."""
+    await _invia(
+        to,
+        f"{codice} è il tuo codice - Salone Nadia",
+        f"""
+            <h2>Il tuo codice è {codice}</h2>
+            <p>Scrivilo nella chat per vedere i tuoi appuntamenti.</p>
+            <p>Vale per pochi minuti. Se non l'hai chiesto tu, ignora questo
+            messaggio: senza il codice nessuno può vedere i tuoi dati.</p>
+            <p>Salone Nadia</p>
+        """,
+    )
+
+
 async def send_reminder_email(to: str, nome: str, orario: str, parrucchiere: str):
     """Invia email di promemoria appuntamento."""
     await _invia(

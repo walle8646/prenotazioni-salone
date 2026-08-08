@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import secrets
 
 from prompts.system_prompt import (
     build_system_prompt,
@@ -343,9 +344,13 @@ async def execute_action(action: dict, phone: str, session: dict, backends=None)
         if action_type == "CREA_APPUNTAMENTO":
             return await _crea_appuntamento(action, phone, session, backends)
         if action_type == "CANCELLA_APPUNTAMENTO":
-            return await _cancella_appuntamento(action, phone, backends)
+            return await _cancella_appuntamento(action, phone, session, backends)
         if action_type == "STORICO_APPUNTAMENTI":
             return await _storico_appuntamenti(phone, session, backends)
+        if action_type == "INVIA_CODICE_VERIFICA":
+            return await _invia_codice_verifica(action, phone, session, backends)
+        if action_type == "VERIFICA_CODICE":
+            return await _verifica_codice(action, session)
     except OperatoreSconosciuto as e:
         logger.warning("Operatore non risolto nell'azione %s: %s", action_type, e)
         return {"errore": str(e)}
@@ -619,6 +624,117 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     }
 
 
+# Codice di verifica per lo storico dalla chat del sito. Il codice vive nella
+# sessione, lato server: al modello non arriva mai, altrimenti basterebbe
+# chiedergli "dimmi il codice" per aggirare tutto.
+DURATA_CODICE_MIN = 10
+MAX_TENTATIVI_CODICE = 5
+
+
+def _email_plausibile(valore) -> str | None:
+    if not valore:
+        return None
+    testo = str(valore).strip()
+    if re.fullmatch(r"[^@\s]+@[^@\s]+\.[A-Za-z]{2,}", testo):
+        return testo.lower()
+    return None
+
+
+def _dal_sito(phone: str | None) -> bool:
+    return not phone or phone.startswith("web_")
+
+
+async def _appuntamenti_del_richiedente(phone: str, session: dict, backends):
+    """Appuntamenti di chi sta scrivendo, qualunque sia il canale.
+
+    Da WhatsApp la prova d'identità è il numero del mittente; dal sito è
+    l'indirizzo verificato col codice. In nessuno dei due casi il contatto
+    arriva dal modello.
+    """
+    if not _dal_sito(phone):
+        return await backends.get_appuntamenti_per_telefono(phone)
+    email = session.get("email_verificata")
+    if not email:
+        return None
+    return await backends.get_appuntamenti_per_email(email)
+
+
+async def _invia_codice_verifica(action: dict, phone: str, session: dict, backends) -> dict:
+    """Manda per email il codice che sblocca lo storico dalla chat del sito."""
+    from datetime import datetime, timedelta, timezone
+
+    if not _dal_sito(phone):
+        return {
+            "errore": (
+                "Su WhatsApp il numero del mittente basta: usa direttamente "
+                "STORICO_APPUNTAMENTI, senza codice."
+            )
+        }
+
+    email = _email_plausibile(action.get("email"))
+    if email is None:
+        return {"errore": "Indirizzo email non valido: chiedilo di nuovo al cliente."}
+
+    codice = f"{secrets.randbelow(1_000_000):06d}"
+    session["verifica"] = {
+        "email": email,
+        "codice": codice,
+        "scade": (
+            datetime.now(timezone.utc) + timedelta(minutes=DURATA_CODICE_MIN)
+        ).isoformat(),
+        "tentativi": 0,
+    }
+    await backends.send_verification_code(to=email, codice=codice)
+
+    # Il codice non compare nel risultato: finirebbe nello storico della
+    # conversazione, che è la cosa da cui lo stiamo proteggendo.
+    return {
+        "codice_inviato": True,
+        "email": email,
+        "validita_minuti": DURATA_CODICE_MIN,
+    }
+
+
+async def _verifica_codice(action: dict, session: dict) -> dict:
+    """Confronta il codice digitato dal cliente con quello mandato per email."""
+    from datetime import datetime, timezone
+
+    verifica = session.get("verifica")
+    if not verifica:
+        return {
+            "errore": (
+                "Non c'è nessun codice in attesa: prima mandane uno con "
+                "INVIA_CODICE_VERIFICA."
+            )
+        }
+
+    if datetime.now(timezone.utc) > datetime.fromisoformat(verifica["scade"]):
+        session.pop("verifica", None)
+        return {
+            "verificato": False,
+            "motivo": "Il codice è scaduto. Chiedi al cliente se ne vuole un altro.",
+        }
+
+    verifica["tentativi"] += 1
+    if verifica["tentativi"] > MAX_TENTATIVI_CODICE:
+        session.pop("verifica", None)
+        return {
+            "verificato": False,
+            "motivo": "Troppi tentativi sbagliati: questo codice non vale più.",
+        }
+
+    digitato = "".join(str(action.get("codice") or "").split())
+    if not secrets.compare_digest(digitato, verifica["codice"]):
+        return {
+            "verificato": False,
+            "tentativi_rimasti": max(MAX_TENTATIVI_CODICE - verifica["tentativi"], 0),
+        }
+
+    session["email_verificata"] = verifica["email"]
+    session.pop("verifica", None)
+    return {"verificato": True, "email": session["email_verificata"]}
+
+
 async def _storico_appuntamenti(phone: str, session: dict, backends) -> dict:
     """Appuntamenti di chi sta scrivendo, cercati col numero della conversazione.
 
@@ -628,17 +744,16 @@ async def _storico_appuntamenti(phone: str, session: dict, backends) -> dict:
     la riservatezza non dipende da una regola nel prompt che qualcuno potrebbe
     aggirare chiedendo "e gli appuntamenti di Mario Rossi?".
     """
-    if not phone or phone.startswith("web_"):
+    if _dal_sito(phone) and not session.get("email_verificata"):
         return {
             "errore": (
-                "Lo storico si può mostrare solo su WhatsApp, dove il numero di chi "
-                "scrive è certo. Dalla chat del sito non è possibile: spiega al "
-                "cliente che può chiederlo scrivendo su WhatsApp o telefonando al "
-                "salone."
+                "Dalla chat del sito non sappiamo chi sta scrivendo. Chiedi al "
+                "cliente la sua email, mandagli un codice con INVIA_CODICE_VERIFICA "
+                "e fattelo confermare: solo dopo puoi mostrare gli appuntamenti."
             )
         }
 
-    trovato = await backends.get_appuntamenti_per_telefono(phone)
+    trovato = await _appuntamenti_del_richiedente(phone, session, backends)
     if trovato is None:
         return {
             "cliente_conosciuto": False,
@@ -664,7 +779,7 @@ async def _storico_appuntamenti(phone: str, session: dict, backends) -> dict:
     }
 
 
-async def _cancella_appuntamento(action: dict, phone: str, backends) -> dict:
+async def _cancella_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
     from datetime import datetime, timedelta
 
     from config import settings
@@ -675,10 +790,7 @@ async def _cancella_appuntamento(action: dict, phone: str, backends) -> dict:
     # L'appuntamento deve essere di chi sta scrivendo. Gli id sono numeri
     # progressivi: senza questo controllo basterebbe dire "cancella il numero 3"
     # per disdire l'appuntamento di un altro.
-    trovato = None
-    if phone and not phone.startswith("web_"):
-        trovato = await backends.get_appuntamenti_per_telefono(phone)
-
+    trovato = await _appuntamenti_del_richiedente(phone, session, backends)
     suoi = {a["app_id"]: a for a in (trovato or {}).get("appuntamenti", [])}
     appuntamento = suoi.get(app_id)
     if appuntamento is None:
