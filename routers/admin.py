@@ -17,6 +17,14 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="templates")
 
 
+@router.get("/", include_in_schema=False)
+async def admin_home():
+    """`/admin` da solo rispondeva 404: non esisteva nessuna rotta per il
+    prefisso, e l'indirizzo che viene naturale scrivere non portava da nessuna
+    parte. Chi è già entrato finisce sugli appuntamenti, gli altri al login."""
+    return RedirectResponse("/admin/dashboard", 303)
+
+
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
