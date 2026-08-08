@@ -355,10 +355,10 @@ async def handle_incoming_message(
 
     session = await get_session(redis, phone)
 
-    # Una volta per conversazione, non a ogni messaggio: è una lettura in più
-    # sul database, e quello che trova sopravvive nella sessione.
-    if not session["history"]:
-        await _riconosci_cliente(phone, session, backends)
+    # Non solo all'inizio della conversazione: la condizione è non sapere chi
+    # sta scrivendo. Legarlo al primo messaggio lasciava fuori le sessioni già
+    # aperte — due ore, dopo un aggiornamento — e chi diventa cliente adesso.
+    await _riconosci_cliente(phone, session, backends)
 
     if msg_type == "image" and media_id:
         session["dati_temp"]["foto_media_id"] = media_id
@@ -876,6 +876,12 @@ async def _riconosci_cliente(phone: str, session: dict, backends) -> None:
     """
     if session.get("dati_temp", {}).get("nome"):
         return
+    if session.get("riconoscimento_tentato"):
+        # Una lettura per conversazione, non per messaggio. Segnata prima di
+        # provarci: se l'anagrafica non risponde, si rinuncia per questa
+        # conversazione invece di ritentare a ogni riga.
+        return
+    session["riconoscimento_tentato"] = True
 
     try:
         trovato = await _appuntamenti_del_richiedente(phone, session, backends)

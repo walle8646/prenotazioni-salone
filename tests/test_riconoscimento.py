@@ -112,6 +112,30 @@ async def test_viene_ricordato_anche_l_ultimo_operatore(mock_redis, canale, abit
 
 
 @pytest.mark.asyncio
+async def test_riconosce_anche_una_conversazione_gia_aperta(
+    mock_redis, canale, abituale
+):
+    """La sessione dura due ore: legare il riconoscimento al primo messaggio
+    lasciava fuori chi stava già parlando quando l'applicazione è ripartita."""
+    from services.session_manager import save_session
+
+    await save_session(
+        mock_redis,
+        NUMERO,
+        {
+            "stato_flusso": "scelta_slot",
+            "history": [{"role": "user", "content": "vorrei un taglio"}],
+            "dati_temp": {"servizio": "Taglio"},
+        },
+    )
+    claude = ScriptedClaude(["Che giorno preferisci?"])
+
+    await _primo_messaggio(mock_redis, canale, abituale, claude)
+
+    assert "QUESTO CLIENTE LO CONOSCIAMO GIÀ" in claude.chiamate[0]["system"]
+
+
+@pytest.mark.asyncio
 async def test_un_numero_sconosciuto_non_inventa_nessun_nome(
     mock_redis, canale, abituale
 ):
