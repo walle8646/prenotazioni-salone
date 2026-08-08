@@ -101,6 +101,13 @@ Fidarsi del numero dichiarato dal modello significa proporre slot liberi solo in
 apparenza: un colore da due ore prenotato come mezz'ora finisce sopra
 l'appuntamento successivo.
 
+**"Indifferente" lo aggiunge il codice, non il modello** (`con_indifferente()`).
+Il prompt lo chiede da sempre e quasi sempre viene rispettato, ma "quasi" non
+basta per l'unica via d'uscita di chi non ha preferenze: senza quella voce
+restano sei scelte tutte impegnative, e va scritto a mano. Si interviene solo
+quando le voci sono tutte e sole nomi di operatori, così un elenco di orari o di
+servizi non viene toccato.
+
 **Quanto può essere lungo un titolo cliccabile lo dichiara il canale**
 (`Channel.lunghezza_massima_opzione`), non chi analizza il testo: il widget del
 sito non ha limiti, WhatsApp sì e diversi a seconda della forma. Un bottone

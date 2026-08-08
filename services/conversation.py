@@ -209,6 +209,31 @@ def try_parse_action(response: str) -> tuple[dict | None, str | None]:
     return None, None
 
 
+INDIFFERENTE = "Indifferente"
+
+
+def con_indifferente(options: list[dict]) -> list[dict]:
+    """Aggiunge "Indifferente" a un elenco di operatori che ne è sprovvisto.
+
+    Il prompt lo chiede da sempre, e quasi sempre il modello obbedisce: ma
+    "quasi" non basta per una voce che è l'unica via d'uscita di chi non ha
+    preferenze. Quando manca, al cliente restano solo scelte impegnative e
+    deve scrivere a mano che gli va bene chiunque.
+
+    Si interviene solo quando le voci sono tutte e sole nomi di operatori:
+    un elenco di orari o di servizi non c'entra nulla.
+    """
+    if len(options) < 2:
+        return options
+    titoli = [o["title"].strip().lower() for o in options]
+    if INDIFFERENTE.lower() in titoli:
+        return options
+    operatori = {nome.strip().lower() for nome in get_parrucchieri_map_cached()}
+    if not operatori or not all(titolo in operatori for titolo in titoli):
+        return options
+    return options + [{"id": f"opt_{len(options)}", "title": INDIFFERENTE}]
+
+
 async def deliver(channel: Channel, to: str, response: str) -> None:
     """Consegna una risposta sul canale, con bottoni se il testo contiene opzioni.
 
@@ -218,6 +243,8 @@ async def deliver(channel: Channel, to: str, response: str) -> None:
     corrispondono a quello che c'è scritto sopra.
     """
     text, options = parse_response_with_options(response)
+    if options:
+        options = con_indifferente(options)
     if options and channel.opzioni_sostenibili(options):
         await channel.send_options(to, text, options)
     else:

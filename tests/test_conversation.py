@@ -4,6 +4,7 @@ import pytest
 
 from services.conversation import (
     MAX_ITERATIONS,
+    con_indifferente,
     handle_incoming_message,
     parse_response_with_options,
     try_parse_action,
@@ -144,6 +145,71 @@ async def test_tipo_messaggio_non_supportato(mock_redis, canale, backends):
     assert len(canale.messages) == 1
     assert "testo e foto" in canale.messages[0]["text"]
     assert claude.chiamate == []
+
+
+# ------------------------------------------------------ "Indifferente" garantito
+
+
+def test_a_un_elenco_di_operatori_manca_indifferente_e_glielo_mettiamo():
+    """Il prompt lo chiede sempre, ma il modello ogni tanto se lo dimentica.
+
+    Successo davvero: sei nomi e nessuna via d'uscita per chi non ha
+    preferenze, costretto a scriverlo a mano.
+    """
+    _, opzioni = parse_response_with_options(
+        "Con quale operatore?\n- Simone Big\n- Francesco\n- Andrea"
+    )
+
+    completate = con_indifferente(opzioni)
+
+    assert [o["title"] for o in completate] == [
+        "Simone Big",
+        "Francesco",
+        "Andrea",
+        "Indifferente",
+    ]
+    assert len({o["id"] for o in completate}) == 4, "gli id devono restare distinti"
+
+
+def test_se_indifferente_c_e_gia_non_si_raddoppia():
+    _, opzioni = parse_response_with_options(
+        "Con chi preferisci?\n- Francesco\n- Andrea\n- Indifferente"
+    )
+
+    assert con_indifferente(opzioni) == opzioni
+
+
+def test_gli_orari_non_diventano_operatori():
+    """La voce ha senso solo su un elenco di persone."""
+    _, opzioni = parse_response_with_options("Quando?\n- 18:00\n- 18:30\n- 19:00")
+
+    assert con_indifferente(opzioni) == opzioni
+
+
+def test_un_elenco_misto_resta_com_e():
+    """Se anche una sola voce non è un operatore, non stiamo leggendo la
+    domanda che pensiamo."""
+    _, opzioni = parse_response_with_options("Scegli:\n- Francesco\n- Taglio")
+
+    assert con_indifferente(opzioni) == opzioni
+
+
+@pytest.mark.asyncio
+async def test_indifferente_arriva_al_cliente(mock_redis, canale, backends):
+    claude = ScriptedClaude(["Con quale operatore?\n- Simone Big\n- Francesco"])
+
+    await handle_incoming_message(
+        redis=mock_redis,
+        phone="393331234567",
+        text="mercoledì alle 18:30",
+        msg_type="text",
+        channel=canale,
+        backends=backends,
+        claude=claude,
+    )
+
+    titoli = [o["title"] for o in canale.ultimo()["options"]]
+    assert titoli[-1] == "Indifferente"
 
 
 # ------------------------------------------------------------- ricominciare da capo
