@@ -69,6 +69,7 @@ class FakeBackends(Backends):
         self.email_inviate: list[dict] = []
         self.codici_inviati: list[dict] = []
         self.email_cancellazioni: list[dict] = []
+        self.email_assenze: list[dict] = []
         self.email_spostamenti: list[dict] = []
         self.foto_salvate: list[str] = []
         self.giorni_chiusi: set[str] = set()
@@ -291,6 +292,17 @@ class FakeBackends(Backends):
                 app["gcal_event_id"] = gcal_event_id
             if durata_min:
                 app["durata_min"] = durata_min
+
+    async def send_absence_email(self, to, nome, data_ora, parrucchiere, servizi):
+        self.email_assenze.append(
+            {
+                "to": to,
+                "nome": nome,
+                "data_ora": data_ora,
+                "parrucchiere": parrucchiere,
+                "servizi": servizi,
+            }
+        )
 
     async def send_change_email(self, to, nome, da, a, parrucchiere, servizi):
         self.email_spostamenti.append(

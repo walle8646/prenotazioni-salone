@@ -139,6 +139,39 @@ async def send_cancellation_email(
     )
 
 
+async def send_absence_email(
+    to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list
+):
+    """Annullamento deciso dal salone perché l'operatore non c'è.
+
+    Diverso dalla disdetta chiesta dal cliente: qui la colpa non è sua, non
+    deve sembrare che abbia fatto qualcosa lui, e il salone deve scusarsi e
+    dire come rimediare.
+    """
+    servizi_str = ", ".join(servizi or [])
+    contatto = (
+        f"chiamaci allo {settings.salone_telefono}"
+        if settings.salone_telefono
+        else "scrivici qui"
+    )
+    await _invia(
+        to,
+        "Dobbiamo spostare il tuo appuntamento - Salone Nadia",
+        f"""
+            <h2>Ciao {nome},</h2>
+            <p>ci dispiace: {parrucchiere} non sarà in salone e dobbiamo
+            annullare il tuo appuntamento.</p>
+            <ul>
+                <li><strong>Data e ora:</strong> {_quando(data_ora)}</li>
+                <li><strong>Servizio:</strong> {servizi_str}</li>
+            </ul>
+            <p>Ci scusiamo per il disagio. Per trovare subito un altro orario
+            {contatto}, oppure rispondi a questo messaggio.</p>
+            <p>A presto!<br>Salone Nadia</p>
+        """,
+    )
+
+
 async def send_change_email(
     to: str, nome: str, da: str, a: str, parrucchiere: str, servizi: list
 ):

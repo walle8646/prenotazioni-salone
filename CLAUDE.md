@@ -137,7 +137,20 @@ più, e senza quei dati il bot ricomincia a chiedere cosa voleva.
 
 Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata),
 **Clienti** (elenco con ricerca e scheda singola), **Listino** e **Operatori**
-(modifica in linea, una riga per form).
+(modifica in linea, una riga per form), **Assenze**.
+
+**Assenze** (`services/assenze.py`) annulla in blocco la giornata di un
+operatore che non viene: toglie gli eventi da Google, annulla nel database e
+manda ai clienti un'email diversa da quella della disdetta normale — qui la
+colpa non è loro, e il salone si scusa. Si vede sempre prima l'elenco di chi
+si sta per annullare: il bottone compare solo sotto quell'elenco.
+
+Ogni appuntamento va per conto suo. Un'email che non parte non impedisce
+l'annullamento degli altri; un evento che Google non trova non lascia in
+agenda i rimanenti; se invece è il database a non rispondere il cliente
+**non** viene avvisato, perché annunciare un annullamento che non è avvenuto
+è il danno peggiore. Chi resta senza avviso finisce nel resoconto col numero
+di telefono, da chiamare.
 
 Due regole valgono per tutte e due le schermate di modifica.
 
@@ -228,7 +241,9 @@ processo sempre acceso. E il disco è effimero: le foto salvate da
 - **WhatsApp** gira su un numero di prova di Meta, che consegna solo ai
   destinatari autorizzati a mano (massimo cinque). Per aprirlo ai clienti serve
   un numero proprio, e a quel punto la verifica dell'azienda.
-- `cancel_notify` in `routers/admin.py` è un endpoint vuoto.
+- I clienti senza email vanno avvisati a voce anche quando un operatore manca:
+  su WhatsApp si potrebbe, ma fuori dalle 24 ore serve un template approvato
+  da Meta, che non abbiamo.
 - Per ricominciare da capo il cliente deve scrivere "ricominciamo da capo" (o
   "reset", "azzera tutto": le riconosce `vuole_ricominciare()`, e fra queste
   parole non c'è **"annulla"**, che disdice un appuntamento). Sul widget del

@@ -441,12 +441,128 @@ async def clienti_elenco(
     )
 
 
-@router.post("/cancel-notify")
-async def cancel_notify(request: Request):
-    """Endpoint per notifica cancellazione per assenza parrucchiere."""
-    user = verify_session(request)
-    if not user:
-        return {"error": "Non autorizzato"}
-    body = await request.json()
-    # TODO: implementare logica notifica cancellazione
-    return {"status": "notifiche inviate"}
+# --------------------------------------------------------------------- assenze
+
+
+async def _appuntamenti_da_annullare(db, operatore_id: int, giorno: date) -> list[dict]:
+    """Gli appuntamenti ancora buoni di un operatore in un giorno."""
+    result = await db.execute(
+        select(Appuntamento)
+        .options(
+            selectinload(Appuntamento.cliente),
+            selectinload(Appuntamento.parrucchiere),
+        )
+        .where(
+            Appuntamento.parrucchiere_id == operatore_id,
+            Appuntamento.data_ora >= datetime.combine(giorno, datetime.min.time()),
+            Appuntamento.data_ora < datetime.combine(giorno, datetime.max.time()),
+            Appuntamento.stato == "Confermato",
+        )
+        .order_by(Appuntamento.data_ora)
+    )
+
+    appuntamenti = []
+    for app in result.scalars().all():
+        cliente = app.cliente
+        telefono = cliente.telefono_wa if cliente else None
+        appuntamenti.append(
+            {
+                "app_id": app.id,
+                "gcal_event_id": app.gcal_event_id,
+                "cal_id": app.parrucchiere.gcal_calendar_id if app.parrucchiere else None,
+                "data_ora": app.data_ora.strftime("%Y-%m-%dT%H:%M"),
+                "ora": app.data_ora.strftime("%H:%M"),
+                "servizi": app.servizi or [],
+                "cliente_nome": (
+                    f"{cliente.nome or ''} {cliente.cognome or ''}".strip()
+                    if cliente
+                    else ""
+                ),
+                "cliente_email": cliente.email if cliente else None,
+                # I clienti del sito senza numero hanno un segnaposto "web_":
+                # metterlo nel resoconto farebbe comporre un numero inesistente.
+                "cliente_telefono": (
+                    telefono if telefono and not telefono.startswith("web_") else None
+                ),
+                "parrucchiere": app.parrucchiere.nome if app.parrucchiere else None,
+            }
+        )
+    return appuntamenti
+
+
+@router.get("/assenze", response_class=HTMLResponse)
+async def assenze_form(
+    request: Request,
+    operatore_id: int = None,
+    data: str = None,
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Mostra chi verrebbe annullato, prima di annullare davvero."""
+    result = await db.execute(
+        select(Parrucchiere).where(Parrucchiere.attivo == True).order_by(Parrucchiere.nome)
+    )
+    operatori = result.scalars().all()
+
+    giorno = datetime.strptime(data, "%Y-%m-%d").date() if data else date.today()
+    appuntamenti = (
+        await _appuntamenti_da_annullare(db, operatore_id, giorno)
+        if operatore_id
+        else None
+    )
+
+    return templates.TemplateResponse(
+        "assenze.html",
+        {
+            "request": request,
+            "operatori": operatori,
+            "operatore_id": operatore_id,
+            "giorno": giorno,
+            "appuntamenti": appuntamenti,
+            "resoconto": None,
+        },
+    )
+
+
+@router.post("/assenze")
+async def assenze_annulla(
+    request: Request,
+    operatore_id: int = Form(),
+    data: str = Form(),
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Annulla la giornata di un operatore e avvisa i clienti.
+
+    Si arriva qui solo dal bottone che sta sotto l'elenco: annullare senza
+    aver visto chi si sta annullando non deve essere possibile.
+    """
+    from services.assenze import annulla_giornata
+    from services.backends import RealBackends
+
+    giorno = datetime.strptime(data, "%Y-%m-%d").date()
+    appuntamenti = await _appuntamenti_da_annullare(db, operatore_id, giorno)
+    resoconto = await annulla_giornata(appuntamenti, RealBackends())
+
+    logger.info(
+        "Assenza operatore %s del %s: %s appuntamenti annullati, %s avvisati",
+        operatore_id,
+        giorno,
+        resoconto["annullati"],
+        len(resoconto["avvisati"]),
+    )
+
+    result = await db.execute(
+        select(Parrucchiere).where(Parrucchiere.attivo == True).order_by(Parrucchiere.nome)
+    )
+    return templates.TemplateResponse(
+        "assenze.html",
+        {
+            "request": request,
+            "operatori": result.scalars().all(),
+            "operatore_id": operatore_id,
+            "giorno": giorno,
+            "appuntamenti": [],
+            "resoconto": resoconto,
+        },
+    )

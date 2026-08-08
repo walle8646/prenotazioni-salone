@@ -103,3 +103,119 @@ def test_un_segnaposto_non_si_sostituisce_con_un_altro_segnaposto():
         )
         is False
     )
+
+
+# ------------------------------------------------- assenza di un operatore
+#
+# Regola del modulo: ogni appuntamento va per conto suo. Un'email che non
+# parte non deve impedire l'annullamento degli altri, e chi resta senza
+# avviso deve finire nell'elenco di chi va chiamato.
+
+
+def _appuntamento(app_id: int, **campi) -> dict:
+    base = {
+        "app_id": app_id,
+        "gcal_event_id": f"evt_{app_id}",
+        "cal_id": "cal_francesco",
+        "data_ora": "2026-08-20T09:00",
+        "servizi": ["Taglio"],
+        "cliente_nome": f"Cliente {app_id}",
+        "cliente_email": f"cliente{app_id}@example.it",
+        "cliente_telefono": "393331234567",
+        "parrucchiere": "Francesco",
+    }
+    base.update(campi)
+    return base
+
+
+@pytest.mark.asyncio
+async def test_la_giornata_viene_annullata_e_i_clienti_avvisati(backends):
+    from services.assenze import annulla_giornata
+
+    backends.eventi = {"evt_1": {}, "evt_2": {}}
+
+    resoconto = await annulla_giornata(
+        [_appuntamento(1), _appuntamento(2)], backends
+    )
+
+    assert resoconto["annullati"] == 2
+    assert resoconto["avvisati"] == ["Cliente 1", "Cliente 2"]
+    assert resoconto["da_chiamare"] == []
+    assert [e["to"] for e in backends.email_assenze] == [
+        "cliente1@example.it",
+        "cliente2@example.it",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_chi_non_ha_email_finisce_fra_quelli_da_chiamare(backends):
+    """Da WhatsApp l'email spesso non c'è: quel cliente non va perso."""
+    from services.assenze import annulla_giornata
+
+    resoconto = await annulla_giornata(
+        [_appuntamento(1, cliente_email=None, cliente_telefono="393339999999")],
+        backends,
+    )
+
+    assert resoconto["annullati"] == 1
+    assert resoconto["da_chiamare"] == [
+        {"nome": "Cliente 1", "telefono": "393339999999"}
+    ]
+    assert backends.email_assenze == []
+
+
+@pytest.mark.asyncio
+async def test_un_email_che_non_parte_non_ferma_gli_altri(backends, monkeypatch):
+    from services.assenze import annulla_giornata
+
+    async def rifiuta_il_primo(to, **_):
+        if to == "cliente1@example.it":
+            raise OSError("server di posta irraggiungibile")
+
+    monkeypatch.setattr(backends, "send_absence_email", rifiuta_il_primo)
+
+    resoconto = await annulla_giornata(
+        [_appuntamento(1), _appuntamento(2)], backends
+    )
+
+    assert resoconto["annullati"] == 2, "gli appuntamenti si annullano comunque"
+    assert resoconto["avvisati"] == ["Cliente 2"]
+    assert resoconto["da_chiamare"][0]["nome"] == "Cliente 1"
+
+
+@pytest.mark.asyncio
+async def test_un_evento_che_google_non_trova_non_ferma_l_annullamento(
+    backends, monkeypatch
+):
+    """Lasciare l'appuntamento buono sarebbe peggio di un evento orfano."""
+    from services.assenze import annulla_giornata
+
+    async def esplode(event_id, calendar_id):
+        raise RuntimeError("Google non risponde")
+
+    monkeypatch.setattr(backends, "delete_event", esplode)
+
+    resoconto = await annulla_giornata([_appuntamento(1)], backends)
+
+    assert resoconto["annullati"] == 1
+    assert resoconto["avvisati"] == ["Cliente 1"]
+    assert "calendario di Google" in resoconto["problemi"][0]
+
+
+@pytest.mark.asyncio
+async def test_se_l_annullamento_fallisce_il_cliente_non_viene_avvisato(
+    backends, monkeypatch
+):
+    """Avvisare di un annullamento che non c'è stato è il danno peggiore."""
+    from services.assenze import annulla_giornata
+
+    async def esplode(app_id, status):
+        raise RuntimeError("database irraggiungibile")
+
+    monkeypatch.setattr(backends, "update_appointment_status", esplode)
+
+    resoconto = await annulla_giornata([_appuntamento(1)], backends)
+
+    assert resoconto["annullati"] == 0
+    assert backends.email_assenze == []
+    assert "NON annullato" in resoconto["problemi"][0]

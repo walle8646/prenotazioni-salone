@@ -271,6 +271,33 @@ body {
     margin: -0.1rem 0 0.7rem 1rem;
 }
 
+.date-picker select {
+    padding: 0.4rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.resoconto {
+    background: white;
+    padding: 1rem 1.2rem;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    margin-bottom: 1.5rem;
+}
+
+.da-chiamare {
+    color: #b9531a;
+}
+
+.conferma-assenza {
+    margin-top: 1.2rem;
+}
+
+.btn-pericolo {
+    width: auto;
+    padding: 0.7rem 1.2rem;
+}
+
 /* Cliente scheda */
 .cliente-scheda h2 {
     margin-bottom: 1.5rem;

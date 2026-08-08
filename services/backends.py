@@ -72,6 +72,12 @@ class Backends:
     ) -> None:
         raise NotImplementedError
 
+    async def send_absence_email(
+        self, to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list
+    ) -> None:
+        """Annullamento deciso dal salone perché l'operatore non c'è."""
+        raise NotImplementedError
+
     async def send_change_email(
         self, to: str, nome: str, da: str, a: str, parrucchiere: str, servizi: list
     ) -> None:
@@ -158,6 +164,17 @@ class RealBackends(Backends):
         from services.email_service import send_cancellation_email
 
         await send_cancellation_email(
+            to=to,
+            nome=nome,
+            data_ora=data_ora,
+            parrucchiere=parrucchiere,
+            servizi=servizi,
+        )
+
+    async def send_absence_email(self, to, nome, data_ora, parrucchiere, servizi):
+        from services.email_service import send_absence_email
+
+        await send_absence_email(
             to=to,
             nome=nome,
             data_ora=data_ora,

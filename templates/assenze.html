@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Assenza operatore - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <h2>Assenza di un operatore</h2>
+    <p class="nota">
+        Annulla in blocco gli appuntamenti di una giornata e avvisa i clienti
+        per email. Chi non ha lasciato l'email va chiamato: te lo elenchiamo
+        col numero, alla fine.
+    </p>
+
+    <form class="date-picker" method="GET" action="/admin/assenze">
+        <select name="operatore_id" required>
+            <option value="">Chi manca…</option>
+            {% for o in operatori %}
+            <option value="{{ o.id }}" {{ 'selected' if operatore_id == o.id }}>{{ o.nome }}</option>
+            {% endfor %}
+        </select>
+        <input type="date" name="data" value="{{ giorno.strftime('%Y-%m-%d') }}" required>
+        <button type="submit" class="btn-small">Vedi chi c'è</button>
+    </form>
+
+    {% if resoconto %}
+    <div class="resoconto">
+        <h3>Fatto</h3>
+        <p><strong>{{ resoconto.annullati }}</strong>
+           appuntament{{ 'o' if resoconto.annullati == 1 else 'i' }} annullat{{ 'o' if resoconto.annullati == 1 else 'i' }},
+           <strong>{{ resoconto.avvisati|length }}</strong> avvisat{{ 'o' if resoconto.avvisati|length == 1 else 'i' }} per email.</p>
+
+        {% if resoconto.da_chiamare %}
+        <p class="da-chiamare"><strong>Da chiamare a mano</strong> (nessuna email valida):</p>
+        <ul class="da-chiamare">
+            {% for c in resoconto.da_chiamare %}
+            <li>{{ c.nome }}{% if c.telefono %} — {{ c.telefono }}{% else %} — nessun recapito{% endif %}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
+
+        {% if resoconto.problemi %}
+        <div class="error">
+            <strong>Da controllare:</strong>
+            <ul>{% for p in resoconto.problemi %}<li>{{ p }}</li>{% endfor %}</ul>
+        </div>
+        {% endif %}
+    </div>
+    {% endif %}
+
+    {% if appuntamenti %}
+    <h3>{{ appuntamenti|length }} appuntament{{ 'o' if appuntamenti|length == 1 else 'i' }}
+        il {{ giorno.strftime('%d/%m/%Y') }}</h3>
+    <table class="app-table">
+        <thead>
+            <tr>
+                <th>Ora</th>
+                <th>Cliente</th>
+                <th>Servizi</th>
+                <th>Come lo avvisiamo</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in appuntamenti %}
+            <tr>
+                <td><strong>{{ a.ora }}</strong></td>
+                <td>{{ a.cliente_nome or 'Senza nome' }}</td>
+                <td>{{ a.servizi | join(', ') if a.servizi else '-' }}</td>
+                <td>
+                    {% if a.cliente_email %}
+                        Email a {{ a.cliente_email }}
+                    {% elif a.cliente_telefono %}
+                        <span class="da-chiamare">Da chiamare — {{ a.cliente_telefono }}</span>
+                    {% else %}
+                        <span class="da-chiamare">Nessun recapito</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <form method="POST" action="/admin/assenze" class="conferma-assenza"
+          onsubmit="return confirm('Annullo {{ appuntamenti|length }} appuntamenti e mando le email. Confermi?');">
+        <input type="hidden" name="operatore_id" value="{{ operatore_id }}">
+        <input type="hidden" name="data" value="{{ giorno.strftime('%Y-%m-%d') }}">
+        <button type="submit" class="btn-primary btn-pericolo">
+            Annulla questi appuntamenti e avvisa i clienti
+        </button>
+    </form>
+    {% elif appuntamenti is not none and not resoconto %}
+    <p class="empty-state">
+        Nessun appuntamento da annullare per questo operatore il
+        {{ giorno.strftime('%d/%m/%Y') }}.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
