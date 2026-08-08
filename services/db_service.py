@@ -144,6 +144,17 @@ async def find_or_create_client(
                 client.nome = nome
             if cognome and not client.cognome:
                 client.cognome = cognome
+            # Chi è nato dal sito ha come telefono l'identificativo di sessione,
+            # che non identifica nessuno. Appena se ne conosce uno vero prende il
+            # suo posto, altrimenti scrivendo da WhatsApp resterebbe uno
+            # sconosciuto pur essendo già in anagrafica.
+            if (
+                phone
+                and not phone.startswith("web_")
+                and (client.telefono_wa or "").startswith("web_")
+            ):
+                client.telefono_wa = phone
+                logger.info("Cliente %s ora identificato dal suo numero", client.id)
             await db.commit()
             return _cliente_dict(client, is_new=False)
 

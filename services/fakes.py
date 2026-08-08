@@ -173,6 +173,14 @@ class FakeBackends(Backends):
             if cliente["telefono"] == phone or (email and cliente.get("email") == email):
                 if email and not cliente.get("email"):
                     cliente["email"] = email
+                # Come il database vero: un numero reale sostituisce
+                # l'identificativo di sessione di chi era nato dal sito.
+                if (
+                    phone
+                    and not phone.startswith("web_")
+                    and str(cliente.get("telefono") or "").startswith("web_")
+                ):
+                    cliente["telefono"] = phone
                 return {**cliente, "is_new": False}
 
         cliente = {

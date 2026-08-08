@@ -774,6 +774,34 @@ async def test_si_puo_disdire_usando_i_dati_dello_storico(mock_redis, canale):
 
 
 @pytest.mark.asyncio
+async def test_il_numero_vero_sostituisce_l_identificativo_di_sessione():
+    """Chi nasce dal sito è registrato con un identificativo che non identifica nessuno."""
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+
+    # Prima visita dal sito: nessun numero, solo l'email
+    await backends.find_or_create_client(
+        phone="web_0123456789ab", nome="Mario", email="mario@example.it", canale="web"
+    )
+    assert backends.clienti[0]["telefono"] == "web_0123456789ab"
+
+    # Torna e lascia il numero: da quel momento è quella la sua identità
+    ritrovato = await backends.find_or_create_client(
+        phone="393331234567", email="mario@example.it"
+    )
+    assert ritrovato["is_new"] is False
+    assert backends.clienti[0]["telefono"] == "393331234567"
+
+    # E scrivendo da WhatsApp viene riconosciuto
+    da_whatsapp = await backends.find_or_create_client(phone="393331234567")
+    assert da_whatsapp["is_new"] is False
+    assert da_whatsapp["nome"] == "Mario"
+
+
+@pytest.mark.asyncio
 async def test_spostare_non_lascia_due_appuntamenti(monkeypatch):
     """Nel database la riga è la stessa: spostato, non annullato più preso."""
     from config import settings
