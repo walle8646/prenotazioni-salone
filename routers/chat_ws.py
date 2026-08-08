@@ -1,5 +1,9 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from services.conversation import apri_conversazione_web, handle_incoming_message_web
+from services.conversation import (
+    apri_conversazione_web,
+    handle_incoming_message_web,
+    storico_visibile_web,
+)
 import json
 import re
 import uuid
@@ -41,6 +45,19 @@ async def chat_websocket(websocket: WebSocket):
         await websocket.send_text(
             json.dumps({"type": "message", "text": saluto, "options": None})
         )
+    else:
+        # Conversazione ripresa: il riquadro del browser è vuoto ma la memoria
+        # del bot no, quindi si rimette in pagina quello che ci si era detti.
+        for messaggio in await storico_visibile_web(redis, session_id):
+            await websocket.send_text(
+                json.dumps(
+                    {
+                        "type": "storico",
+                        "role": messaggio["role"],
+                        "text": messaggio["text"],
+                    }
+                )
+            )
 
     try:
         while True:

@@ -266,6 +266,42 @@ async def apri_conversazione_web(redis, session_id: str) -> str | None:
     return SALUTO_INIZIALE
 
 
+async def storico_visibile_web(redis, session_id: str) -> list[dict]:
+    """I messaggi da rimostrare al browser che riprende una conversazione.
+
+    Senza questo il riquadro appariva vuoto pur avendo il bot la memoria intatta:
+    il cliente credeva di ricominciare da zero e il bot rispondeva come se il
+    discorso fosse a metà.
+
+    Salta la meccanica interna: i risultati delle azioni, che vengono iniettati
+    nello storico come se fossero messaggi del cliente, e le azioni JSON del
+    modello, che non sono mai state destinate a essere lette.
+    """
+    session = await get_session(redis, session_id)
+    visibili: list[dict] = []
+
+    for messaggio in session.get("history") or []:
+        contenuto = messaggio.get("content")
+        if not isinstance(contenuto, str) or not contenuto.strip():
+            continue
+
+        if messaggio.get("role") == "user":
+            if contenuto.startswith("[SISTEMA]"):
+                continue
+            visibili.append({"role": "user", "text": contenuto})
+            continue
+
+        azione, testo_prima = try_parse_action(contenuto)
+        if azione is not None:
+            # Di un turno con azione si è visto solo l'eventuale testo davanti
+            if testo_prima:
+                visibili.append({"role": "assistant", "text": testo_prima})
+            continue
+        visibili.append({"role": "assistant", "text": contenuto})
+
+    return visibili
+
+
 async def handle_incoming_message_web(
     redis,
     session_id: str,

@@ -72,6 +72,13 @@
                 ricordaSessione(data.id);
                 return;
             }
+            if (data.type === 'storico') {
+                // Conversazione ripresa dopo un ricaricamento o una caduta:
+                // senza questo il riquadro restava vuoto pur avendo il bot
+                // la memoria intatta.
+                appendMessage(data.text, data.role === 'user' ? 'user' : 'bot');
+                return;
+            }
             if (data.type === 'message') {
                 appendMessage(data.text, 'bot');
                 // Se ci sono opzioni, mostra i bottoni

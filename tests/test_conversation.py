@@ -455,6 +455,53 @@ async def test_il_saluto_iniziale_entra_nello_storico(mock_redis):
     assert len(sessione["history"]) == 1
 
 
+@pytest.mark.asyncio
+async def test_chi_riprende_la_conversazione_rivede_i_messaggi(mock_redis):
+    """Il riquadro del browser è vuoto dopo un ricaricamento, la memoria del bot no."""
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import (
+        SALUTO_INIZIALE,
+        apri_conversazione_web,
+        handle_incoming_message_web,
+        storico_visibile_web,
+    )
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+
+    claude = ScriptedClaude(
+        [
+            ScriptedClaude.azione(
+                action="CHECK_DISPONIBILITA",
+                data=GIORNO,
+                parrucchiere="Francesco",
+                servizi=["Taglio"],
+            ),
+            "Ecco gli orari liberi.",
+        ]
+    )
+
+    await apri_conversazione_web(mock_redis, "web_0123456789ab")
+    await handle_incoming_message_web(
+        redis=mock_redis,
+        session_id="web_0123456789ab",
+        text="vorrei un taglio",
+        backends=backends,
+        claude=claude,
+    )
+
+    storico = await storico_visibile_web(mock_redis, "web_0123456789ab")
+    testi = [m["text"] for m in storico]
+
+    assert testi == [SALUTO_INIZIALE, "vorrei un taglio", "Ecco gli orari liberi."]
+    assert [m["role"] for m in storico] == ["assistant", "user", "assistant"]
+
+    # La meccanica interna non deve finire sotto gli occhi del cliente
+    assert not any("[SISTEMA]" in t for t in testi)
+    assert not any("CHECK_DISPONIBILITA" in t for t in testi)
+
+
 def test_il_browser_non_puo_chiedere_la_sessione_di_un_altro():
     """L'identificativo arriva dal client e diventa una chiave in Redis.
 
