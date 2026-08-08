@@ -212,6 +212,21 @@ def try_parse_action(response: str) -> tuple[dict | None, str | None]:
 INDIFFERENTE = "Indifferente"
 
 
+def _elenco_di_operatori(options: list[dict]) -> bool:
+    """True se queste opzioni sono la scelta dell'operatore e non altro.
+
+    Un elenco di orari o di servizi non va toccato: né aggiungendogli
+    "Indifferente", né appiccicandogli delle facce.
+    """
+    if len(options) < 2:
+        return False
+    operatori = {nome.strip().lower() for nome in get_parrucchieri_map_cached()}
+    if not operatori:
+        return False
+    titoli = [o["title"].strip().lower() for o in options]
+    return all(t in operatori or t == INDIFFERENTE.lower() for t in titoli)
+
+
 def con_indifferente(options: list[dict]) -> list[dict]:
     """Aggiunge "Indifferente" a un elenco di operatori che ne è sprovvisto.
 
@@ -219,19 +234,36 @@ def con_indifferente(options: list[dict]) -> list[dict]:
     "quasi" non basta per una voce che è l'unica via d'uscita di chi non ha
     preferenze. Quando manca, al cliente restano solo scelte impegnative e
     deve scrivere a mano che gli va bene chiunque.
-
-    Si interviene solo quando le voci sono tutte e sole nomi di operatori:
-    un elenco di orari o di servizi non c'entra nulla.
     """
-    if len(options) < 2:
+    if not _elenco_di_operatori(options):
         return options
-    titoli = [o["title"].strip().lower() for o in options]
-    if INDIFFERENTE.lower() in titoli:
-        return options
-    operatori = {nome.strip().lower() for nome in get_parrucchieri_map_cached()}
-    if not operatori or not all(titolo in operatori for titolo in titoli):
+    if any(o["title"].strip().lower() == INDIFFERENTE.lower() for o in options):
         return options
     return options + [{"id": f"opt_{len(options)}", "title": INDIFFERENTE}]
+
+
+def con_foto(options: list[dict]) -> list[dict]:
+    """Aggiunge a ogni operatore l'indirizzo della sua faccia.
+
+    L'indirizzo è per nome e non per identificativo: qui il nome è l'unica
+    cosa che si ha, e chiederlo al database da dentro il motore
+    conversazionale vorrebbe dire fargli conoscere il database.
+
+    "Indifferente" resta senza: non è una persona.
+    """
+    from urllib.parse import quote
+
+    if not _elenco_di_operatori(options):
+        return options
+
+    arricchite = []
+    for opzione in options:
+        if opzione["title"].strip().lower() == INDIFFERENTE.lower():
+            arricchite.append(opzione)
+            continue
+        indirizzo = f"/operatori/{quote(opzione['title'].strip())}/foto"
+        arricchite.append({**opzione, "foto": indirizzo})
+    return arricchite
 
 
 async def deliver(channel: Channel, to: str, response: str) -> None:
@@ -245,6 +277,10 @@ async def deliver(channel: Channel, to: str, response: str) -> None:
     text, options = parse_response_with_options(response)
     if options:
         options = con_indifferente(options)
+        # Le facce le mostra solo chi può: nelle liste di WhatsApp non c'è
+        # posto per un'immagine, e allegarla sarebbe peso inutile.
+        if channel.mostra_foto_opzioni:
+            options = con_foto(options)
     if options and channel.opzioni_sostenibili(options):
         await channel.send_options(to, text, options)
     else:

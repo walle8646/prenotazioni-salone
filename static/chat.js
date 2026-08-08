@@ -194,7 +194,17 @@
         options.forEach(opt => {
             const btn = document.createElement('button');
             btn.className = 'chat-option-btn';
-            btn.textContent = opt.title;
+            if (opt.foto) {
+                // Solo gli operatori ne hanno una: per gli orari e i servizi
+                // il campo non arriva proprio.
+                const faccia = document.createElement('img');
+                faccia.className = 'faccia-operatore';
+                faccia.src = opt.foto;
+                faccia.alt = '';
+                btn.appendChild(faccia);
+                btn.classList.add('con-faccia');
+            }
+            btn.appendChild(document.createTextNode(opt.title));
             btn.addEventListener('click', () => {
                 // Rimuovi i bottoni dopo il click
                 container.remove();

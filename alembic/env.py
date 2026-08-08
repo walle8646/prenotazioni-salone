@@ -62,6 +62,13 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
+    # Quando è l'applicazione ad applicare le migrazioni all'avvio ci passa la
+    # connessione che ha già aperto: aprirne un'altra qui significherebbe
+    # attendere un lock tenuto da noi stessi, cioè non partire più.
+    connessione = config.attributes.get("connection")
+    if connessione is not None:
+        do_run_migrations(connessione)
+        return
     asyncio.run(run_async_migrations())
 
 

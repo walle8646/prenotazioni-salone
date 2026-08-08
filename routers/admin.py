@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Form, Depends, HTTPException
+from fastapi import APIRouter, Request, Form, Depends, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, select
@@ -368,11 +368,18 @@ async def operatore_nuovo(
     return RedirectResponse("/admin/operatori", 303)
 
 
+# Foto piccole: stanno nel database e viaggiano a ogni messaggio della chat.
+# Mezzo mega è già abbondante per una faccia da 96 pixel.
+FOTO_MASSIMA_BYTE = 500 * 1024
+
+
 @router.post("/operatori/{operatore_id}")
 async def operatore_modifica(
     operatore_id: int,
     nome: str = Form(),
     gcal_calendar_id: str = Form(),
+    foto: UploadFile = File(None),
+    togli_foto: str = Form(None),
     utente=Depends(utente_del_pannello),
     db=Depends(get_db),
 ):
@@ -383,6 +390,23 @@ async def operatore_modifica(
         return RedirectResponse(
             "/admin/operatori?errore=Nome+e+calendario+sono+obbligatori", 303
         )
+
+    if togli_foto:
+        # Si torna all'avatar con le iniziali, che non manca mai.
+        operatore.foto = None
+        operatore.foto_mime = None
+    elif foto is not None and foto.filename:
+        contenuto = await foto.read()
+        if len(contenuto) > FOTO_MASSIMA_BYTE:
+            return RedirectResponse(
+                "/admin/operatori?errore=La+foto+supera+500+KB:+rimpiccioliscila", 303
+            )
+        if not (foto.content_type or "").startswith("image/"):
+            return RedirectResponse(
+                "/admin/operatori?errore=Serve+un+file+immagine", 303
+            )
+        operatore.foto = contenuto
+        operatore.foto_mime = foto.content_type
 
     operatore.nome = nome.strip()
     operatore.gcal_calendar_id = gcal_calendar_id.strip()

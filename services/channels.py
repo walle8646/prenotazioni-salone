@@ -27,6 +27,9 @@ class Channel:
     # è il caso del widget del sito, dove il bottone è un elemento HTML e può
     # contenere quello che vuole.
     lunghezza_massima_opzione: int | None = None
+    # Se le scelte possono portare un'immagine accanto al titolo. Nelle liste
+    # di WhatsApp non c'è posto per una faccia; nel widget del sito sì.
+    mostra_foto_opzioni = False
 
     def opzioni_sostenibili(self, options: list[dict]) -> bool:
         """True se questo canale può mostrare tutte le opzioni senza storpiarle."""
@@ -136,6 +139,9 @@ class WebChannel(Channel):
 
     name = "web"
     supports_options = True
+    # Il bottone è un elemento HTML: può contenere quello che vuole, faccia
+    # compresa.
+    mostra_foto_opzioni = True
 
     def __init__(self) -> None:
         self._testi: list[str] = []
@@ -146,7 +152,10 @@ class WebChannel(Channel):
 
     async def send_options(self, to: str, text: str, options: list[dict]) -> None:
         self._testi.append(text)
-        self._options = [{"id": o["id"], "title": o["title"]} for o in options]
+        # Ricopiate per intero e non campo per campo: ricostruirle con i soli
+        # id e titolo lasciava per strada la foto dell'operatore, e il widget
+        # riceveva bottoni senza faccia senza che nulla segnalasse l'errore.
+        self._options = [dict(o) for o in options]
 
     def payload(self) -> dict:
         """Il dict che il WebSocket manda al browser."""

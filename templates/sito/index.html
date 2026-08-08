@@ -52,7 +52,16 @@
         <h2>Il team</h2>
         <div class="operatori-grid">
             {% for operatore in operatori %}
-            <div class="operatore-card">{{ operatore }}</div>
+            <div class="operatore-card">
+                {# Finché non c'è una foto vera, l'indirizzo restituisce
+                   l'avatar con le iniziali: la pagina non ha buchi. #}
+                {# Niente loading="lazy": sono sei disegni da un chilobyte,
+                   non c'è niente da rimandare e in cambio si dipende dal
+                   momento in cui il browser decide che sono in vista. #}
+                <img class="operatore-foto" src="/operatori/{{ operatore | urlencode }}/foto"
+                     alt="" width="96" height="96">
+                <span>{{ operatore }}</span>
+            </div>
             {% endfor %}
         </div>
     </section>

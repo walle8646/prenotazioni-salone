@@ -235,9 +235,35 @@ body {
 
 .griglia-operatori {
     display: grid;
-    grid-template-columns: 1fr 2fr auto;
+    grid-template-columns: 40px 1fr 2fr 13rem auto;
     gap: 0.5rem;
     align-items: center;
+}
+
+.faccia-in-elenco {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.campo-foto {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    font-size: 0.75rem;
+    min-width: 0;
+}
+
+.campo-foto input[type="file"] {
+    border: none;
+    padding: 0;
+    font-size: 0.75rem;
+    max-width: 100%;
+}
+
+.togli-foto {
+    color: #7f8c8d;
 }
 
 .riga-gestione input {

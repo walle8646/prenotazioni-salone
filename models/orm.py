@@ -1,6 +1,6 @@
 from sqlalchemy import (
     Column, Integer, String, Text, DateTime, Boolean, ForeignKey, JSON, Date,
-    Numeric,
+    LargeBinary, Numeric,
 )
 from sqlalchemy.orm import relationship
 from datetime import datetime
@@ -33,6 +33,11 @@ class Parrucchiere(Base):
     nome = Column(String(100), nullable=False)
     gcal_calendar_id = Column(String(255), nullable=False)
     attivo = Column(Boolean, default=True)
+    # Nel database e non su disco: su Render il disco è effimero e una foto
+    # caricata dal pannello sparirebbe al primo deploy. Finché è vuota,
+    # l'avatar lo disegna services/avatar.py con le iniziali.
+    foto = Column(LargeBinary, nullable=True)
+    foto_mime = Column(String(50), nullable=True)
 
     # Relazioni
     clienti_pref = relationship("Cliente", back_populates="parrucchiere_pref")

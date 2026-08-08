@@ -154,6 +154,19 @@ section h2 {
     text-align: center;
     font-weight: 600;
     color: #2c3e50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.operatore-foto {
+    width: 96px;
+    height: 96px;
+    border-radius: 50%;
+    /* Le foto vere non arriveranno quadrate: si ritagliano invece di
+       deformare la faccia di qualcuno. */
+    object-fit: cover;
 }
 
 /* Contatti */
@@ -417,6 +430,21 @@ footer {
 .chat-option-btn:hover {
     background: #c0392b;
     color: white;
+}
+
+.chat-option-btn.con-faccia {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding-left: 0.35rem;
+}
+
+.faccia-operatore {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
 }
 
 /* Responsive */

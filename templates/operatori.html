@@ -12,19 +12,37 @@
 
     {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
 
+    <p class="nota">
+        La foto è facoltativa: finché manca si vede un avatar con le iniziali,
+        diverso per ognuno. Al massimo 500 KB, e viene ritagliata in tondo.
+    </p>
+
     <div class="griglia-intestazione griglia-operatori">
+        <span></span>
         <span>Nome</span>
         <span>Calendario Google</span>
+        <span>Foto</span>
         <span></span>
     </div>
 
     {% for o in operatori %}
     <div class="riga-gestione {{ '' if o.attivo else 'riga-sospesa' }}">
-        <form method="POST" action="/admin/operatori/{{ o.id }}" class="griglia-operatori">
+        <form method="POST" action="/admin/operatori/{{ o.id }}" class="griglia-operatori"
+              enctype="multipart/form-data">
+            <img class="faccia-in-elenco" src="/operatori/{{ o.nome | urlencode }}/foto"
+                 alt="" width="40" height="40">
             <input type="text" name="nome" value="{{ o.nome }}" required aria-label="Nome">
             <input type="text" name="gcal_calendar_id" value="{{ o.gcal_calendar_id }}"
                    required aria-label="Calendar ID"
                    class="{{ 'campo-da-configurare' if o.gcal_calendar_id.startswith(prefisso_non_configurato) else '' }}">
+            <span class="campo-foto">
+                <input type="file" name="foto" accept="image/*" aria-label="Foto">
+                {% if o.foto %}
+                <label class="togli-foto">
+                    <input type="checkbox" name="togli_foto" value="1"> togli
+                </label>
+                {% endif %}
+            </span>
             <button type="submit" class="btn-small">Salva</button>
         </form>
         <form method="POST" action="/admin/operatori/{{ o.id }}/stato" class="azione-secondaria">
@@ -44,9 +62,11 @@
     <h3>Aggiungi un operatore</h3>
     <div class="riga-gestione">
         <form method="POST" action="/admin/operatori" class="griglia-operatori">
+            <span></span>
             <input type="text" name="nome" placeholder="Nome" required aria-label="Nome">
             <input type="text" name="gcal_calendar_id"
                    placeholder="xxxxx@group.calendar.google.com" required aria-label="Calendar ID">
+            <span class="nota">la foto si aggiunge dopo</span>
             <button type="submit" class="btn-small">Aggiungi</button>
         </form>
     </div>

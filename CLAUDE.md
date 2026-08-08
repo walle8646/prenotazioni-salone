@@ -28,9 +28,12 @@ docker compose up               # app + PostgreSQL + Redis, poi http://localhost
 python tools/fake_webhook.py text "vorrei un taglio"   # payload Meta finti al webhook
 ```
 
-Un database nuovo non richiede migrazioni: al primo avvio l'applicazione crea le
-tabelle e si annota da sé come allineata (`models/database.py`). `alembic upgrade
-head` serve solo quando si aggiunge una migrazione a un database esistente.
+Le migrazioni non si lanciano a mano. All'avvio (`models/database.py`): se il
+database è vuoto le tabelle nascono dai modelli e viene annotato come allineato;
+se esiste già, riceve le migrazioni che gli mancano. Dimenticare un `alembic
+upgrade head` prima di un deploy non rompeva la funzione appena aggiunta, ma
+tutto: SQLAlchemy chiede al database tutte le colonne del modello, e quella
+nuova non c'era ancora.
 
 `TESTING.md` spiega in dettaglio i modi di provare il bot senza WhatsApp.
 
@@ -115,6 +118,18 @@ basta per l'unica via d'uscita di chi non ha preferenze: senza quella voce
 restano sei scelte tutte impegnative, e va scritto a mano. Si interviene solo
 quando le voci sono tutte e sole nomi di operatori, così un elenco di orari o di
 servizi non viene toccato.
+
+**Le facce degli operatori stanno nel database, non su disco** (colonne `foto`
+e `foto_mime` su `parrucchieri`): su Render il disco è effimero, e una foto
+caricata dal pannello sparirebbe al primo deploy. Finché la colonna è vuota,
+`services/avatar.py` disegna un avatar con le iniziali, quindi non c'è mai un
+buco al posto della faccia. Il colore si ricava con `hashlib` e non con
+`hash()`, che è salato a ogni avvio: con quello l'operatore cambiava colore a
+ogni deploy. Le iniziali sono sempre due, altrimenti Simone Big e Simone Jr
+diventano due dischi identici con una S. La foto si chiede **per nome**
+(`/operatori/{nome}/foto`) perché il nome è l'unica cosa che il motore
+conversazionale ha in mano, e l'indirizzo non risponde mai 404: senza foto, e
+anche senza database, restituisce l'avatar.
 
 **Quanto può essere lungo un titolo cliccabile lo dichiara il canale**
 (`Channel.lunghezza_massima_opzione`), non chi analizza il testo: il widget del
