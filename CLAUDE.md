@@ -165,14 +165,11 @@ un `.env` passa solo sulla macchina di chi non ce l'ha.
 
 Il bot è **pubblicato su Render e funzionante**. Prenota, sposta, disdice,
 mostra lo storico e riconosce i clienti abituali, scrivendo davvero sui
-calendari Google e mandando email che arrivano. 113 test.
+calendari Google e mandando email che arrivano. 130 test.
 
 Provato sul campo: Google Calendar (sei calendari veri, eventi creati, spostati
-e cancellati), l'invio email, il widget del sito, il database.
-
-Non ancora provato sul campo: **WhatsApp**, che è anche l'unico canale dove
-storico e disdetta sono immediati. Oggi si prova solo col simulatore, che si
-comporta allo stesso modo perché usa un numero di telefono.
+e cancellati), l'invio email, il widget del sito, il database e **WhatsApp**,
+che risponde da un telefono vero con testo e bottoni.
 
 Note sul piano gratuito di Render: il servizio si sospende per inattività, e la
 prima richiesta dopo una pausa aspetta una trentina di secondi. Per lo stesso
@@ -182,25 +179,43 @@ processo sempre acceso. E il disco è effimero: le foto salvate da
 
 ## Cose note ancora da fare
 
-- **WhatsApp**: nessun canale attivo. Vedi la sezione sull'account Meta.
-- `routers/webhook.py` risponde 200 a Meta solo dopo aver interrogato Claude e
-  Google: se supera i pochi secondi di attesa di Meta il messaggio viene
-  rinviato e il cliente riceve risposte doppie. Va spostato in background
-  **prima** di attivare qualunque canale WhatsApp.
+- **WhatsApp** gira su un numero di prova di Meta, che consegna solo ai
+  destinatari autorizzati a mano (massimo cinque). Per aprirlo ai clienti serve
+  un numero proprio, e a quel punto la verifica dell'azienda.
+- Sulle liste di WhatsApp i titoli si fermano a venti caratteri, quindi le voci
+  di listino lunghe non diventano bottoni e l'elenco dei servizi arriva come
+  testo. Le righe hanno anche una descrizione da 72 caratteri, oggi non usata:
+  è lì che starebbe il nome per esteso.
 - Pannello CRM da costruire: schermate CRUD su `servizi` e `parrucchieri`, più
   anagrafica clienti. Oggi il pannello mostra solo gli appuntamenti del giorno.
 - `max_booking_days_ahead` è configurato ma non applicato: si può prenotare a
   qualunque distanza.
 - `cancel_notify` in `routers/admin.py` è un endpoint vuoto.
-- Il tono del bot è prolisso e alterna "tu" e "lei".
 - Dopo un ricaricamento della pagina il widget rimostra la conversazione, ma non
   c'è modo per il cliente di ricominciarne una nuova.
 
 ## Account Meta
 
-L'account sviluppatore Meta è stato abbandonato: il codice di verifica arriva ma
-viene rifiutato. Non riproporre quella strada senza che l'utente la chieda. Le
-alternative valutate sono Twilio Sandbox e Green API.
+WhatsApp passa dalla Cloud API di Meta, con l'app `salone-nadia`
+(id `1493423639206303`) e il numero di prova `+1 555-201-1459`
+(`META_PHONE_NUMBER_ID`), sull'account WhatsApp Business `1687123500082794`.
+Il token è di un utente di sistema e non scade.
+
+Due cose costate una serata, perché danno lo stesso sintomo — silenzio totale —
+e sembrano già fatte quando non lo sono.
+
+**Configurare la URL del webhook e iscrivere l'app all'account sono due
+passaggi distinti.** La verifica del webhook riesce comunque, perché è a livello
+di app: sembra tutto a posto e non arriva nessun messaggio. L'iscrizione si
+controlla con `GET /{WABA_ID}/subscribed_apps`, che deve elencare `salone-nadia`
+e non solo `WA DevX Webhook Events 1P App`, che è di Meta. Si aggiunge con la
+stessa rotta in `POST`.
+
+**Meta scrive sempre perché rifiuta, in chiaro e in italiano, e va letto.**
+`services/whatsapp_service.py` faceva la POST e buttava via la risposta: un
+messaggio rifiutato risultava consegnato e nei log restava un 400 senza motivo.
+I codici visti: `131030` numero non fra i destinatari consentiti, `131005` token
+sbagliato o senza permessi.
 
 ## Sicurezza
 

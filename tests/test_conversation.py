@@ -87,6 +87,18 @@ def test_opzioni_con_emoji():
     assert [o["title"] for o in opzioni] == ["Taglio", "Barba"]
 
 
+def test_un_opzione_non_porta_una_descrizione_uguale_al_titolo():
+    """Nelle liste di WhatsApp titolo e descrizione finiscono uno sotto l'altro.
+
+    Riempire la descrizione con la stessa riga faceva arrivare al cliente
+    "Indifferente" scritto due volte.
+    """
+    _, opzioni = parse_response_with_options("Preferenze?\n- Francesco\n- Indifferente")
+
+    for opzione in opzioni:
+        assert not opzione.get("description")
+
+
 # ------------------------------------------------------------------ flusso messaggi
 
 

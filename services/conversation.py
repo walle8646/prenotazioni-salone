@@ -93,13 +93,10 @@ def parse_response_with_options(response: str) -> tuple[str, list[dict] | None]:
             # interpretano: sul bottone comparirebbe "Oggi alle **08:00**".
             clean_title = clean_title.replace("**", "").replace("__", "").strip()
             if clean_title and len(clean_title) <= LUNGHEZZA_MASSIMA_OPZIONE:
-                options.append(
-                    {
-                        "id": f"opt_{len(options)}",
-                        "title": clean_title,
-                        "description": option_text,
-                    }
-                )
+                # Niente descrizione: conterrebbe la stessa riga del titolo, e
+                # nelle liste di WhatsApp le due cose vengono stampate una sotto
+                # l'altra. Al cliente arrivava "Indifferente" scritto due volte.
+                options.append({"id": f"opt_{len(options)}", "title": clean_title})
                 continue
             # Una voce troppo lunga per essere una scelta: se convertissimo solo
             # le altre, il cliente si troverebbe un elenco scritto e dei bottoni
