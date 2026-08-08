@@ -272,3 +272,104 @@ def test_senza_nomi_ci_si_ferma_invece_di_disegnare_il_vuoto():
 
     with pytest.raises(ValueError):
         griglia_operatori_png([])
+
+
+# ------------------------------------------------------ foto caricate a mano
+
+
+def _fotografia(larghezza: int, altezza: int, formato: str = "JPEG") -> bytes:
+    import io
+
+    from PIL import Image
+
+    memoria = io.BytesIO()
+    Image.new("RGB", (larghezza, altezza), "#3498db").save(memoria, format=formato)
+    return memoria.getvalue()
+
+
+def _apri(contenuto: bytes):
+    import io
+
+    from PIL import Image
+
+    return Image.open(io.BytesIO(contenuto))
+
+
+def test_una_foto_dal_telefono_diventa_piccola_e_quadrata():
+    """Arrivano da tre o quattro megabyte: così finirebbero nel database e in
+    ogni immagine di riepilogo."""
+    from services.avatar import normalizza_foto
+
+    grande = _fotografia(3024, 4032)
+    ridotta, tipo = normalizza_foto(grande)
+
+    assert tipo == "image/jpeg"
+    assert _apri(ridotta).size == (512, 512)
+    assert len(ridotta) < len(grande) / 10
+
+
+def test_una_foto_gia_piccola_non_viene_ingrandita():
+    """Stirarla la sgranerebbe soltanto."""
+    from services.avatar import normalizza_foto
+
+    ridotta, _ = normalizza_foto(_fotografia(200, 200))
+
+    assert _apri(ridotta).size == (200, 200)
+
+
+def test_un_png_con_trasparenza_non_fa_fallire_il_salvataggio():
+    """JPEG non ha il canale alfa: senza convertire, Pillow si rifiuta."""
+    from services.avatar import normalizza_foto
+
+    import io
+
+    from PIL import Image
+
+    memoria = io.BytesIO()
+    Image.new("RGBA", (300, 300), (52, 152, 219, 128)).save(memoria, format="PNG")
+
+    ridotta, tipo = normalizza_foto(memoria.getvalue())
+
+    assert tipo == "image/jpeg"
+    assert _apri(ridotta).size == (300, 300)
+
+
+def test_l_orientamento_del_telefono_viene_applicato():
+    """Senza leggere l'EXIF, le foto scattate in verticale si vedono coricate."""
+    import io
+
+    from PIL import Image
+
+    from services.avatar import normalizza_foto
+
+    # Orientamento 6: ruotata di 90 gradi. L'immagine è 400×200 sul file, ma
+    # va mostrata 200×400 — quindi dopo il ritaglio quadrato deve venire 200.
+    memoria = io.BytesIO()
+    immagine = Image.new("RGB", (400, 200), "#e74c3c")
+    exif = immagine.getexif()
+    exif[274] = 6
+    immagine.save(memoria, format="JPEG", exif=exif)
+
+    ridotta, _ = normalizza_foto(memoria.getvalue())
+
+    assert _apri(ridotta).size == (200, 200)
+
+
+def test_un_file_che_non_e_un_immagine_si_fa_riconoscere():
+    """Il pannello lo trasforma in un messaggio d'errore, non in un guasto."""
+    from services.avatar import normalizza_foto
+
+    with pytest.raises(Exception):
+        normalizza_foto(b"questo non e' un'immagine")
+
+
+def test_la_foto_normalizzata_entra_nella_griglia():
+    """Il giro completo: si carica, si riduce, e compare nell'immagine per
+    WhatsApp al posto dell'avatar."""
+    from services.avatar import griglia_operatori_png, normalizza_foto
+
+    ridotta, _ = normalizza_foto(_fotografia(1200, 900))
+
+    immagine = griglia_operatori_png(["Francesco", "Andrea"], foto={"Francesco": ridotta})
+
+    assert immagine.startswith(b"\x89PNG")

@@ -84,6 +84,40 @@ def _tonda(immagine, lato: int):
     return quadrata
 
 
+def normalizza_foto(contenuto: bytes, lato: int = 512) -> tuple[bytes, str]:
+    """Riduce una foto a un quadrato piccolo, pronto da mostrare in tondo.
+
+    Fatto qui e non chiesto a chi carica: le foto arrivano dal telefono, tre
+    o quattro megabyte a testa, e finirebbero tali e quali nel database e in
+    ogni immagine di riepilogo. Così restano cinquanta chilobyte.
+
+    Il ritaglio è centrale, ed è un ripiego: chi carica dal pannello sceglie
+    l'inquadratura nel browser e qui arriva già quadrata, quindi questo taglio
+    non toglie niente. Serve per le foto che arrivano per altre strade.
+
+    L'orientamento EXIF va applicato, altrimenti le fotografie fatte col
+    telefono in verticale si vedono coricate.
+    """
+    import io
+
+    from PIL import Image, ImageOps
+
+    with Image.open(io.BytesIO(contenuto)) as originale:
+        immagine = ImageOps.exif_transpose(originale)
+        immagine = immagine.convert("RGB")
+
+        corto = min(immagine.size)
+        sinistra = (immagine.width - corto) // 2
+        alto = (immagine.height - corto) // 2
+        immagine = immagine.crop((sinistra, alto, sinistra + corto, alto + corto))
+        if corto > lato:
+            immagine = immagine.resize((lato, lato), Image.LANCZOS)
+
+        memoria = io.BytesIO()
+        immagine.save(memoria, format="JPEG", quality=85, optimize=True)
+        return memoria.getvalue(), "image/jpeg"
+
+
 def griglia_operatori_png(
     nomi: list[str], foto: dict[str, bytes] | None = None, per_riga: int = 3
 ) -> bytes:

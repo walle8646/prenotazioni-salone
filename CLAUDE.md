@@ -131,6 +131,14 @@ niente e le scelte restano testo: Meta l'immagine se la viene a prendere da sé,
 e un indirizzo che non sa raggiungere farebbe fallire tutto il messaggio, non
 solo la faccia.
 
+**L'inquadratura la sceglie chi carica, nel browser** (`static/ritaglio.js`):
+si trascina e si ingrandisce dentro il tondo che vedrà il cliente, e al server
+arriva un quadrato da 512 pixel. Il ritaglio centrale di `normalizza_foto()`
+resta come ripiego per le foto che arrivano per altre strade — e per chi ha un
+browser che non lascia sostituire il file scelto. Lì si applica anche
+l'orientamento EXIF: senza, le fotografie fatte col telefono in verticale si
+vedono coricate.
+
 **Le facce degli operatori stanno nel database, non su disco** (colonne `foto`
 e `foto_mime` su `parrucchieri`): su Render il disco è effimero, e una foto
 caricata dal pannello sparirebbe al primo deploy. Finché la colonna è vuota,

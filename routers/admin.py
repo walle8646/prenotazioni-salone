@@ -368,9 +368,10 @@ async def operatore_nuovo(
     return RedirectResponse("/admin/operatori", 303)
 
 
-# Foto piccole: stanno nel database e viaggiano a ogni messaggio della chat.
-# Mezzo mega è già abbondante per una faccia da 96 pixel.
-FOTO_MASSIMA_BYTE = 500 * 1024
+# Quanto si accetta in ingresso. Le foto arrivano dal telefono e pesano
+# qualche mega: le rimpicciolisce `normalizza_foto`, non chi le carica. Un
+# limite serve comunque, perché il file viene letto tutto in memoria.
+FOTO_MASSIMA_BYTE = 8 * 1024 * 1024
 
 
 @router.post("/operatori/{operatore_id}")
@@ -396,17 +397,23 @@ async def operatore_modifica(
         operatore.foto = None
         operatore.foto_mime = None
     elif foto is not None and foto.filename:
+        from services.avatar import normalizza_foto
+
         contenuto = await foto.read()
         if len(contenuto) > FOTO_MASSIMA_BYTE:
             return RedirectResponse(
-                "/admin/operatori?errore=La+foto+supera+500+KB:+rimpiccioliscila", 303
+                "/admin/operatori?errore=La+foto+supera+8+MB", 303
             )
-        if not (foto.content_type or "").startswith("image/"):
+        try:
+            # Quadrata e piccola prima di toccare il database: quello che
+            # arriva dal telefono pesa mille volte tanto e verrebbe riletto a
+            # ogni immagine di riepilogo.
+            operatore.foto, operatore.foto_mime = normalizza_foto(contenuto)
+        except Exception:  # noqa: BLE001
+            logger.warning("Foto di %s non leggibile", operatore.nome, exc_info=True)
             return RedirectResponse(
-                "/admin/operatori?errore=Serve+un+file+immagine", 303
+                "/admin/operatori?errore=Non+riesco+a+leggere+questa+immagine", 303
             )
-        operatore.foto = contenuto
-        operatore.foto_mime = foto.content_type
 
     operatore.nome = nome.strip()
     operatore.gcal_calendar_id = gcal_calendar_id.strip()

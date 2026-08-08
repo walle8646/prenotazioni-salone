@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Operatori - Salone Nadia{% endblock %}
 
+{% block scripts %}<script src="/static/ritaglio.js"></script>{% endblock %}
+
 {% block content %}
 <div class="gestione">
     <h2>Operatori</h2>
@@ -14,7 +16,9 @@
 
     <p class="nota">
         La foto è facoltativa: finché manca si vede un avatar con le iniziali,
-        diverso per ognuno. Al massimo 500 KB, e viene ritagliata in tondo.
+        diverso per ognuno. Scegli il file e inquadra la faccia nel tondo:
+        quello che vedi lì è quello che vedrà il cliente. Della dimensione non
+        preoccuparti, la riduciamo noi.
     </p>
 
     <div class="griglia-intestazione griglia-operatori">
@@ -69,6 +73,20 @@
             <span class="nota">la foto si aggiunge dopo</span>
             <button type="submit" class="btn-small">Aggiungi</button>
         </form>
+    </div>
+</div>
+
+{# Riquadro di ritaglio: resta nascosto finché non si sceglie un file. #}
+<div id="ritaglio" class="ritaglio nascosto">
+    <div class="ritaglio-riquadro">
+        <h3>Inquadra la faccia</h3>
+        <p class="nota">Trascina per spostare, il cursore per ingrandire.</p>
+        <canvas id="ritaglio-tela" width="320" height="320"></canvas>
+        <input type="range" id="ritaglio-zoom" value="1" aria-label="Ingrandimento">
+        <div class="ritaglio-azioni">
+            <button type="button" id="ritaglio-annulla" class="btn-small btn-neutro">Annulla</button>
+            <button type="button" id="ritaglio-conferma" class="btn-small">Usa questa</button>
+        </div>
     </div>
 </div>
 {% endblock %}
