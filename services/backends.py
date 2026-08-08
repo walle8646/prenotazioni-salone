@@ -56,6 +56,10 @@ class Backends:
     async def update_appointment_status(self, app_id: int, status: str) -> None:
         raise NotImplementedError
 
+    async def get_appuntamenti_per_telefono(self, telefono: str) -> dict | None:
+        """Cliente e suoi appuntamenti. None se quel numero non è in anagrafica."""
+        raise NotImplementedError
+
     async def download_media(self, media_id: str):
         raise NotImplementedError
 
@@ -114,6 +118,11 @@ class RealBackends(Backends):
         from services.db_service import update_appointment_status
 
         await update_appointment_status(app_id, status)
+
+    async def get_appuntamenti_per_telefono(self, telefono):
+        from services.db_service import get_appuntamenti_per_telefono
+
+        return await get_appuntamenti_per_telefono(telefono)
 
     async def download_media(self, media_id):
         from services.whatsapp_service import download_media

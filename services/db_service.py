@@ -227,6 +227,58 @@ async def create_appointment(
         }
 
 
+async def get_appuntamenti_per_telefono(telefono: str, limite: int = 10) -> dict | None:
+    """Cliente e suoi appuntamenti, cercati per numero di telefono.
+
+    Restituisce None se quel numero non è in anagrafica. Include l'id
+    dell'appuntamento e quello dell'evento Google, che servono per cancellare.
+    """
+    from sqlalchemy.orm import selectinload
+
+    if not telefono:
+        return None
+
+    adesso = datetime.now()
+
+    async with async_session() as db:
+        cliente = (
+            await db.execute(select(Cliente).where(Cliente.telefono_wa == telefono))
+        ).scalar_one_or_none()
+        if cliente is None:
+            return None
+
+        risultato = await db.execute(
+            select(Appuntamento)
+            .options(selectinload(Appuntamento.parrucchiere))
+            .where(Appuntamento.cliente_id == cliente.id)
+            .order_by(Appuntamento.data_ora.desc())
+            .limit(limite)
+        )
+        appuntamenti = [
+            {
+                "app_id": a.id,
+                "data_ora": a.data_ora.strftime("%Y-%m-%dT%H:%M"),
+                "servizi": a.servizi,
+                "parrucchiere": a.parrucchiere.nome if a.parrucchiere else None,
+                "prezzo": float(a.prezzo) if a.prezzo is not None else None,
+                "stato": a.stato,
+                "gcal_event_id": a.gcal_event_id,
+                "passato": a.data_ora < adesso,
+            }
+            for a in risultato.scalars().all()
+        ]
+
+    return {
+        "cliente": {
+            "id": cliente.id,
+            "nome": cliente.nome,
+            "cognome": cliente.cognome,
+            "email": cliente.email,
+        },
+        "appuntamenti": appuntamenti,
+    }
+
+
 async def update_appointment_status(app_id: int, status: str):
     """Aggiorna lo stato di un appuntamento."""
     async with async_session() as db:

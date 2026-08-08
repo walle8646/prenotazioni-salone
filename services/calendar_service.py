@@ -190,12 +190,26 @@ async def create_event(
 
 
 async def delete_event(event_id: str, calendar_id: str):
-    """Cancella un evento da Google Calendar."""
+    """Cancella un evento da Google Calendar.
+
+    Un evento già assente non è un errore: capita quando la receptionist lo ha
+    rimosso a mano dal calendario. Fermarsi lì lascerebbe l'appuntamento
+    "Confermato" nel database, cioè l'opposto di quello che il cliente ha
+    chiesto disdicendo.
+    """
     service = _get_service()
 
     def _delete():
-        service.events().delete(
-            calendarId=calendar_id, eventId=event_id
-        ).execute()
+        try:
+            service.events().delete(
+                calendarId=calendar_id, eventId=event_id
+            ).execute()
+        except HttpError as e:
+            if e.resp.status in (404, 410):
+                logger.info(
+                    "Evento %s già assente dal calendario %s", event_id, calendar_id
+                )
+                return
+            raise
 
     await asyncio.to_thread(_delete)

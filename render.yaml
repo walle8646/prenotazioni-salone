@@ -27,7 +27,10 @@ services:
       - key: MAX_BOOKING_DAYS_AHEAD
         value: "30"
       - key: CANCEL_POLICY_HOURS
-        value: "12"
+        value: "2"
+      # Numero del salone, dato al cliente quando è troppo tardi per disdire
+      - key: SALONE_TELEFONO
+        sync: false
       - key: INACTIVITY_DAYS
         value: "60"
       - key: SESSION_TTL_SECONDS

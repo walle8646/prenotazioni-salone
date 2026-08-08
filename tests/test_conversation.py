@@ -629,6 +629,215 @@ async def test_il_numero_lasciato_dal_sito_diventa_l_identita_del_cliente(mock_r
     assert ritrovato["nome"] == "Mario"
 
 
+# --------------------------------------------------- storico degli appuntamenti
+#
+# L'azione non accetta nessun contatto: usa il numero della conversazione, che
+# su WhatsApp è verificato dal gestore. Così non è nemmeno formulabile la
+# richiesta dello storico di un altro.
+
+
+async def _cliente_con_appuntamento(backends, telefono="393331234567"):
+    cliente = await backends.find_or_create_client(
+        phone=telefono, nome="Mario", cognome="Rossi"
+    )
+    event_id = await backends.create_event(
+        slot=f"{GIORNO}T09:00",
+        parrucchiere_cal_id=MAPPA_FINTA["Francesco"],
+        servizi=["Taglio"],
+        durata=30,
+        cliente_nome="Mario Rossi",
+    )
+    await backends.create_appointment(
+        client_id=cliente["id"],
+        data_ora=f"{GIORNO}T09:00",
+        servizi=["Taglio"],
+        parrucchiere="Francesco",
+        gcal_event_id=event_id,
+        durata_min=30,
+        prezzo=13.5,
+    )
+    return event_id
+
+
+@pytest.mark.asyncio
+async def test_lo_storico_arriva_dal_numero_di_chi_scrive():
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+    event_id = await _cliente_con_appuntamento(backends)
+
+    sessione = {"stato_flusso": "saluto", "dati_temp": {}}
+    risultato = await execute_action(
+        {"action": "STORICO_APPUNTAMENTI"}, "393331234567", sessione, backends
+    )
+
+    assert risultato["cliente_conosciuto"] is True
+    assert risultato["nome"] == "Mario"
+    assert len(risultato["appuntamenti"]) == 1
+
+    appuntamento = risultato["appuntamenti"][0]
+    assert appuntamento["gcal_event_id"] == event_id
+    assert appuntamento["app_id"] == 1
+    assert appuntamento["parrucchiere"] == "Francesco"
+
+    # Il nome si annota, ma la fase non avanza: non ha ancora scelto niente
+    assert sessione["dati_temp"]["nome"] == "Mario"
+    assert sessione["stato_flusso"] == "saluto"
+
+
+@pytest.mark.asyncio
+async def test_dal_sito_lo_storico_non_si_puo_leggere():
+    """Sul sito non sappiamo chi scrive: mostrarlo sarebbe darlo a chiunque."""
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+    await _cliente_con_appuntamento(backends)
+
+    risultato = await execute_action(
+        {"action": "STORICO_APPUNTAMENTI"},
+        "web_0123456789ab",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" in risultato
+    assert "appuntamenti" not in risultato
+
+
+@pytest.mark.asyncio
+async def test_un_numero_sconosciuto_non_ha_storico():
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+
+    risultato = await execute_action(
+        {"action": "STORICO_APPUNTAMENTI"},
+        "393339999999",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        FakeBackends(MAPPA_FINTA),
+    )
+
+    assert risultato["cliente_conosciuto"] is False
+    assert "appuntamenti" not in risultato
+
+
+@pytest.mark.asyncio
+async def test_si_puo_disdire_usando_i_dati_dello_storico(mock_redis, canale):
+    """Prima era impossibile: al modello mancavano app_id e gcal_event_id."""
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+    cal_id = MAPPA_FINTA["Francesco"]
+    event_id = await _cliente_con_appuntamento(backends)
+
+    occupati = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id, 30)]
+    assert f"{GIORNO}T09:00" not in occupati
+
+    claude = ScriptedClaude(
+        [
+            ScriptedClaude.azione(action="STORICO_APPUNTAMENTI"),
+            ScriptedClaude.azione(
+                action="CANCELLA_APPUNTAMENTO",
+                app_id=1,
+                gcal_event_id=event_id,
+                parrucchiere="Francesco",
+            ),
+            "Fatto, ho disdetto il tuo appuntamento.",
+        ]
+    )
+
+    await handle_incoming_message(
+        redis=mock_redis,
+        phone="393331234567",
+        text="devo disdire l'appuntamento",
+        msg_type="text",
+        channel=canale,
+        backends=backends,
+        claude=claude,
+    )
+
+    assert canale.ultimo()["text"] == "Fatto, ho disdetto il tuo appuntamento."
+    assert backends.appuntamenti[0]["stato"] == "Cancellato"
+
+    liberi = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id, 30)]
+    assert f"{GIORNO}T09:00" in liberi, "l'orario deve tornare prenotabile"
+
+
+@pytest.mark.asyncio
+async def test_non_si_disdice_a_ridosso_dell_appuntamento(monkeypatch):
+    """Sotto il preavviso minimo la disdetta la gestisce il salone al telefono."""
+    from datetime import timedelta
+
+    from config import settings
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+    from services.slots import adesso_salone
+
+    monkeypatch.setattr(settings, "cancel_policy_hours", 2)
+    monkeypatch.setattr(settings, "salone_telefono", "0123 456789")
+    set_parrucchieri_cache(MAPPA_FINTA)
+
+    backends = FakeBackends(MAPPA_FINTA)
+    cliente = await backends.find_or_create_client(phone="393331234567", nome="Mario")
+    fra_un_ora = (adesso_salone() + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
+    await backends.create_appointment(
+        client_id=cliente["id"],
+        data_ora=fra_un_ora,
+        servizi=["Taglio"],
+        parrucchiere="Francesco",
+        gcal_event_id="evt_1",
+        durata_min=30,
+    )
+
+    risultato = await execute_action(
+        {"action": "CANCELLA_APPUNTAMENTO", "app_id": 1, "gcal_event_id": "evt_1"},
+        "393331234567",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" in risultato
+    assert "0123 456789" in risultato["errore"], "il numero del salone va riferito"
+    assert backends.appuntamenti[0]["stato"] == "Confermato"
+
+
+@pytest.mark.asyncio
+async def test_non_si_disdice_l_appuntamento_di_un_altro(monkeypatch):
+    """Gli id sono progressivi: senza controllo basterebbe indovinarne uno."""
+    from config import settings
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    monkeypatch.setattr(settings, "cancel_policy_hours", 2)
+    set_parrucchieri_cache(MAPPA_FINTA)
+
+    backends = FakeBackends(MAPPA_FINTA)
+    await _cliente_con_appuntamento(backends, telefono="393331234567")
+
+    # Scrive un altro numero, chiedendo di cancellare l'appuntamento numero 1
+    risultato = await execute_action(
+        {"action": "CANCELLA_APPUNTAMENTO", "app_id": 1},
+        "393339999999",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" in risultato
+    assert backends.appuntamenti[0]["stato"] == "Confermato"
+
+
 def test_il_markdown_non_finisce_nelle_etichette():
     """Claude scrive **grassetto**, che nessuno dei due canali interpreta."""
     risposta = "Ecco gli orari:\n- Oggi alle **08:00**\n- Oggi alle **08:30**"

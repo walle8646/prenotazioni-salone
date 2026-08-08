@@ -140,6 +140,11 @@ async def test_senza_preferenza_cerca_tutti_i_parrucchieri(backends):
 @pytest.mark.asyncio
 async def test_cancellazione_libera_lo_slot(mock_redis, canale, backends, cal_id_operatore):
     """Cancellare un appuntamento rimette in circolo l'orario."""
+    # L'intestatario serve davvero: si può disdire solo un appuntamento proprio,
+    # altrimenti basterebbe indovinare un id per cancellare quello di un altro.
+    cliente = await backends.find_or_create_client(
+        phone="393331234567", nome="Valerio", cognome="Rossi"
+    )
     event_id = await backends.create_event(
         slot=f"{GIORNO}T09:00",
         parrucchiere_cal_id=cal_id_operatore,
@@ -148,7 +153,7 @@ async def test_cancellazione_libera_lo_slot(mock_redis, canale, backends, cal_id
         cliente_nome="Valerio",
     )
     await backends.create_appointment(
-        client_id=1,
+        client_id=cliente["id"],
         data_ora=f"{GIORNO}T09:00",
         servizi=["Taglio"],
         parrucchiere="Francesco",

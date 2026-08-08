@@ -44,13 +44,19 @@ class Settings(BaseSettings):
     resend_api_key: str = ""
     email_from: str = "noreply@salonenadia.it"
 
+    # Numero del salone, dato al cliente quando non può disdire da solo perché
+    # è troppo tardi. Vuoto: il bot dice genericamente di telefonare.
+    salone_telefono: str = ""
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 
     # Business config
     slot_duration_min: int = 30
     max_booking_days_ahead: int = 30
-    cancel_policy_hours: int = 12
+    # Entro quante ore dall'appuntamento non si può più disdire dalla chat:
+    # sotto questa soglia il cliente deve telefonare al salone.
+    cancel_policy_hours: int = 2
     inactivity_days: int = 60
     min_booking_hours_ahead: int = 2
     session_ttl_seconds: int = 7200

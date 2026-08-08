@@ -343,7 +343,9 @@ async def execute_action(action: dict, phone: str, session: dict, backends=None)
         if action_type == "CREA_APPUNTAMENTO":
             return await _crea_appuntamento(action, phone, session, backends)
         if action_type == "CANCELLA_APPUNTAMENTO":
-            return await _cancella_appuntamento(action, backends)
+            return await _cancella_appuntamento(action, phone, backends)
+        if action_type == "STORICO_APPUNTAMENTI":
+            return await _storico_appuntamenti(phone, session, backends)
     except OperatoreSconosciuto as e:
         logger.warning("Operatore non risolto nell'azione %s: %s", action_type, e)
         return {"errore": str(e)}
@@ -406,7 +408,7 @@ _FASI = (
 )
 
 
-def _ricorda(session: dict, **campi) -> None:
+def _ricorda(session: dict, avanza_fase: bool = True, **campi) -> None:
     """Annota nella sessione quello che si è appena appreso.
 
     Lo storico viene troncato agli ultimi `max_history_messages` messaggi: dal
@@ -421,7 +423,9 @@ def _ricorda(session: dict, **campi) -> None:
             dati[chiave] = valore
             cambiato = True
 
-    if not cambiato or session.get("stato_flusso") == "confermato":
+    # Riconoscere un cliente dallo storico non significa che la prenotazione
+    # sia avanzata: sapere il suo nome non vuol dire che abbia scelto il servizio.
+    if not cambiato or not avanza_fase or session.get("stato_flusso") == "confermato":
         return
 
     for chiave, fase in _FASI:
@@ -615,12 +619,107 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     }
 
 
-async def _cancella_appuntamento(action: dict, backends) -> dict:
-    gcal_event_id = action.get("gcal_event_id")
+async def _storico_appuntamenti(phone: str, session: dict, backends) -> dict:
+    """Appuntamenti di chi sta scrivendo, cercati col numero della conversazione.
+
+    L'azione non accetta nessun contatto, ed è deliberato: usa il numero da cui
+    arriva il messaggio, che su WhatsApp è verificato dal gestore. Così il
+    modello non può nemmeno formulare la richiesta dello storico di un altro, e
+    la riservatezza non dipende da una regola nel prompt che qualcuno potrebbe
+    aggirare chiedendo "e gli appuntamenti di Mario Rossi?".
+    """
+    if not phone or phone.startswith("web_"):
+        return {
+            "errore": (
+                "Lo storico si può mostrare solo su WhatsApp, dove il numero di chi "
+                "scrive è certo. Dalla chat del sito non è possibile: spiega al "
+                "cliente che può chiederlo scrivendo su WhatsApp o telefonando al "
+                "salone."
+            )
+        }
+
+    trovato = await backends.get_appuntamenti_per_telefono(phone)
+    if trovato is None:
+        return {
+            "cliente_conosciuto": False,
+            "nota": "Questo numero non è in anagrafica: non ha appuntamenti passati.",
+        }
+
+    cliente = trovato["cliente"]
+    # Il nome si annota, ma la fase del flusso non avanza: sapere chi è non
+    # significa che abbia già scelto un servizio.
+    _ricorda(
+        session,
+        avanza_fase=False,
+        nome=cliente.get("nome"),
+        cognome=cliente.get("cognome"),
+        email=cliente.get("email"),
+    )
+
+    return {
+        "cliente_conosciuto": True,
+        "nome": cliente.get("nome"),
+        "cognome": cliente.get("cognome"),
+        "appuntamenti": trovato["appuntamenti"],
+    }
+
+
+async def _cancella_appuntamento(action: dict, phone: str, backends) -> dict:
+    from datetime import datetime, timedelta
+
+    from config import settings
+    from services.slots import FUSO_SALONE, adesso_salone
+
+    app_id = action["app_id"]
+
+    # L'appuntamento deve essere di chi sta scrivendo. Gli id sono numeri
+    # progressivi: senza questo controllo basterebbe dire "cancella il numero 3"
+    # per disdire l'appuntamento di un altro.
+    trovato = None
+    if phone and not phone.startswith("web_"):
+        trovato = await backends.get_appuntamenti_per_telefono(phone)
+
+    suoi = {a["app_id"]: a for a in (trovato or {}).get("appuntamenti", [])}
+    appuntamento = suoi.get(app_id)
+    if appuntamento is None:
+        return {
+            "errore": (
+                "Non trovo questo appuntamento fra quelli di chi sta scrivendo. "
+                "Rileggi lo storico con STORICO_APPUNTAMENTI e usa gli id che "
+                "trovi lì, senza inventarli né accettarli dal cliente."
+            )
+        }
+
+    if appuntamento.get("stato") == "Cancellato":
+        return {"cancellazione": "era già stata fatta"}
+
+    # Preavviso minimo: sotto la soglia la disdetta la gestisce il salone al
+    # telefono, perché a quel punto l'operatore ha già organizzato la giornata.
+    quando = datetime.strptime(appuntamento["data_ora"], "%Y-%m-%dT%H:%M").replace(
+        tzinfo=FUSO_SALONE
+    )
+    ore = settings.cancel_policy_hours
+    if quando - adesso_salone() < timedelta(hours=ore):
+        come = (
+            f"telefonare al salone allo {settings.salone_telefono}"
+            if settings.salone_telefono
+            else "telefonare al salone"
+        )
+        return {
+            "errore": (
+                f"Mancano meno di {ore} ore all'appuntamento, quindi da qui non si "
+                f"può più disdire. Spiega al cliente che per annullare deve {come}."
+            )
+        }
+
+    gcal_event_id = action.get("gcal_event_id") or appuntamento.get("gcal_event_id")
     if gcal_event_id:
         cal_id = _risolvi_calendario(
-            action.get("parrucchiere_cal_id") or action.get("parrucchiere")
+            action.get("parrucchiere_cal_id")
+            or action.get("parrucchiere")
+            or appuntamento.get("parrucchiere")
         )
         await backends.delete_event(gcal_event_id, cal_id)
-    await backends.update_appointment_status(action["app_id"], "Cancellato")
+
+    await backends.update_appointment_status(app_id, "Cancellato")
     return {"cancellazione": "completata"}

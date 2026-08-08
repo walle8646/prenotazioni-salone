@@ -193,6 +193,40 @@ class FakeBackends(Backends):
             if app["id"] == app_id:
                 app["stato"] = status
 
+    async def get_appuntamenti_per_telefono(self, telefono):
+        cliente = next(
+            (c for c in self.clienti if c.get("telefono") == telefono), None
+        )
+        if cliente is None:
+            return None
+
+        adesso = datetime.now()
+        suoi = [a for a in self.appuntamenti if a.get("client_id") == cliente["id"]]
+        return {
+            "cliente": {
+                "id": cliente["id"],
+                "nome": cliente.get("nome"),
+                "cognome": cliente.get("cognome"),
+                "email": cliente.get("email"),
+            },
+            "appuntamenti": [
+                {
+                    "app_id": a["id"],
+                    "data_ora": a.get("data_ora"),
+                    "servizi": a.get("servizi"),
+                    "parrucchiere": a.get("parrucchiere"),
+                    "prezzo": a.get("prezzo"),
+                    "stato": a.get("stato"),
+                    "gcal_event_id": a.get("gcal_event_id"),
+                    "passato": bool(
+                        a.get("data_ora")
+                        and datetime.strptime(a["data_ora"], "%Y-%m-%dT%H:%M") < adesso
+                    ),
+                }
+                for a in sorted(suoi, key=lambda a: a.get("data_ora") or "", reverse=True)
+            ],
+        }
+
     # ------------------------------------------------------------ media/email
 
     async def download_media(self, media_id):
