@@ -195,8 +195,11 @@ processo sempre acceso. E il disco è effimero: le foto salvate da
 - `max_booking_days_ahead` è configurato ma non applicato: si può prenotare a
   qualunque distanza.
 - `cancel_notify` in `routers/admin.py` è un endpoint vuoto.
-- Dopo un ricaricamento della pagina il widget rimostra la conversazione, ma non
-  c'è modo per il cliente di ricominciarne una nuova.
+- Per ricominciare da capo il cliente deve scrivere "ricominciamo da capo" (o
+  "reset", "azzera tutto": le riconosce `vuole_ricominciare()`, e fra queste
+  parole non c'è **"annulla"**, che disdice un appuntamento). Sul widget del
+  sito servirebbe un bottone: scritta com'è, quella via la trova solo chi legge
+  il suggerimento del bot.
 
 ## Account Meta
 

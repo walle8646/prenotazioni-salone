@@ -25,7 +25,7 @@ from prompts.system_prompt import (
 )
 from services.channels import Channel, MetaWhatsAppChannel, WebChannel
 from services.operatori import PREFISSO_NON_CONFIGURATO
-from services.session_manager import get_session, save_session
+from services.session_manager import get_session, new_session, save_session
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +55,49 @@ SALUTO_INIZIALE = (
     "Ciao! Sono Nadia, l'assistente del salone. Come posso aiutarti? "
     "Vuoi prenotare un appuntamento?"
 )
+MESSAGGIO_RICOMINCIATO = (
+    "Va bene, ricominciamo da capo. Dimmi pure, cosa posso fare per te?"
+)
+
+# La sessione dura due ore: senza una via d'uscita, chi lascia a metà una
+# prenotazione se la ritrova addosso al messaggio dopo, e non ha modo di
+# dire "lascia stare". Fra queste parole non c'è "annulla", e non va aggiunta:
+# è quella con cui si disdice un appuntamento, e le due cose non si somigliano
+# per niente.
+_RICOMINCIARE = re.compile(
+    r"^\W*("
+    r"ricomincia(mo|re)?|"
+    r"ripart(i|iamo|ire)|"
+    r"azzera(re)?|"
+    r"reset|"
+    r"nuova conversazione"
+    r")(\s+(da\s+capo|tutto))?\W*$",
+    re.IGNORECASE,
+)
+
+
+def vuole_ricominciare(text: str | None) -> bool:
+    """True se il cliente sta chiedendo di buttare via la conversazione.
+
+    Deve corrispondere l'intero messaggio: "ricominciamo da capo" azzera,
+    "ricominciamo dalla scelta dell'orario" no, perché lì il contesto serve.
+    """
+    return bool(text and _RICOMINCIARE.match(text.strip()))
+
+
+async def _ricomincia(redis, session_key: str, channel: Channel) -> None:
+    """Butta via la sessione e riparte, annotando il proprio messaggio.
+
+    Il messaggio va anche nello storico della sessione nuova: se non ci fosse,
+    a un "sì" successivo il modello riceverebbe una conversazione che comincia
+    lì, senza sapere a cosa si riferisce.
+    """
+    sessione = new_session()
+    sessione["history"].append(
+        {"role": "assistant", "content": MESSAGGIO_RICOMINCIATO}
+    )
+    await save_session(redis, session_key, sessione)
+    await channel.send_text(session_key, MESSAGGIO_RICOMINCIATO)
 
 
 async def _claude_reale(system_prompt: str, history: list[dict]) -> str:
@@ -243,6 +286,10 @@ async def handle_incoming_message(
         await channel.send_text(phone, MESSAGGIO_TIPO_NON_SUPPORTATO)
         return
 
+    if vuole_ricominciare(text):
+        await _ricomincia(redis, phone, channel)
+        return
+
     session = await get_session(redis, phone)
 
     if msg_type == "image" and media_id:
@@ -335,6 +382,10 @@ async def handle_incoming_message_web(
     channel = WebChannel()
     backends = backends if backends is not None else _backends_reali()
     claude = claude or _claude_reale
+
+    if vuole_ricominciare(text):
+        await _ricomincia(redis, session_id, channel)
+        return channel.payload()
 
     session = await get_session(redis, session_id)
     if email:

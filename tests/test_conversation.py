@@ -7,7 +7,9 @@ from services.conversation import (
     handle_incoming_message,
     parse_response_with_options,
     try_parse_action,
+    vuole_ricominciare,
 )
+from services.session_manager import get_session
 from services.fakes import ScriptedClaude
 
 from .conftest import prossimo_giorno_aperto
@@ -142,6 +144,99 @@ async def test_tipo_messaggio_non_supportato(mock_redis, canale, backends):
     assert len(canale.messages) == 1
     assert "testo e foto" in canale.messages[0]["text"]
     assert claude.chiamate == []
+
+
+# ------------------------------------------------------------- ricominciare da capo
+
+
+@pytest.mark.parametrize(
+    "frase",
+    [
+        "ricominciamo",
+        "Ricominciamo da capo",
+        "ricomincia",
+        "RESET",
+        "azzera tutto",
+        "ripartiamo da capo",
+        "nuova conversazione",
+        "  ricominciamo da capo! ",
+    ],
+)
+def test_frasi_che_azzerano(frase):
+    assert vuole_ricominciare(frase) is True
+
+
+@pytest.mark.parametrize(
+    "frase",
+    [
+        # "annulla" disdice un appuntamento: azzerare la conversazione di chi
+        # sta chiedendo di cancellarne uno sarebbe il peggiore dei fraintendimenti.
+        "annulla",
+        "annulla il mio appuntamento di domani",
+        "vorrei disdire",
+        # Il contesto qui serve tutto: si sta correggendo un dato, non buttando via.
+        "ricominciamo dalla scelta dell'orario",
+        "possiamo ripartire dall'operatore?",
+        "ciao",
+        "",
+        None,
+    ],
+)
+def test_frasi_che_non_azzerano(frase):
+    assert vuole_ricominciare(frase) is False
+
+
+@pytest.mark.asyncio
+async def test_ricominciare_butta_via_quello_che_era_stato_raccolto(
+    mock_redis, canale, backends
+):
+    claude = ScriptedClaude(["Perfetto! Hai un operatore preferito?"])
+
+    await handle_incoming_message(
+        redis=mock_redis,
+        phone="393331234567",
+        text="vorrei prenotare un taglio",
+        msg_type="text",
+        channel=canale,
+        backends=backends,
+        claude=claude,
+    )
+    await handle_incoming_message(
+        redis=mock_redis,
+        phone="393331234567",
+        text="ricominciamo da capo",
+        msg_type="text",
+        channel=canale,
+        backends=backends,
+        claude=claude,
+    )
+
+    sessione = await get_session(mock_redis, "393331234567")
+    assert sessione["stato_flusso"] == "saluto"
+    assert "taglio" not in str(sessione["history"]).lower()
+    assert len(claude.chiamate) == 1, "azzerare non deve costare una chiamata al modello"
+    assert "ricominciamo" in canale.ultimo()["text"].lower()
+
+
+@pytest.mark.asyncio
+async def test_dopo_aver_ricominciato_il_bot_sa_di_aver_parlato(
+    mock_redis, canale, backends
+):
+    """Senza il proprio messaggio nello storico, a un "sì" il modello
+    riceverebbe una conversazione che comincia lì."""
+    await handle_incoming_message(
+        redis=mock_redis,
+        phone="393331234567",
+        text="reset",
+        msg_type="text",
+        channel=canale,
+        backends=backends,
+        claude=ScriptedClaude([]),
+    )
+
+    sessione = await get_session(mock_redis, "393331234567")
+    assert sessione["history"][0]["role"] == "assistant"
+    assert "ricominciamo" in sessione["history"][0]["content"].lower()
 
 
 @pytest.mark.asyncio
