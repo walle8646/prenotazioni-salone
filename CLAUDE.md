@@ -119,6 +119,18 @@ restano sei scelte tutte impegnative, e va scritto a mano. Si interviene solo
 quando le voci sono tutte e sole nomi di operatori, così un elenco di orari o di
 servizi non viene toccato.
 
+**Su WhatsApp le facce stanno in un'immagine sola, non una per riga.** Non è
+una scorciatoia: le liste di Meta ammettono solo intestazioni di testo e nelle
+righe non entra nessuna immagine, mentre i messaggi a bottoni accettano
+un'immagine di intestazione, una per messaggio. Quindi fino a tre scelte
+l'immagine è l'intestazione dei bottoni, e da quattro in su arriva prima, in un
+messaggio suo, seguita dalla lista (`MetaWhatsAppChannel._immagine_delle_facce`).
+La compone `griglia_operatori_png()` in PNG, perché l'SVG Meta non lo accetta, e
+la serve `/operatori/scelta.png?nomi=...`. Senza `PUBLIC_BASE_URL` non se ne fa
+niente e le scelte restano testo: Meta l'immagine se la viene a prendere da sé,
+e un indirizzo che non sa raggiungere farebbe fallire tutto il messaggio, non
+solo la faccia.
+
 **Le facce degli operatori stanno nel database, non su disco** (colonne `foto`
 e `foto_mime` su `parrucchieri`): su Render il disco è effimero, e una foto
 caricata dal pannello sparirebbe al primo deploy. Finché la colonna è vuota,

@@ -88,6 +88,9 @@ class MetaWhatsAppChannel(Channel):
     LUNGHEZZA_TITOLO_RIGA = 24
     LUNGHEZZA_DESCRIZIONE_RIGA = 72
     MASSIMO_RIGHE = 10
+    # Non accanto a ogni riga — su WhatsApp non esiste — ma in un'unica
+    # immagine con le facce di tutti. Vedi `_immagine_delle_facce`.
+    mostra_foto_opzioni = True
 
     def _come_lista(self, options: list[dict]) -> bool:
         # Fino a tre scelte Meta vuole i bottoni, oltre serve una lista.
@@ -120,18 +123,48 @@ class MetaWhatsAppChannel(Channel):
 
         await send_text_message(to, text)
 
+    def _immagine_delle_facce(self, options: list[dict]) -> str | None:
+        """Indirizzo dell'immagine con le facce di questi operatori, se ha senso.
+
+        Le opzioni che portano una foto sono operatori: le altre — orari,
+        servizi — non hanno facce da mostrare. Senza `PUBLIC_BASE_URL` non se
+        ne fa nulla: Meta l'immagine se la viene a prendere da sola, e un
+        indirizzo che non sa raggiungere farebbe fallire tutto il messaggio.
+        """
+        from urllib.parse import quote
+
+        from config import settings
+
+        base = (settings.public_base_url or "").rstrip("/")
+        if not base:
+            return None
+        nomi = [o["title"] for o in options if o.get("foto")]
+        if not nomi:
+            return None
+        return f"{base}/operatori/scelta.png?nomi={quote(','.join(nomi))}"
+
     async def send_options(self, to: str, text: str, options: list[dict]) -> None:
         from services.whatsapp_service import (
+            send_image,
             send_interactive_buttons,
             send_interactive_list,
         )
 
+        facce = self._immagine_delle_facce(options)
+
         if not self._come_lista(options):
             bottoni = [{"id": o["id"], "title": o["title"]} for o in options]
-            await send_interactive_buttons(to, text, bottoni)
-        else:
-            righe = [self._riga(o) for o in options]
-            await send_interactive_list(to, text, "Scegli", righe)
+            # Fino a tre scelte l'immagine sta dentro lo stesso messaggio,
+            # come intestazione: nessun messaggio in più.
+            await send_interactive_buttons(to, text, bottoni, header_image=facce)
+            return
+
+        # Le liste non ammettono immagini da nessuna parte, quindi la faccia
+        # arriva prima, in un messaggio suo. Uno, non uno per operatore.
+        if facce:
+            await send_image(to, facce)
+        righe = [self._riga(o) for o in options]
+        await send_interactive_list(to, text, "Scegli", righe)
 
 
 class WebChannel(Channel):

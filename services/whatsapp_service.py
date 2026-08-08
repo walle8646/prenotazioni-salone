@@ -74,28 +74,58 @@ async def send_text_message(to: str, text: str) -> bool:
     )
 
 
-async def send_interactive_buttons(to: str, body_text: str, buttons: list[dict]) -> bool:
+async def send_image(to: str, link: str, caption: str = "") -> bool:
+    """Invia un'immagine presa da un indirizzo pubblico.
+
+    Meta se la viene a prendere da sola, quindi `link` deve essere
+    raggiungibile da fuori: un percorso relativo non serve a niente.
+    """
+    immagine = {"link": link}
+    if caption:
+        immagine["caption"] = caption
+    return await _invia(
+        {
+            "messaging_product": "whatsapp",
+            "to": to,
+            "type": "image",
+            "image": immagine,
+        },
+        "un'immagine",
+    )
+
+
+async def send_interactive_buttons(
+    to: str, body_text: str, buttons: list[dict], header_image: str | None = None
+) -> bool:
     """Invia un messaggio con bottoni cliccabili (max 3 bottoni).
     buttons = [{"id": "btn_1", "title": "Taglio"}, ...]
+
+    `header_image` è l'unico posto in cui WhatsApp accetta un'immagine dentro
+    un messaggio di scelta, e vale una sola per messaggio: non una per
+    bottone. Le liste non l'ammettono affatto.
     """
+    interattivo = {
+        "type": "button",
+        "body": {"text": body_text},
+        "action": {
+            "buttons": [
+                {
+                    "type": "reply",
+                    "reply": {"id": btn["id"], "title": btn["title"][:20]},
+                }
+                for btn in buttons[:3]
+            ]
+        },
+    }
+    if header_image:
+        interattivo["header"] = {"type": "image", "image": {"link": header_image}}
+
     return await _invia(
         {
             "messaging_product": "whatsapp",
             "to": to,
             "type": "interactive",
-            "interactive": {
-                "type": "button",
-                "body": {"text": body_text},
-                "action": {
-                    "buttons": [
-                        {
-                            "type": "reply",
-                            "reply": {"id": btn["id"], "title": btn["title"][:20]}
-                        }
-                        for btn in buttons[:3]
-                    ]
-                },
-            },
+            "interactive": interattivo,
         },
         "dei bottoni",
     )

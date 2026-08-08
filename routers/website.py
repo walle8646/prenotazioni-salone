@@ -74,6 +74,53 @@ async def foto_operatore(nome: str, request: Request):
     )
 
 
+@router.get("/operatori/scelta.png")
+async def scelta_operatori(nomi: str, request: Request):
+    """Una sola immagine con le facce degli operatori indicati.
+
+    Serve a WhatsApp, dove una faccia accanto a ogni riga non esiste: le liste
+    ammettono solo testo e i messaggi a bottoni una sola immagine di
+    intestazione. Meta viene a prendersela da qui, quindi deve stare su un
+    indirizzo pubblico e in PNG — l'SVG non lo accetta.
+    """
+    from services.avatar import griglia_operatori_png
+
+    elenco = [n.strip() for n in (nomi or "").split(",") if n.strip()][:12]
+    if not elenco:
+        return Response(status_code=404)
+
+    immagine = griglia_operatori_png(elenco, await _foto_di(elenco))
+    etag = '"' + hashlib.sha256(immagine).hexdigest()[:32] + '"'
+    if request.headers.get("if-none-match") == etag:
+        return Response(status_code=304, headers={"ETag": etag})
+
+    return Response(
+        content=immagine,
+        media_type="image/png",
+        headers={"ETag": etag, "Cache-Control": "public, max-age=300"},
+    )
+
+
+async def _foto_di(nomi: list[str]) -> dict[str, bytes]:
+    """Le foto vere di questi operatori, per chi ce l'ha."""
+    try:
+        from sqlalchemy import select
+
+        from models.database import async_session
+        from models.orm import Parrucchiere
+
+        async with async_session() as db:
+            result = await db.execute(
+                select(Parrucchiere).where(Parrucchiere.nome.in_(nomi))
+            )
+            return {p.nome: p.foto for p in result.scalars().all() if p.foto}
+    except Exception as errore:  # noqa: BLE001
+        # Senza database si disegnano tutti gli avatar: meglio una griglia di
+        # iniziali che nessuna immagine.
+        logger.warning("Foto non leggibili dal database: %s", errore)
+        return {}
+
+
 async def _immagine_operatore(nome: str) -> tuple[bytes, str]:
     try:
         from sqlalchemy import select

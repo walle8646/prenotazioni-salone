@@ -38,6 +38,11 @@ services:
       # Numero del salone, dato al cliente quando è troppo tardi per disdire
       - key: SALONE_TELEFONO
         sync: false
+      # Indirizzo pubblico del servizio. Serve a WhatsApp: le immagini Meta se
+      # le viene a prendere da sé, quindi non basta un percorso. Senza, le
+      # scelte su WhatsApp restano testo e funzionano lo stesso.
+      - key: PUBLIC_BASE_URL
+        value: "https://salone-nadia-bot.onrender.com"
       - key: INACTIVITY_DAYS
         value: "60"
       - key: SESSION_TTL_SECONDS

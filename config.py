@@ -62,6 +62,13 @@ class Settings(BaseSettings):
     # è troppo tardi. Vuoto: il bot dice genericamente di telefonare.
     salone_telefono: str = ""
 
+    # Indirizzo pubblico dell'applicazione, es. https://salone-nadia.onrender.com
+    # Serve a WhatsApp: le immagini Meta se le viene a prendere da sé, quindi
+    # non basta un percorso, ci vuole un indirizzo raggiungibile da fuori.
+    # Vuoto (in locale, dove nessuno può raggiungerci) significa niente
+    # immagini su WhatsApp: le scelte restano testo, e funzionano lo stesso.
+    public_base_url: str = ""
+
     # Redis
     redis_url: str = "redis://localhost:6379/0"
 

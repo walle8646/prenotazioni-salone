@@ -19,8 +19,11 @@ distinzione fra i due è esattamente quello che serve al cliente.
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from xml.sax.saxutils import escape
+
+logger = logging.getLogger(__name__)
 
 # Colori scuri quanto basta perché il bianco sopra si legga. Tenuti distanti
 # fra loro in tinta: due operatori vicini nell'elenco non devono sembrare lo
@@ -59,6 +62,105 @@ def colore(nome: str) -> str:
     """Colore stabile per un nome: lo stesso oggi, fra un mese e dopo un deploy."""
     impronta = hashlib.sha256((nome or "").encode("utf-8")).digest()
     return COLORI[impronta[0] % len(COLORI)]
+
+
+def _tonda(immagine, lato: int):
+    """Ritaglia un'immagine in un tondo del lato richiesto."""
+    from PIL import Image, ImageDraw
+
+    quadrata = immagine.convert("RGB")
+    larghezza, altezza = quadrata.size
+    corto = min(larghezza, altezza)
+    # Ritaglio centrale: le foto non arriveranno quadrate, e deformare la
+    # faccia di qualcuno è peggio che tagliarne un pezzo.
+    sinistra = (larghezza - corto) // 2
+    alto = (altezza - corto) // 2
+    quadrata = quadrata.crop((sinistra, alto, sinistra + corto, alto + corto))
+    quadrata = quadrata.resize((lato, lato), Image.LANCZOS)
+
+    maschera = Image.new("L", (lato, lato), 0)
+    ImageDraw.Draw(maschera).ellipse((0, 0, lato - 1, lato - 1), fill=255)
+    quadrata.putalpha(maschera)
+    return quadrata
+
+
+def griglia_operatori_png(
+    nomi: list[str], foto: dict[str, bytes] | None = None, per_riga: int = 3
+) -> bytes:
+    """Un'unica immagine con le facce di tutti, per WhatsApp.
+
+    Lì una faccia accanto a ogni riga non è possibile: le liste ammettono solo
+    testo e i messaggi a bottoni una sola immagine di intestazione. Allora si
+    manda quella, e le scelte restano i nomi.
+
+    Chi ha una foto vera la mostra, gli altri l'avatar con le iniziali: la
+    griglia non deve avere buchi mentre il salone raccoglie le fotografie.
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    foto = foto or {}
+    nomi = [n for n in nomi if n]
+    if not nomi:
+        raise ValueError("nessun operatore da disegnare")
+
+    LATO_CELLA, ALTEZZA_CELLA, DIAMETRO = 220, 268, 168
+    colonne = min(per_riga, len(nomi))
+    righe = -(-len(nomi) // colonne)  # divisione intera per eccesso
+
+    tela = Image.new(
+        "RGB", (colonne * LATO_CELLA, righe * ALTEZZA_CELLA), "#ffffff"
+    )
+    disegno = ImageDraw.Draw(tela)
+    font_iniziali = ImageFont.load_default(size=int(DIAMETRO * 0.4))
+    font_nome = ImageFont.load_default(size=26)
+
+    for indice, nome in enumerate(nomi):
+        colonna, riga = indice % colonne, indice // colonne
+        centro_x = colonna * LATO_CELLA + LATO_CELLA // 2
+        alto = riga * ALTEZZA_CELLA + 18
+        centro_y = alto + DIAMETRO // 2
+
+        contenuto = foto.get(nome)
+        disegnata = False
+        if contenuto:
+            try:
+                import io
+
+                tonda = _tonda(Image.open(io.BytesIO(contenuto)), DIAMETRO)
+                tela.paste(tonda, (centro_x - DIAMETRO // 2, alto), tonda)
+                disegnata = True
+            except Exception:  # noqa: BLE001
+                # Un file illeggibile non deve lasciare un buco nella griglia:
+                # si ripiega sull'avatar, che non fallisce mai.
+                logger.warning("Foto di %s illeggibile, uso l'avatar", nome)
+
+        if not disegnata:
+            raggio = DIAMETRO // 2
+            disegno.ellipse(
+                (centro_x - raggio, centro_y - raggio, centro_x + raggio, centro_y + raggio),
+                fill=colore(nome),
+            )
+            disegno.text(
+                (centro_x, centro_y),
+                iniziali(nome),
+                font=font_iniziali,
+                fill="#ffffff",
+                anchor="mm",
+            )
+
+        disegno.text(
+            (centro_x, alto + DIAMETRO + 30),
+            nome,
+            font=font_nome,
+            fill="#2c3e50",
+            anchor="mm",
+        )
+
+    import io
+
+    memoria = io.BytesIO()
+    tela.save(memoria, format="PNG", optimize=True)
+    return memoria.getvalue()
 
 
 def avatar_svg(nome: str, lato: int = 96) -> str:

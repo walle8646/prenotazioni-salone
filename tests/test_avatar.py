@@ -133,12 +133,142 @@ async def test_il_widget_del_sito_riceve_le_facce(mock_redis, backends):
     assert all("foto" in o for o in opzioni if o["title"] != "Indifferente")
 
 
+# ------------------------------------------------------------------ WhatsApp
+#
+# Lì una faccia accanto a ogni riga non esiste: le liste ammettono solo testo
+# e i messaggi a bottoni una sola immagine di intestazione. Si manda quella.
+
+
+@pytest.fixture
+def meta(monkeypatch):
+    """Registra cosa sarebbe partito verso Meta, senza toccare la rete."""
+    from config import settings
+    from services import whatsapp_service
+
+    monkeypatch.setattr(settings, "public_base_url", "https://salone.example")
+
+    partiti = []
+
+    async def immagine(to, link, caption=""):
+        partiti.append({"tipo": "immagine", "link": link})
+        return True
+
+    async def bottoni(to, body_text, buttons, header_image=None):
+        partiti.append({"tipo": "bottoni", "header": header_image, "voci": buttons})
+        return True
+
+    async def lista(to, body_text, button_text, items):
+        partiti.append({"tipo": "lista", "voci": items})
+        return True
+
+    monkeypatch.setattr(whatsapp_service, "send_image", immagine)
+    monkeypatch.setattr(whatsapp_service, "send_interactive_buttons", bottoni)
+    monkeypatch.setattr(whatsapp_service, "send_interactive_list", lista)
+    return partiti
+
+
 @pytest.mark.asyncio
-async def test_whatsapp_non_le_riceve_nemmeno(canale):
-    """Nelle liste di Meta non c'è posto per un'immagine: allegarla sarebbe
-    peso inutile a ogni messaggio."""
+async def test_con_molti_operatori_arriva_un_immagine_sola_e_poi_la_lista(meta):
+    from services.channels import MetaWhatsAppChannel
     from services.conversation import deliver
 
-    await deliver(canale, "393331234567", "Con chi preferisci?\n- Francesco\n- Andrea")
+    await deliver(
+        MetaWhatsAppChannel(),
+        "393331234567",
+        "Con chi preferisci?\n- Simone Big\n- Francesco\n- Andrea\n- Giava",
+    )
 
-    assert all("foto" not in o for o in canale.ultimo()["options"])
+    assert [p["tipo"] for p in meta] == ["immagine", "lista"], (
+        "una faccia per operatore sarebbero sei messaggi: se ne manda uno"
+    )
+    # "Indifferente" non compare: non è una persona e non ha una faccia.
+    assert meta[0]["link"] == (
+        "https://salone.example/operatori/scelta.png"
+        "?nomi=Simone%20Big%2CFrancesco%2CAndrea%2CGiava"
+    )
+    assert all("image" not in v for v in meta[1]["voci"])
+
+
+@pytest.mark.asyncio
+async def test_con_tre_operatori_l_immagine_sta_dentro_i_bottoni(meta):
+    """Nessun messaggio in più: l'intestazione è l'unico posto dove ci sta."""
+    from services.channels import MetaWhatsAppChannel
+    from services.conversation import deliver
+
+    await deliver(
+        MetaWhatsAppChannel(),
+        "393331234567",
+        "Con chi preferisci?\n- Francesco\n- Andrea",
+    )
+
+    assert [p["tipo"] for p in meta] == ["bottoni"]
+    assert meta[0]["header"].startswith("https://salone.example/operatori/scelta.png")
+
+
+@pytest.mark.asyncio
+async def test_senza_indirizzo_pubblico_non_si_manda_nessuna_immagine(meta, monkeypatch):
+    """Meta l'immagine se la viene a prendere: un indirizzo che non sa
+    raggiungere farebbe fallire tutto il messaggio, non solo la faccia."""
+    from config import settings
+    from services.channels import MetaWhatsAppChannel
+    from services.conversation import deliver
+
+    monkeypatch.setattr(settings, "public_base_url", "")
+
+    await deliver(
+        MetaWhatsAppChannel(),
+        "393331234567",
+        "Con chi preferisci?\n- Simone Big\n- Francesco\n- Andrea\n- Giava",
+    )
+
+    assert [p["tipo"] for p in meta] == ["lista"]
+
+
+@pytest.mark.asyncio
+async def test_gli_orari_non_si_portano_dietro_nessuna_immagine(meta):
+    from services.channels import MetaWhatsAppChannel
+    from services.conversation import deliver
+
+    await deliver(
+        MetaWhatsAppChannel(),
+        "393331234567",
+        "Quando?\n- 18:00\n- 18:30\n- 19:00\n- 19:30",
+    )
+
+    assert [p["tipo"] for p in meta] == ["lista"]
+
+
+# ------------------------------------------------- l'immagine con tutte le facce
+
+
+def test_la_griglia_e_un_png_leggibile():
+    import io
+
+    from PIL import Image
+
+    from services.avatar import griglia_operatori_png
+
+    immagine = Image.open(io.BytesIO(griglia_operatori_png(list(OPERATORI))))
+
+    assert immagine.format == "PNG"
+    # Sei operatori, tre per riga: due righe da 220×268.
+    assert immagine.size == (660, 536)
+
+
+def test_una_foto_illeggibile_non_lascia_un_buco_nella_griglia():
+    """Il file può essere corrotto o non essere affatto un'immagine: si
+    ripiega sull'avatar, che non fallisce mai."""
+    from services.avatar import griglia_operatori_png
+
+    immagine = griglia_operatori_png(
+        ["Francesco", "Andrea"], foto={"Francesco": b"non sono un'immagine"}
+    )
+
+    assert immagine.startswith(b"\x89PNG")
+
+
+def test_senza_nomi_ci_si_ferma_invece_di_disegnare_il_vuoto():
+    from services.avatar import griglia_operatori_png
+
+    with pytest.raises(ValueError):
+        griglia_operatori_png([])
