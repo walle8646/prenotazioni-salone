@@ -15,11 +15,38 @@ gli errori si annotano nei log e basta.
 import asyncio
 import logging
 import smtplib
+from datetime import datetime
 from email.message import EmailMessage
 
 from config import settings
 
 logger = logging.getLogger(__name__)
+
+# I nomi in italiano sono scritti qui invece di affidarsi al locale del sistema:
+# nel container non c'è, e il cliente riceverebbe "Saturday".
+GIORNI = (
+    "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica",
+)
+MESI = (
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+)
+
+
+def _quando(data_ora: str) -> str:
+    """Trasforma '2026-08-15T09:00' in 'sabato 15 agosto 2026 alle 09:00'.
+
+    Se il formato non è quello atteso si restituisce il valore così com'è: una
+    data scritta male è brutta, un'email non spedita è peggio.
+    """
+    try:
+        quando = datetime.strptime(str(data_ora), "%Y-%m-%dT%H:%M")
+    except (TypeError, ValueError):
+        return str(data_ora)
+    return (
+        f"{GIORNI[quando.weekday()]} {quando.day} {MESI[quando.month - 1]} "
+        f"{quando.year} alle {quando:%H:%M}"
+    )
 
 
 def _configurato() -> bool:
@@ -75,7 +102,7 @@ async def send_confirmation_email(
             <h2>Ciao {nome}!</h2>
             <p>Il tuo appuntamento è confermato:</p>
             <ul>
-                <li><strong>Data e ora:</strong> {data_ora}</li>
+                <li><strong>Data e ora:</strong> {_quando(data_ora)}</li>
                 <li><strong>Servizio:</strong> {servizi_str}</li>
                 <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
             </ul>

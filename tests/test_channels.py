@@ -65,6 +65,17 @@ async def test_web_channel_senza_opzioni():
 # ------------------------------------------------------------------ email SMTP
 
 
+def test_la_data_arriva_al_cliente_in_italiano():
+    """Nell'email finiva l'orario grezzo dell'azione: 2026-08-15T09:00."""
+    assert (
+        email_service._quando("2026-08-15T09:00")
+        == "sabato 15 agosto 2026 alle 09:00"
+    )
+    # Un formato inatteso non deve impedire l'invio
+    assert email_service._quando("domani mattina") == "domani mattina"
+    assert email_service._quando(None) == "None"
+
+
 @pytest.mark.asyncio
 async def test_senza_configurazione_non_si_tenta_nessun_invio(monkeypatch):
     """Un salone che non ha ancora messo la casella non deve vedere errori."""
