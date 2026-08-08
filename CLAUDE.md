@@ -79,6 +79,16 @@ richiesta dello storico di un altro non è nemmeno esprimibile. Se diventasse un
 parametro, basterebbe scrivere il numero di un conoscente per leggere i suoi
 appuntamenti.
 
+**Chi ha già prenotato viene riconosciuto prima che il modello parli**
+(`_riconosci_cliente()`, all'inizio di ogni conversazione nuova). Il
+riconoscimento esisteva già dentro `STORICO_APPUNTAMENTI`, ma ci si arrivava
+solo se il modello sceglieva di chiamarlo: quando non lo faceva, ricominciava a
+chiedere nome e cognome a chi viene da tre anni. Una lettura per conversazione,
+non per messaggio. **Dal sito non riconosce nessuno**, ed è la stessa regola di
+sempre: `_appuntamenti_del_richiedente` risponde solo dopo il codice via email,
+e un numero di sessione del browser non è una prova di identità — altrimenti
+basterebbe aprire la chat per vedersi salutare col nome e l'email di un altro.
+
 **Il codice di verifica non compare nel risultato dell'azione.** Vive nella
 sessione lato server e lo confronta `secrets.compare_digest`. Se finisse nel
 risultato, finirebbe nello storico della conversazione — cioè esattamente dove

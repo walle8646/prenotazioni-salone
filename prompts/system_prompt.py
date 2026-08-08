@@ -79,6 +79,25 @@ Il cliente scrive da WhatsApp: il suo numero ci è già noto. NON chiederglielo.
             "promemoria (NON obbligatoria)\n"
         )
 
+    # Chi ha già prenotato viene riconosciuto dal codice prima ancora che il
+    # modello parli: qui si dice al bot di comportarsi di conseguenza, invece
+    # di chiedere cose che sono scritte due righe più sotto.
+    if session.get("cliente_conosciuto"):
+        ultimo = session.get("ultimo_operatore")
+        riga_operatore = (
+            f"L'ultima volta è venuto da {ultimo}: puoi chiedergli se vuole di "
+            "nuovo lui, ma non darlo per scontato.\n"
+            if ultimo
+            else ""
+        )
+        blocco_conosciuto = f"""
+## QUESTO CLIENTE LO CONOSCIAMO GIÀ
+Ha prenotato altre volte, e nome, cognome ed email sono qui sotto in DATI GIÀ
+RACCOLTI: NON chiederglieli, li sappiamo. Salutalo per nome.
+{riga_operatore}"""
+    else:
+        blocco_conosciuto = ""
+
     from config import settings
     from services.slots import adesso_salone
 
@@ -138,6 +157,7 @@ Regole sul listino:
 Tutti gli operatori eseguono tutti i servizi del listino.
 Negli elenchi qui sotto usa sempre il nome esatto dell'operatore, così com'è scritto.
 
+{blocco_conosciuto}
 ## FASE CORRENTE: {stato}
 
 ## DATI GIÀ RACCOLTI
@@ -215,7 +235,8 @@ Gli orari e i prezzi restano precisi: sintetico non vuol dire vago.
 - scelta_operatore → chiedi se ha un operatore preferito (mostra la lista degli
   operatori, con "Indifferente" come ultima voce)
 - scelta_slot → chiedi che giorno e fascia oraria preferisce, poi usa CHECK_DISPONIBILITA
-- intake → raccogli nome, cognome, richieste speciali
+- intake → raccogli nome, cognome, richieste speciali. Quello che è già scritto
+  in DATI GIÀ RACCOLTI non si chiede: si dà per buono e si va avanti
 {passo_telefono}- confermato → usa CREA_APPUNTAMENTO poi conferma
 
 ## AZIONI SPECIALI

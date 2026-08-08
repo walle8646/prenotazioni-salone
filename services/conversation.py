@@ -355,6 +355,11 @@ async def handle_incoming_message(
 
     session = await get_session(redis, phone)
 
+    # Una volta per conversazione, non a ogni messaggio: è una lettura in più
+    # sul database, e quello che trova sopravvive nella sessione.
+    if not session["history"]:
+        await _riconosci_cliente(phone, session, backends)
+
     if msg_type == "image" and media_id:
         session["dati_temp"]["foto_media_id"] = media_id
 
@@ -838,6 +843,67 @@ async def _appuntamenti_del_richiedente(phone: str, session: dict, backends):
     if not email:
         return None
     return await backends.get_appuntamenti_per_email(email)
+
+
+def _ultimo_operatore(appuntamenti: list[dict] | None) -> str | None:
+    """L'operatore dell'ultimo appuntamento davvero fatto, se c'è."""
+    validi = [
+        a
+        for a in (appuntamenti or [])
+        if a.get("parrucchiere") and a.get("stato") != "Cancellato"
+    ]
+    if not validi:
+        return None
+    return max(validi, key=lambda a: a.get("data_ora") or "")["parrucchiere"]
+
+
+async def _riconosci_cliente(phone: str, session: dict, backends) -> None:
+    """Riempie nome, cognome ed email di chi ha già prenotato.
+
+    Su WhatsApp l'identità è il numero del mittente, verificato dal gestore:
+    chiedere nome e cognome a chi è già in anagrafica è fare una domanda di
+    cui sappiamo la risposta, e il cliente abituale se ne accorge.
+
+    Non lo decide il modello. Il riconoscimento esisteva già dentro
+    `STORICO_APPUNTAMENTI`, ma ci si arrivava solo se il modello sceglieva di
+    chiamarlo: quando non lo faceva, ricominciava a chiedere il nome a chi
+    viene da tre anni.
+
+    Dal sito non succede niente, ed è giusto così:
+    `_appuntamenti_del_richiedente` risponde solo dopo il codice via email, e
+    finché non è verificato non sappiamo chi sta scrivendo — il numero di
+    sessione del browser non è una prova di identità.
+    """
+    if session.get("dati_temp", {}).get("nome"):
+        return
+
+    try:
+        trovato = await _appuntamenti_del_richiedente(phone, session, backends)
+    except Exception:  # noqa: BLE001
+        # Anagrafica irraggiungibile: si chiede il nome come a uno nuovo,
+        # che è una scortesia, non un guasto.
+        logger.warning("Riconoscimento del cliente non riuscito", exc_info=True)
+        return
+
+    if not trovato:
+        return
+
+    cliente = trovato.get("cliente") or {}
+    if not cliente.get("nome"):
+        return
+
+    # La fase non avanza: sapere chi è non vuol dire che abbia scelto qualcosa.
+    _ricorda(
+        session,
+        avanza_fase=False,
+        nome=cliente.get("nome"),
+        cognome=cliente.get("cognome"),
+        email=cliente.get("email"),
+    )
+    session["cliente_conosciuto"] = True
+    ultimo = _ultimo_operatore(trovato.get("appuntamenti"))
+    if ultimo:
+        session["ultimo_operatore"] = ultimo
 
 
 async def _invia_codice_verifica(action: dict, phone: str, session: dict, backends) -> dict:
