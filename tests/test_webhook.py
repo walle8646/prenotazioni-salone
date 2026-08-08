@@ -60,6 +60,85 @@ def client(monkeypatch):
         yield c
 
 
+# ------------------------------------------------- verifica dell'iscrizione
+
+
+def test_la_verifica_restituisce_il_challenge_cosi_come_arriva(client, monkeypatch):
+    """Meta confronta la risposta con quello che ha mandato, carattere per carattere."""
+    from config import settings
+
+    monkeypatch.setattr(settings, "meta_verify_token", "parola-concordata")
+
+    risposta = client.get(
+        "/webhook/whatsapp",
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "parola-concordata",
+            "hub.challenge": "1234567890",
+        },
+    )
+
+    assert risposta.status_code == 200
+    assert risposta.text == "1234567890"
+
+
+def test_un_challenge_non_numerico_non_fa_fallire_la_verifica(client, monkeypatch):
+    """Convertirlo a intero funzionava solo finché Meta ne mandava di numerici."""
+    from config import settings
+
+    monkeypatch.setattr(settings, "meta_verify_token", "parola-concordata")
+
+    risposta = client.get(
+        "/webhook/whatsapp",
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "parola-concordata",
+            "hub.challenge": "abc123",
+        },
+    )
+
+    assert risposta.status_code == 200
+    assert risposta.text == "abc123"
+
+
+def test_un_token_sbagliato_viene_rifiutato(client, monkeypatch):
+    from config import settings
+
+    monkeypatch.setattr(settings, "meta_verify_token", "parola-concordata")
+
+    risposta = client.get(
+        "/webhook/whatsapp",
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "tentativo",
+            "hub.challenge": "1234567890",
+        },
+    )
+
+    assert risposta.status_code == 403
+
+
+def test_senza_token_configurato_non_si_verifica_nulla(client, monkeypatch):
+    """Altrimenti chiunque potrebbe iscrivere il proprio webhook al nostro server."""
+    from config import settings
+
+    monkeypatch.setattr(settings, "meta_verify_token", "")
+
+    risposta = client.get(
+        "/webhook/whatsapp",
+        params={
+            "hub.mode": "subscribe",
+            "hub.verify_token": "",
+            "hub.challenge": "1234567890",
+        },
+    )
+
+    assert risposta.status_code == 403
+
+
+# ------------------------------------------------------- messaggi in entrata
+
+
 def test_meta_riceve_conferma_e_il_lavoro_viene_dopo(client):
     risposta = client.post("/webhook/whatsapp", json=_payload())
 

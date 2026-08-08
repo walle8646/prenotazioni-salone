@@ -1,4 +1,5 @@
 from fastapi import APIRouter, BackgroundTasks, Request, Query, HTTPException
+from fastapi.responses import PlainTextResponse
 from config import settings
 from services.conversation import handle_incoming_message
 import logging
@@ -51,8 +52,21 @@ async def verify_webhook(
     hub_verify_token: str = Query(None, alias="hub.verify_token"),
     hub_challenge: str = Query(None, alias="hub.challenge"),
 ):
+    """Risponde alla verifica con cui Meta controlla di parlare col server giusto.
+
+    Il challenge va restituito com'è, in testo semplice: convertirlo a intero
+    funzionava per caso, perché finora Meta ne manda di numerici, ma un valore
+    non numerico avrebbe fatto fallire la verifica con un errore 500 — proprio
+    nel momento in cui si preme "Verifica e salva" e non si capisce perché.
+    """
+    if not settings.meta_verify_token:
+        logger.error("META_VERIFY_TOKEN non configurata: verifica rifiutata")
+        raise HTTPException(status_code=403, detail="Verification failed")
+
     if hub_mode == "subscribe" and hub_verify_token == settings.meta_verify_token:
-        return int(hub_challenge)
+        return PlainTextResponse(hub_challenge or "")
+
+    logger.warning("Verifica del webhook rifiutata: token non corrispondente")
     raise HTTPException(status_code=403, detail="Verification failed")
 
 
