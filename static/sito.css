@@ -245,12 +245,31 @@ footer {
     font-weight: 600;
 }
 
-.chat-close {
+.chat-header-azioni {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.chat-close,
+.chat-restart {
     background: none;
     border: none;
     color: white;
     font-size: 1.5rem;
+    line-height: 1;
     cursor: pointer;
+    padding: 0 0.2rem;
+}
+
+.chat-restart {
+    font-size: 1.25rem;
+    opacity: 0.85;
+}
+
+.chat-restart:hover,
+.chat-close:hover {
+    opacity: 1;
 }
 
 .chat-messages {

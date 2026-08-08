@@ -9,7 +9,15 @@
     <div id="chat-panel" class="chat-panel hidden">
         <div class="chat-header">
             <span>Chat con Nadia</span>
-            <button id="chat-close" class="chat-close">&times;</button>
+            <div class="chat-header-azioni">
+                <!-- Scrivere "ricominciamo da capo" funziona lo stesso, ma lo
+                     scopre solo chi legge il suggerimento del bot. -->
+                <button id="chat-restart" class="chat-restart"
+                        title="Ricomincia da capo"
+                        aria-label="Ricomincia la conversazione da capo">&#8635;</button>
+                <button id="chat-close" class="chat-close"
+                        aria-label="Chiudi la chat">&times;</button>
+            </div>
         </div>
         <!-- Vuoto di proposito: il saluto arriva dal bot appena si apre la
              chat, così resta nello storico della conversazione. Scriverlo qui

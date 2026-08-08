@@ -3,6 +3,7 @@
     const toggle = document.getElementById('chat-toggle');
     const panel = document.getElementById('chat-panel');
     const closeBtn = document.getElementById('chat-close');
+    const restartBtn = document.getElementById('chat-restart');
     const input = document.getElementById('chat-input');
     const sendBtn = document.getElementById('chat-send');
     const messages = document.getElementById('chat-messages');
@@ -47,6 +48,14 @@
             localStorage.setItem(CHIAVE_SESSIONE, id);
         } catch (e) {
             /* pazienza: la conversazione vale solo per questa connessione */
+        }
+    }
+
+    function dimenticaSessione() {
+        try {
+            localStorage.removeItem(CHIAVE_SESSIONE);
+        } catch (e) {
+            /* niente da dimenticare */
         }
     }
 
@@ -119,6 +128,30 @@
     sendBtn.addEventListener('click', () => sendMessage());
     input.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') sendMessage();
+    });
+
+    // Ricomincia da capo: dimentica la sessione e ne apre una nuova, invece di
+    // riusare la stessa svuotata. Così il riquadro e la memoria del bot
+    // ripartono insieme, e non resta modo di ripescare il discorso di prima.
+    restartBtn.addEventListener('click', () => {
+        const c_e_qualcosa = messages.children.length > 0;
+        if (c_e_qualcosa && !confirm('Vuoi ricominciare da capo? La conversazione verrà persa.')) {
+            return;
+        }
+
+        dimenticaSessione();
+        nascondiStaScrivendo();
+        messages.innerHTML = '';
+
+        if (ws) {
+            // Senza questo, la chiusura fa scattare la riconnessione automatica
+            // e ci si ritrova con due socket aperti sulla stessa chat.
+            ws.onclose = null;
+            ws.close();
+            ws = null;
+        }
+        connectWebSocket();
+        input.focus();
     });
 
     // "Nadia sta scrivendo": una risposta può richiedere qualche secondo, fra
