@@ -62,6 +62,32 @@ async def test_web_channel_senza_opzioni():
     assert canale.payload() == {"text": "A che ora preferisci?", "options": None}
 
 
+# ----------------------------------------------------- accesso al pannello
+
+
+def test_senza_password_configurata_il_pannello_resta_chiuso(monkeypatch):
+    """Una configurazione mancante deve chiudere la porta, non spalancarla.
+
+    Il confronto è password == settings.admin_password: senza la variabile
+    d'ambiente il valore è la stringa vuota, e chi lasciava il campo in bianco
+    sarebbe entrato.
+    """
+    from config import settings
+
+    monkeypatch.setattr(settings, "admin_password", "")
+    monkeypatch.setattr(settings, "secret_key", "una-chiave-vera-e-lunga")
+    assert not settings.admin_password
+
+    monkeypatch.setattr(settings, "admin_password", "segreta")
+    monkeypatch.setattr(settings, "secret_key", "dev-secret-change-me")
+    assert settings.secret_key_configurata is False, (
+        "la chiave scritta nel repository non è un segreto"
+    )
+
+    monkeypatch.setattr(settings, "secret_key", "una-chiave-vera-e-lunga")
+    assert settings.secret_key_configurata is True
+
+
 # ------------------------------------------------------------------ email SMTP
 
 

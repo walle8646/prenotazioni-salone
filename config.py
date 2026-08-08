@@ -38,7 +38,13 @@ class Settings(BaseSettings):
     # Admin pannello
     admin_username: str = "nadia"
     admin_password: str = ""
+    # Il valore predefinito è scritto nel repository, quindi non è un segreto:
+    # con quello chiunque potrebbe fabbricarsi il cookie dell'amministratore.
     secret_key: str = "dev-secret-change-me"
+
+    @property
+    def secret_key_configurata(self) -> bool:
+        return bool(self.secret_key) and self.secret_key != "dev-secret-change-me"
 
     # Email: si spedisce dalla casella del salone via SMTP, così il mittente è
     # l'indirizzo che i clienti conoscono e le risposte arrivano a qualcuno.

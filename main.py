@@ -37,6 +37,11 @@ async def lifespan(app: FastAPI):
     from prompts.system_prompt import PARRUCCHIERI_MAP, set_parrucchieri_cache
 
     verifica_configurazione()
+    if not settings.admin_password or not settings.secret_key_configurata:
+        logging.getLogger(__name__).warning(
+            "Pannello amministrativo non accessibile: ADMIN_PASSWORD o SECRET_KEY "
+            "non sono configurate. Il resto del bot funziona."
+        )
     await seed_parrucchieri(PARRUCCHIERI_MAP)
     set_parrucchieri_cache(await get_parrucchieri_map())
 

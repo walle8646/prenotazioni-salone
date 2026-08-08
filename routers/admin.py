@@ -8,6 +8,9 @@ from models.database import get_db
 from models.orm import Appuntamento, Cliente, Parrucchiere
 from services import catalogo
 from config import settings
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="templates")
@@ -20,6 +23,21 @@ async def login_page(request: Request):
 
 @router.post("/login")
 async def login(request: Request, username: str = Form(), password: str = Form()):
+    # Senza ADMIN_PASSWORD configurata il confronto riuscirebbe con la password
+    # vuota, e il pannello resterebbe aperto a chiunque conosca il nome utente.
+    # Una configurazione mancante deve chiudere la porta, non spalancarla.
+    if not settings.admin_password or not settings.secret_key_configurata:
+        logger.error(
+            "Accesso al pannello rifiutato: ADMIN_PASSWORD o SECRET_KEY non configurate"
+        )
+        return templates.TemplateResponse(
+            "login.html",
+            {
+                "request": request,
+                "error": "Pannello non configurato: contatta chi gestisce il sistema.",
+            },
+        )
+
     if username == settings.admin_username and password == settings.admin_password:
         response = RedirectResponse(url="/admin/dashboard", status_code=303)
         from itsdangerous import URLSafeSerializer
