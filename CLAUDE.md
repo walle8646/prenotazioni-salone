@@ -173,10 +173,20 @@ voce sta per intero, il titolo si può accorciare, e `routers/webhook.py` legge
 la descrizione. Senza, bastava una voce lunga perché l'intero elenco dei
 servizi arrivasse come testo — proprio la prima scelta, e la più importante.
 
-**La sessione annota servizio e operatore al primo `CHECK_DISPONIBILITA`.** Lo
-storico viene troncato agli ultimi `max_history_messages` messaggi e ogni turno
-ne aggiunge quattro: dal sesto turno la richiesta iniziale del cliente non c'è
-più, e senza quei dati il bot ricomincia a chiedere cosa voleva.
+**La sessione annota servizio, giorno e operatore al primo
+`CHECK_DISPONIBILITA`.** Lo storico viene troncato agli ultimi
+`max_history_messages` messaggi e ogni turno ne aggiunge quattro: dal sesto
+turno la richiesta iniziale del cliente non c'è più, e senza quei dati il bot
+ricomincia a chiedere cosa voleva.
+
+**Prima il giorno, poi la persona** (regole 4 e 5 del prompt, e l'ordine di
+`_FASI`). Chiedere l'operatore per primo faceva scegliere qualcuno che quel
+giorno poteva non esserci, e il cliente scopriva il buco dopo essersi
+affezionato al nome. Ora si cerca con `parrucchiere: null` e si offre di
+scegliere solo fra chi è libero a quell'ora. Conseguenza da tenere a mente:
+gli slot tornano ripetuti, uno per operatore libero — il prompt dice
+esplicitamente di elencare ogni orario una volta sola, altrimenti alle sedici
+compaiono sei bottoni identici.
 
 ## Pannello di gestione
 

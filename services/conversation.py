@@ -546,8 +546,13 @@ def _risolvi_calendario(valore: str | None) -> str | None:
 _FASI = (
     ("nome", "contatti"),
     ("slot", "intake"),
-    ("parrucchiere", "scelta_slot"),
-    ("servizio", "scelta_operatore"),
+    ("giorno", "scelta_slot"),
+    # Prima il giorno, poi la persona: chiedere l'operatore per primo faceva
+    # scegliere qualcuno che quel giorno poteva non esserci. Chi conosce il
+    # servizio è pronto a dire quando; chi ha nominato solo un operatore no,
+    # gli manca ancora la cosa più importante.
+    ("servizio", "scelta_giorno"),
+    ("parrucchiere", "scelta_servizio"),
 )
 
 
@@ -662,6 +667,9 @@ async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
         session,
         servizio=_descrivi_servizi(servizi) if servizi else None,
         parrucchiere=action.get("parrucchiere"),
+        # Anche il giorno cercato: lo storico viene troncato, e senza questo
+        # dal sesto turno il bot non sa più di quale giorno si stava parlando.
+        giorno=action.get("data"),
     )
 
     # Dopo `_ricorda` e prima di Google: la data si rifiuta, ma quello che il
