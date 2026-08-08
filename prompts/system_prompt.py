@@ -5,7 +5,7 @@ reali (letti dal catalogo), gli operatori con i rispettivi calendari e i dati
 raccolti finora nella conversazione.
 """
 
-from datetime import datetime
+from datetime import timedelta
 
 from services import catalogo
 from services.operatori import mappa_calendari
@@ -79,9 +79,17 @@ Il cliente scrive da WhatsApp: il suo numero ci è già noto. NON chiederglielo.
             "promemoria (NON obbligatoria)\n"
         )
 
-    adesso = datetime.now()
+    from config import settings
+    from services.slots import adesso_salone
+
+    # L'ora del salone, non quella del server: su Render è UTC, e alle 00:30 di
+    # Roma il prompt avrebbe annunciato come "oggi" il giorno prima.
+    adesso = adesso_salone()
     oggi = adesso.strftime("%Y-%m-%d")
     giorno_settimana = GIORNI[adesso.weekday()]
+    ultimo_giorno_prenotabile = (
+        adesso + timedelta(days=settings.max_booking_days_ahead)
+    ).strftime("%d/%m/%Y")
 
     parr_map = get_parrucchieri_map_cached()
     # Solo i nomi. Gli identificativi dei calendari li risolve il codice: farli
@@ -99,6 +107,7 @@ Il tuo compito è gestire le prenotazioni degli appuntamenti via WhatsApp e dal 
 Orari: martedì-venerdì 8:00-12:00 e 14:30-19:30, sabato 8:00-18:00.
 Chiuso domenica e lunedì (tranne aperture straordinarie a dicembre).
 Gli appuntamenti partono ogni 30 minuti.
+Si prenota fino a {ultimo_giorno_prenotabile} compreso, non oltre.
 
 ## LISTINO SERVIZI
 {catalogo.elenco_per_prompt()}

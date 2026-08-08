@@ -487,6 +487,106 @@ async def test_operatore_sbagliato_non_sembra_agenda_piena():
     assert "slots_disponibili" not in risultato
 
 
+# --------------------------------------------- quanto in là si può prenotare
+
+
+def _fra_giorni(giorni: int) -> str:
+    from datetime import timedelta
+
+    from services.slots import adesso_salone
+
+    return (adesso_salone().date() + timedelta(days=giorni)).isoformat()
+
+
+@pytest.mark.asyncio
+async def test_non_si_cerca_disponibilita_troppo_in_la(mock_redis, backends):
+    """`max_booking_days_ahead` era configurato e non lo leggeva nessuno."""
+    from config import settings
+    from services.conversation import execute_action
+
+    lontano = _fra_giorni(settings.max_booking_days_ahead + 1)
+
+    risultato = await execute_action(
+        {"action": "CHECK_DISPONIBILITA", "data": lontano, "parrucchiere": "Francesco"},
+        "393331234567",
+        {"stato_flusso": "scelta_slot", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" in risultato
+    assert "slots_disponibili" not in risultato
+    assert str(settings.max_booking_days_ahead) in risultato["errore"]
+
+
+@pytest.mark.asyncio
+async def test_l_ultimo_giorno_utile_si_prenota(backends):
+    """Il limite è compreso: sbagliarlo di un giorno si nota solo così."""
+    from config import settings
+    from services.conversation import execute_action
+
+    risultato = await execute_action(
+        {
+            "action": "CHECK_DISPONIBILITA",
+            "data": _fra_giorni(settings.max_booking_days_ahead),
+            "parrucchiere": "Francesco",
+        },
+        "393331234567",
+        {"stato_flusso": "scelta_slot", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" not in risultato
+
+
+@pytest.mark.asyncio
+async def test_quello_che_il_cliente_aveva_detto_non_va_perso(backends):
+    """Si rifiuta la data, non la conversazione: il servizio resta annotato."""
+    from config import settings
+    from services.conversation import execute_action
+
+    sessione = {"stato_flusso": "scelta_slot", "dati_temp": {}}
+
+    await execute_action(
+        {
+            "action": "CHECK_DISPONIBILITA",
+            "data": _fra_giorni(settings.max_booking_days_ahead + 30),
+            "parrucchiere": "Francesco",
+            "servizi": ["Taglio"],
+        },
+        "393331234567",
+        sessione,
+        backends,
+    )
+
+    assert sessione["dati_temp"]["parrucchiere"] == "Francesco"
+    assert "Taglio" in (sessione["dati_temp"]["servizio"] or "")
+
+
+@pytest.mark.asyncio
+async def test_non_si_crea_un_appuntamento_troppo_in_la(backends):
+    """Uno slot può arrivare senza passare da CHECK_DISPONIBILITA."""
+    from config import settings
+    from services.conversation import execute_action
+
+    lontano = _fra_giorni(settings.max_booking_days_ahead + 1)
+
+    risultato = await execute_action(
+        {
+            "action": "CREA_APPUNTAMENTO",
+            "slot": f"{lontano}T09:00",
+            "parrucchiere": "Francesco",
+            "servizi": ["Taglio"],
+            "nome": "Mario",
+        },
+        "393331234567",
+        {"stato_flusso": "confermato", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" in risultato
+    assert backends.eventi == {}, "non deve finire sul calendario"
+
+
 # ------------------------------------------------ memoria della conversazione
 #
 # Lo storico viene troncato agli ultimi max_history_messages messaggi: ogni

@@ -567,6 +567,41 @@ def _descrivi_servizi(servizi) -> str:
     return ", ".join(str(s) for s in servizi or [])
 
 
+def _oltre_l_orizzonte(quando: str | None) -> str | None:
+    """Messaggio se la data supera il limite di prenotazione, altrimenti None.
+
+    `max_booking_days_ahead` esisteva in configurazione ma non lo leggeva
+    nessuno: si poteva prenotare a qualunque distanza. Il salone non sa chi
+    lavorerà fra otto mesi, e un appuntamento del genere resta sul calendario
+    a invecchiare da solo.
+
+    Accetta sia "2026-09-15" sia "2026-09-15T09:00".
+    """
+    from datetime import datetime, timedelta
+
+    from config import settings
+    from services.slots import adesso_salone
+
+    if not quando:
+        return None
+    try:
+        giorno = datetime.strptime(quando[:10], "%Y-%m-%d").date()
+    except ValueError:
+        # Una data che non si riesce a leggere è un problema diverso, e lo
+        # segnala già chi prova a usarla.
+        return None
+
+    giorni = settings.max_booking_days_ahead
+    ultimo = adesso_salone().date() + timedelta(days=giorni)
+    if giorno <= ultimo:
+        return None
+    return (
+        f"Non si prenota a più di {giorni} giorni di distanza. L'ultima data "
+        f"disponibile è {ultimo.strftime('%d/%m/%Y')}: dillo al cliente e "
+        "chiedigli se preferisce un giorno entro quella data."
+    )
+
+
 async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
     from config import settings
     from services import catalogo
@@ -588,6 +623,12 @@ async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
         parrucchiere=action.get("parrucchiere"),
     )
 
+    # Dopo `_ricorda` e prima di Google: la data si rifiuta, ma quello che il
+    # cliente ha detto sul servizio e sull'operatore non va buttato via.
+    troppo_lontano = _oltre_l_orizzonte(action.get("data"))
+    if troppo_lontano:
+        return {"errore": troppo_lontano}
+
     slots = await backends.check_availability(
         action.get("data"),
         _risolvi_calendario(action.get("parrucchiere")),
@@ -603,6 +644,13 @@ async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
 
 async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
     from services import catalogo
+
+    # Anche qui, non solo in fase di ricerca: uno slot può arrivare da uno
+    # storico vecchio o da un'invenzione del modello, senza passare da
+    # CHECK_DISPONIBILITA.
+    troppo_lontano = _oltre_l_orizzonte(action.get("slot"))
+    if troppo_lontano:
+        return {"errore": troppo_lontano}
 
     dati = session["dati_temp"]
     nome = action.get("nome") or dati.get("nome") or ""
@@ -917,6 +965,10 @@ async def _sposta_appuntamento(action: dict, phone: str, session: dict, backends
 
     app_id = action["app_id"]
     nuovo_slot = action["slot"]
+
+    troppo_lontano = _oltre_l_orizzonte(nuovo_slot)
+    if troppo_lontano:
+        return {"errore": troppo_lontano}
 
     trovato = await _appuntamenti_del_richiedente(phone, session, backends)
     suoi = {a["app_id"]: a for a in (trovato or {}).get("appuntamenti", [])}
