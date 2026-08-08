@@ -1,9 +1,24 @@
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from services.conversation import handle_incoming_message_web
+from services.conversation import apri_conversazione_web, handle_incoming_message_web
 import json
+import re
 import uuid
 
 router = APIRouter()
+
+# L'identificativo arriva dal browser, quindi non è affidabile: diventa una
+# chiave in Redis, e le sessioni di WhatsApp sono indicizzate per numero di
+# telefono. Senza questo vincolo un visitatore potrebbe chiedere la sessione
+# "393331234567" e leggersi la conversazione di un cliente.
+FORMATO_SESSIONE = re.compile(r"^web_[0-9a-f]{12}$")
+
+
+def _sessione_richiesta(websocket: WebSocket) -> str:
+    """Riprende la sessione indicata dal browser, se è plausibile; altrimenti ne apre una."""
+    richiesta = websocket.query_params.get("sessione")
+    if richiesta and FORMATO_SESSIONE.match(richiesta):
+        return richiesta
+    return f"web_{uuid.uuid4().hex[:12]}"
 
 
 @router.websocket("/ws/chat")
@@ -12,8 +27,20 @@ async def chat_websocket(websocket: WebSocket):
     await websocket.accept()
     redis = websocket.app.state.redis
 
-    # Genera un ID sessione unico per il visitatore web
-    session_id = f"web_{uuid.uuid4().hex[:12]}"
+    session_id = _sessione_richiesta(websocket)
+
+    # Il browser deve sapere quale sessione sta usando, per ritrovarla dopo un
+    # ricaricamento o una caduta di connessione.
+    await websocket.send_text(json.dumps({"type": "sessione", "id": session_id}))
+
+    # Il saluto lo dice il bot, non la pagina: così resta nello storico e la
+    # risposta del cliente ("sì") ha un contesto a cui riferirsi. Chi si
+    # riconnette non viene salutato di nuovo.
+    saluto = await apri_conversazione_web(redis, session_id)
+    if saluto:
+        await websocket.send_text(
+            json.dumps({"type": "message", "text": saluto, "options": None})
+        )
 
     try:
         while True:

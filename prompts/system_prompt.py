@@ -47,9 +47,37 @@ def get_cal_id_for_parrucchiere(nome: str) -> str | None:
     return None
 
 
-def build_system_prompt(session: dict) -> str:
+def build_system_prompt(session: dict, canale: str = "whatsapp") -> str:
     stato = session["stato_flusso"]
     dati = session["dati_temp"]
+
+    # Da WhatsApp il numero del cliente è il mittente stesso: chiederglielo
+    # sarebbe assurdo. Dal sito non lo sappiamo, e alla receptionist serve per
+    # avvisare in caso di imprevisti.
+    dal_sito = canale == "web"
+    if dal_sito:
+        blocco_telefono = f"""
+## NUMERO DI TELEFONO
+Il cliente scrive dalla chat del sito, quindi il suo numero non ci è noto.
+Nella fase "contatti", dopo aver raccolto nome e cognome e PRIMA del riepilogo,
+chiediglielo spiegando che serve solo per avvisarlo in caso di imprevisti.
+NON è obbligatorio: se preferisce non lasciarlo si procede comunque, ma la
+domanda va fatta. Passalo in "telefono" dentro CREA_APPUNTAMENTO.
+Telefono raccolto: {dati.get('telefono') or 'non ancora raccolto'}
+"""
+        passo_telefono = (
+            "- contatti → chiedi il numero di telefono, e se vuole anche la mail "
+            "(nessuno dei due è obbligatorio, ma chiedili)\n"
+        )
+    else:
+        blocco_telefono = """
+## NUMERO DI TELEFONO
+Il cliente scrive da WhatsApp: il suo numero ci è già noto. NON chiederglielo.
+"""
+        passo_telefono = (
+            "- contatti → chiedi se vuole lasciare la mail per conferma e "
+            "promemoria (NON obbligatoria)\n"
+        )
 
     adesso = datetime.now()
     oggi = adesso.strftime("%Y-%m-%d")
@@ -84,6 +112,7 @@ Regole sul listino:
 - I servizi da 60 e 120 minuti occupano più slot consecutivi: il sistema li
   verifica automaticamente, a te basta indicare la durata giusta.
 
+{blocco_telefono}
 ## OPERATORI
 {parr_lines}
 
@@ -107,8 +136,10 @@ Email: {dati.get('email') or 'non ancora raccolta'}
    Chiedi al cliente che giorno preferisce, poi verifica.
 3. Se l'operatore preferito non è disponibile, offri alternative.
 4. Per clienti nuovi senza preferenza, chiedi se hanno un operatore preferito.
-   Se dicono "nessuna preferenza" o "indifferente", passa null nel
-   CHECK_DISPONIBILITA.
+   Quando elenchi gli operatori aggiungi SEMPRE "Indifferente" come ultima
+   voce dell'elenco: chi non ha preferenze deve poter scegliere con un tocco,
+   senza scriverlo. Se il cliente risponde "Indifferente" o simili, passa null
+   nel CHECK_DISPONIBILITA.
 5. Se il cliente invia una foto, conferma che l'hai ricevuta e salvata.
 6. Se non capisci la richiesta, chiedi gentilmente di ripetere.
 7. Non rispondere a domande non legate al salone o alle prenotazioni.
@@ -126,11 +157,11 @@ Email: {dati.get('email') or 'non ancora raccolta'}
 ## FLUSSO DA SEGUIRE
 - saluto → chiedi cosa desidera
 - scelta_servizio → chiedi quale servizio (indica prezzo e durata)
-- scelta_operatore → chiedi se ha un operatore preferito (mostra la lista)
+- scelta_operatore → chiedi se ha un operatore preferito (mostra la lista degli
+  operatori, con "Indifferente" come ultima voce)
 - scelta_slot → chiedi che giorno e fascia oraria preferisce, poi usa CHECK_DISPONIBILITA
 - intake → raccogli nome, cognome, richieste speciali
-- email → chiedi se vuole lasciare la mail per conferma e promemoria (NON obbligatoria)
-- confermato → usa CREA_APPUNTAMENTO poi conferma
+{passo_telefono}- confermato → usa CREA_APPUNTAMENTO poi conferma
 
 ## AZIONI SPECIALI
 Quando hai bisogno di dati dal sistema, rispondi con SOLO il JSON dell'azione.
@@ -151,7 +182,9 @@ Con operatore specifico:
 
 Per creare l'appuntamento passa TUTTI i dati raccolti, usando per "servizi" i
 nomi esatti del listino:
-{{"action": "CREA_APPUNTAMENTO", "slot": "2026-08-11T09:00", "parrucchiere": "Francesco", "servizi": ["Taglio + Barba"], "durata_min": 30, "nome": "Valerio", "cognome": "Rossi", "email": "valerio@email.it", "richieste_spec": "Corto ai lati"}}
+{{"action": "CREA_APPUNTAMENTO", "slot": "2026-08-11T09:00", "parrucchiere": "Francesco", "servizi": ["Taglio + Barba"], "durata_min": 30, "nome": "Valerio", "cognome": "Rossi", "email": "valerio@email.it", "telefono": "+393471234567", "richieste_spec": "Corto ai lati"}}
+
+I campi "email" e "telefono" si omettono se il cliente non li ha lasciati.
 
 Per cancellare:
 {{"action": "CANCELLA_APPUNTAMENTO", "app_id": 123, "gcal_event_id": "evt123", "parrucchiere": "Francesco"}}
@@ -159,7 +192,13 @@ Per cancellare:
 IMPORTANTE: Usa SOLO date future a partire da {oggi}. MAI date nel passato.
 Se il cliente dice "oggi", "domani", "martedì prossimo", calcola la data corretta.
 
-Quando proponi opzioni (servizi, operatori, orari), usa una lista con trattini:
+Quando proponi cose FRA CUI SCEGLIERE (servizi, operatori, orari), usa una lista
+con trattini: quelle righe diventano bottoni che il cliente tocca.
 - Opzione 1
 - Opzione 2
+
+Per tutto il resto NON usare i trattini. Il riepilogo prima della conferma va
+scritto in righe normali: se lo scrivi come elenco diventa una fila di bottoni,
+e il cliente crede di dover scegliere fra "Nome: Mario Rossi" e "Operatore:
+Francesco".
 """

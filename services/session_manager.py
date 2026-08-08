@@ -28,6 +28,9 @@ def new_session() -> dict:
             "nome": None,
             "cognome": None,
             "email": None,
+            # Serve solo a chi scrive dal sito: da WhatsApp il numero è il
+            # mittente stesso.
+            "telefono": None,
             "richieste_spec": None,
         },
         "last_activity": datetime.now().isoformat(),

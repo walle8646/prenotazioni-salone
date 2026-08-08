@@ -50,6 +50,10 @@ MESSAGGIO_FALLBACK = (
     "Scusami, sto avendo un problema tecnico nel completare la richiesta. "
     "Puoi riprovare tra poco?"
 )
+SALUTO_INIZIALE = (
+    "Ciao! Sono Nadia, l'assistente del salone. Come posso aiutarti? "
+    "Vuoi prenotare un appuntamento?"
+)
 
 
 async def _claude_reale(system_prompt: str, history: list[dict]) -> str:
@@ -105,6 +109,9 @@ def parse_response_with_options(response: str) -> tuple[str, list[dict] | None]:
     # Opzioni solo se ce ne sono almeno due e l'elenco è convertibile per intero
     if len(options) >= 2 and tutte_convertibili:
         clean_text = "\n".join(text_lines).strip() or "Scegli un'opzione:"
+        # Togliendo le righe dell'elenco restano i buchi dove stavano: senza
+        # questo il cliente legge "Ecco gli orari:" seguito da tre righe vuote.
+        clean_text = re.sub(r"\n{3,}", "\n\n", clean_text)
         return clean_text, options
 
     return response, None
@@ -161,7 +168,9 @@ async def _run_turn(session_key, session, channel, backends, claude) -> None:
     risposta_inviata = False
 
     for _ in range(MAX_ITERATIONS):
-        system_prompt = build_system_prompt(session)
+        # Il canale cambia cosa il bot sa già del cliente: da WhatsApp il numero
+        # è il mittente, dal sito no.
+        system_prompt = build_system_prompt(session, canale=channel.name)
         response = await claude(system_prompt, session["history"])
         action, pre_text = try_parse_action(response)
 
@@ -234,6 +243,27 @@ async def handle_incoming_message(
         # La sessione va salvata anche se qualcosa è andato storto a metà turno,
         # altrimenti il cliente perde il contesto della conversazione.
         await save_session(redis, phone, session)
+
+
+async def apri_conversazione_web(redis, session_id: str) -> str | None:
+    """Registra il saluto come primo turno del bot, se la conversazione è nuova.
+
+    Il saluto stava scritto a mano nella pagina: il cliente lo leggeva, ma per
+    la conversazione non esisteva. Rispondendo "sì" il modello riceveva uno
+    storico che cominciava lì, non sapeva a cosa si riferisse e si ripresentava
+    da capo.
+
+    Restituisce None se la sessione esiste già: chi si riconnette dopo una
+    caduta sta riprendendo un discorso, e vedersi salutare di nuovo a metà
+    conversazione è il sintomo da cui siamo partiti.
+    """
+    session = await get_session(redis, session_id)
+    if session["history"]:
+        return None
+
+    session["history"].append({"role": "assistant", "content": SALUTO_INIZIALE})
+    await save_session(redis, session_id, session)
+    return SALUTO_INIZIALE
 
 
 async def handle_incoming_message_web(
@@ -333,7 +363,7 @@ def _risolvi_calendario(valore: str | None) -> str | None:
 # onesta la voce "FASE CORRENTE" del prompt, che altrimenti resta "saluto" per
 # tutta la conversazione.
 _FASI = (
-    ("nome", "email"),
+    ("nome", "contatti"),
     ("slot", "intake"),
     ("parrucchiere", "scelta_slot"),
     ("servizio", "scelta_operatore"),
@@ -363,6 +393,24 @@ def _ricorda(session: dict, **campi) -> None:
             session["stato_flusso"] = fase
             return
     session["stato_flusso"] = "scelta_servizio"
+
+
+def _normalizza_telefono(valore) -> str | None:
+    """Ripulisce un numero scritto a mano dal cliente.
+
+    Lo scrive come gli viene: "347 123 45 67", "+39 347-1234567". In colonna
+    ci stanno vent'anni di caratteri, quindi si conservano solo il prefisso
+    internazionale e le cifre. Se non somiglia a un numero si restituisce None,
+    invece di sporcare l'anagrafica con una frase.
+    """
+    if not valore:
+        return None
+    testo = str(valore).strip()
+    cifre = re.sub(r"\D", "", testo)
+    # E.164: al massimo quindici cifre, e sotto le otto non è un numero italiano
+    if not 8 <= len(cifre) <= 15:
+        return None
+    return ("+" if testo.startswith("+") else "") + cifre
 
 
 def _descrivi_servizi(servizi) -> str:
@@ -420,6 +468,9 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     email = action.get("email") or dati.get("email") or ""
     richieste = action.get("richieste_spec") or dati.get("richieste_spec") or ""
     servizi = action.get("servizi") or []
+    da_web = bool(phone) and phone.startswith("web_")
+    # Dal sito il numero lo lascia il cliente, se vuole; da WhatsApp è il mittente.
+    telefono = _normalizza_telefono(action.get("telefono") or dati.get("telefono"))
 
     # La durata la decide il catalogo, non Claude: se il modello sbaglia a
     # calcolarla il calendario resterebbe bloccato male.
@@ -436,8 +487,10 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
         descrizione_parts.append(f"Richieste: {richieste}")
     if email:
         descrizione_parts.append(f"Email: {email}")
-    if phone and not phone.startswith("web_"):
-        descrizione_parts.append(f"WhatsApp: {phone}")
+    # Alla receptionist serve un numero per chiamare, qualunque sia il canale
+    contatto = telefono or (None if da_web else phone)
+    if contatto:
+        descrizione_parts.append(f"Telefono: {contatto}")
 
     # Il calendario si ricava dal nome dell'operatore; l'id esplicito resta
     # accettato per retrocompatibilità con le sessioni già in corso.
@@ -467,15 +520,17 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
         slot=action["slot"],
         parrucchiere=action.get("parrucchiere"),
         email=email,
+        telefono=telefono,
         servizio=_descrivi_servizi(servizi) if servizi else None,
     )
 
-    # Dal sito l'identificativo di sessione cambia a ogni visita: è l'email a
-    # dire se la persona è già conosciuta, e il canale va registrato per quello
-    # che è, altrimenti in anagrafica sembrano tutti contatti WhatsApp.
-    da_web = bool(phone) and phone.startswith("web_")
+    # Dal sito l'identificativo di sessione non dice niente su chi è la persona:
+    # se ci ha lasciato il numero, quella è la sua identità vera, e permette di
+    # riconoscerlo se domani scrive su WhatsApp. Altrimenti resta l'email a dirlo.
+    # Il canale va registrato per quello che è, altrimenti in anagrafica sembrano
+    # tutti contatti WhatsApp.
     client = await backends.find_or_create_client(
-        phone=phone,
+        phone=telefono if (da_web and telefono) else phone,
         nome=nome,
         cognome=cognome,
         email=email or None,

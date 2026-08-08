@@ -27,10 +27,38 @@
         panel.classList.add('hidden');
     });
 
+    // Identificativo della conversazione. Lo tiene il browser, non il server:
+    // altrimenti ogni caduta di connessione — un riavvio, la rete, il computer
+    // che si sospende — apriva una sessione nuova, e il bot ricominciava da
+    // capo salutando in mezzo al discorso.
+    const CHIAVE_SESSIONE = 'salone_nadia_sessione';
+
+    function sessioneSalvata() {
+        try {
+            return localStorage.getItem(CHIAVE_SESSIONE);
+        } catch (e) {
+            // Navigazione privata o cookie bloccati: si riparte da zero
+            return null;
+        }
+    }
+
+    function ricordaSessione(id) {
+        try {
+            localStorage.setItem(CHIAVE_SESSIONE, id);
+        } catch (e) {
+            /* pazienza: la conversazione vale solo per questa connessione */
+        }
+    }
+
     // WebSocket connection
     function connectWebSocket() {
         const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-        const wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+        let wsUrl = `${protocol}//${window.location.host}/ws/chat`;
+
+        const sessione = sessioneSalvata();
+        if (sessione) {
+            wsUrl += `?sessione=${encodeURIComponent(sessione)}`;
+        }
 
         ws = new WebSocket(wsUrl);
 
@@ -40,6 +68,10 @@
 
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
+            if (data.type === 'sessione') {
+                ricordaSessione(data.id);
+                return;
+            }
             if (data.type === 'message') {
                 appendMessage(data.text, 'bot');
                 // Se ci sono opzioni, mostra i bottoni

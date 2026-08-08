@@ -436,6 +436,152 @@ async def test_i_limiti_dei_bottoni_li_decide_il_canale():
     assert whatsapp.ultimo()["text"] == risposta
 
 
+# ------------------------------------------------------- saluto del widget web
+
+
+@pytest.mark.asyncio
+async def test_il_saluto_iniziale_entra_nello_storico(mock_redis):
+    from services.conversation import SALUTO_INIZIALE, apri_conversazione_web
+    from services.session_manager import get_session
+
+    assert await apri_conversazione_web(mock_redis, "web_prova") == SALUTO_INIZIALE
+
+    sessione = await get_session(mock_redis, "web_prova")
+    assert sessione["history"] == [{"role": "assistant", "content": SALUTO_INIZIALE}]
+
+    # Chi si riconnette sta riprendendo un discorso: niente saluto bis
+    assert await apri_conversazione_web(mock_redis, "web_prova") is None
+    sessione = await get_session(mock_redis, "web_prova")
+    assert len(sessione["history"]) == 1
+
+
+def test_il_browser_non_puo_chiedere_la_sessione_di_un_altro():
+    """L'identificativo arriva dal client e diventa una chiave in Redis.
+
+    Le conversazioni WhatsApp sono indicizzate per numero di telefono: senza
+    un vincolo di formato, dal sito si potrebbe chiedere la sessione di un
+    cliente e leggersi il suo storico.
+    """
+    from routers.chat_ws import _sessione_richiesta
+
+    class FintoWebSocket:
+        def __init__(self, valore):
+            self.query_params = {"sessione": valore} if valore else {}
+
+    valido = "web_0123456789ab"
+    assert _sessione_richiesta(FintoWebSocket(valido)) == valido
+
+    for tentativo in [
+        "393331234567",
+        "web_../393331234567",
+        "WEB_0123456789AB",
+        "web_zzzzzzzzzzzz",
+        "session:393331234567",
+        "",
+    ]:
+        ottenuto = _sessione_richiesta(FintoWebSocket(tentativo))
+        assert ottenuto != tentativo
+        assert ottenuto.startswith("web_")
+
+
+@pytest.mark.asyncio
+async def test_chi_risponde_si_al_saluto_viene_capito(mock_redis, backends):
+    """Il saluto scritto nella pagina non esisteva per il bot, che si ripresentava."""
+    from services.conversation import (
+        SALUTO_INIZIALE,
+        apri_conversazione_web,
+        handle_incoming_message_web,
+    )
+
+    claude = ScriptedClaude(["Perfetto! Quale servizio desideri?"])
+
+    await apri_conversazione_web(mock_redis, "web_prova")
+    await handle_incoming_message_web(
+        redis=mock_redis,
+        session_id="web_prova",
+        text="si",
+        backends=backends,
+        claude=claude,
+    )
+
+    storico = claude.chiamate[0]["history"]
+    assert storico[0]["content"] == SALUTO_INIZIALE
+    assert storico[1]["content"] == "si"
+
+
+# ------------------------------------------------------ numero di telefono
+#
+# Da WhatsApp il numero è il mittente. Dal sito no, e alla receptionist serve
+# per avvisare in caso di imprevisti: va chiesto, senza obbligare.
+
+
+def test_il_numero_si_chiede_solo_a_chi_scrive_dal_sito(sample_session):
+    from prompts.system_prompt import build_system_prompt
+
+    dal_sito = build_system_prompt(sample_session, canale="web")
+    assert "non ci è noto" in dal_sito
+    assert "NON è obbligatorio" in dal_sito
+
+    da_whatsapp = build_system_prompt(sample_session, canale="whatsapp")
+    assert "NON chiederglielo" in da_whatsapp
+
+
+def test_i_numeri_scritti_a_mano_vengono_ripuliti():
+    from services.conversation import _normalizza_telefono
+
+    assert _normalizza_telefono("+39 347 123 45 67") == "+393471234567"
+    assert _normalizza_telefono("347-123-4567") == "3471234567"
+    # Quello che non è un numero non deve finire in anagrafica
+    assert _normalizza_telefono("non te lo dico") is None
+    assert _normalizza_telefono("123") is None
+    assert _normalizza_telefono("") is None
+    assert _normalizza_telefono(None) is None
+
+
+@pytest.mark.asyncio
+async def test_il_numero_lasciato_dal_sito_diventa_l_identita_del_cliente(mock_redis):
+    """Così chi prenota dal sito viene riconosciuto se domani scrive su WhatsApp."""
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import handle_incoming_message_web
+    from services.fakes import FakeBackends
+
+    set_parrucchieri_cache(MAPPA_FINTA)
+    backends = FakeBackends(MAPPA_FINTA)
+
+    claude = ScriptedClaude(
+        [
+            ScriptedClaude.azione(
+                action="CREA_APPUNTAMENTO",
+                slot=f"{GIORNO}T09:00",
+                parrucchiere="Francesco",
+                servizi=["Taglio"],
+                nome="Mario",
+                cognome="Rossi",
+                telefono="+39 347 123 45 67",
+            ),
+            "Prenotazione confermata!",
+        ]
+    )
+
+    await handle_incoming_message_web(
+        redis=mock_redis,
+        session_id="web_0123456789ab",
+        text="confermo",
+        backends=backends,
+        claude=claude,
+    )
+
+    assert backends.clienti, "il cliente deve essere stato creato"
+    cliente = backends.clienti[0]
+    assert cliente["telefono"] == "+393471234567"
+    assert cliente["canale"] == "web"
+
+    # Lo stesso numero da WhatsApp deve ritrovare la stessa persona
+    ritrovato = await backends.find_or_create_client(phone="+393471234567")
+    assert ritrovato["is_new"] is False
+    assert ritrovato["nome"] == "Mario"
+
+
 def test_il_markdown_non_finisce_nelle_etichette():
     """Claude scrive **grassetto**, che nessuno dei due canali interpreta."""
     risposta = "Ecco gli orari:\n- Oggi alle **08:00**\n- Oggi alle **08:30**"

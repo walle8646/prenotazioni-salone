@@ -11,11 +11,11 @@
             <span>Chat con Nadia</span>
             <button id="chat-close" class="chat-close">&times;</button>
         </div>
-        <div id="chat-messages" class="chat-messages">
-            <div class="message bot">
-                Ciao! Sono Nadia, l'assistente del salone. Come posso aiutarti? Vuoi prenotare un appuntamento?
-            </div>
-        </div>
+        <!-- Vuoto di proposito: il saluto arriva dal bot appena si apre la
+             chat, così resta nello storico della conversazione. Scriverlo qui
+             faceva credere al cliente di aver già parlato con qualcuno che
+             invece non ne sapeva nulla. -->
+        <div id="chat-messages" class="chat-messages"></div>
         <div class="chat-input-area">
             <input type="text" id="chat-input" placeholder="Scrivi un messaggio..." autocomplete="off">
             <button id="chat-send" class="chat-send">
