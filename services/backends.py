@@ -67,6 +67,11 @@ class Backends:
     async def send_verification_code(self, to: str, codice: str) -> None:
         raise NotImplementedError
 
+    async def send_cancellation_email(
+        self, to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list
+    ) -> None:
+        raise NotImplementedError
+
     async def download_media(self, media_id: str):
         raise NotImplementedError
 
@@ -140,6 +145,17 @@ class RealBackends(Backends):
         from services.email_service import send_verification_code
 
         await send_verification_code(to=to, codice=codice)
+
+    async def send_cancellation_email(self, to, nome, data_ora, parrucchiere, servizi):
+        from services.email_service import send_cancellation_email
+
+        await send_cancellation_email(
+            to=to,
+            nome=nome,
+            data_ora=data_ora,
+            parrucchiere=parrucchiere,
+            servizi=servizi,
+        )
 
     async def download_media(self, media_id):
         from services.whatsapp_service import download_media

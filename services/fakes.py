@@ -62,6 +62,7 @@ class FakeBackends(Backends):
         self.appuntamenti: list[dict] = []
         self.email_inviate: list[dict] = []
         self.codici_inviati: list[dict] = []
+        self.email_cancellazioni: list[dict] = []
         self.foto_salvate: list[str] = []
         self.giorni_chiusi: set[str] = set()
         self._contatore = 0
@@ -260,6 +261,17 @@ class FakeBackends(Backends):
 
     async def send_verification_code(self, to, codice):
         self.codici_inviati.append({"to": to, "codice": codice})
+
+    async def send_cancellation_email(self, to, nome, data_ora, parrucchiere, servizi):
+        self.email_cancellazioni.append(
+            {
+                "to": to,
+                "nome": nome,
+                "data_ora": data_ora,
+                "parrucchiere": parrucchiere,
+                "servizi": servizi,
+            }
+        )
 
 
 class ScriptedClaude:

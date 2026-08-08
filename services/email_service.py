@@ -112,6 +112,33 @@ async def send_confirmation_email(
     )
 
 
+async def send_cancellation_email(
+    to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list
+):
+    """Conferma per iscritto che l'appuntamento è stato annullato.
+
+    Serve soprattutto quando la disdetta non l'ha chiesta il cliente: senza
+    questa email se ne accorgerebbe presentandosi al salone.
+    """
+    servizi_str = ", ".join(servizi or [])
+    await _invia(
+        to,
+        "Appuntamento annullato - Salone Nadia",
+        f"""
+            <h2>Ciao {nome}!</h2>
+            <p>Il tuo appuntamento è stato annullato:</p>
+            <ul>
+                <li><strong>Data e ora:</strong> {_quando(data_ora)}</li>
+                <li><strong>Servizio:</strong> {servizi_str}</li>
+                <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
+            </ul>
+            <p>Se non l'hai chiesto tu, o se vuoi prenotare di nuovo, scrivici
+            pure: ti troviamo un altro orario.</p>
+            <p>A presto!<br>Salone Nadia</p>
+        """,
+    )
+
+
 async def send_verification_code(to: str, codice: str):
     """Invia il codice che sblocca lo storico dalla chat del sito."""
     await _invia(

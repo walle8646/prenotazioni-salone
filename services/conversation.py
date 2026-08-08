@@ -834,4 +834,21 @@ async def _cancella_appuntamento(action: dict, phone: str, session: dict, backen
         await backends.delete_event(gcal_event_id, cal_id)
 
     await backends.update_appointment_status(app_id, "Cancellato")
-    return {"cancellazione": "completata"}
+
+    # Conferma per iscritto anche l'annullamento: senza, un cliente che non ha
+    # chiesto lui la disdetta se ne accorgerebbe presentandosi al salone.
+    cliente = (trovato or {}).get("cliente") or {}
+    destinatario = cliente.get("email")
+    if destinatario:
+        try:
+            await backends.send_cancellation_email(
+                to=destinatario,
+                nome=cliente.get("nome") or "",
+                data_ora=appuntamento.get("data_ora"),
+                parrucchiere=appuntamento.get("parrucchiere") or "",
+                servizi=appuntamento.get("servizi") or [],
+            )
+        except Exception:  # noqa: BLE001 - l'email non deve annullare la disdetta
+            logger.exception("Invio della conferma di disdetta fallito")
+
+    return {"cancellazione": "completata", "email_di_conferma": bool(destinatario)}

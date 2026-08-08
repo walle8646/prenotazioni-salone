@@ -774,6 +774,71 @@ async def test_si_puo_disdire_usando_i_dati_dello_storico(mock_redis, canale):
 
 
 @pytest.mark.asyncio
+async def test_la_disdetta_viene_confermata_per_email(monkeypatch):
+    """Chi non ha chiesto lui la disdetta se ne accorgerebbe solo al salone."""
+    from config import settings
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    monkeypatch.setattr(settings, "cancel_policy_hours", 2)
+    set_parrucchieri_cache(MAPPA_FINTA)
+
+    backends = FakeBackends(MAPPA_FINTA)
+    cliente = await backends.find_or_create_client(
+        phone="393331234567", nome="Mario", cognome="Rossi", email="mario@example.it"
+    )
+    await backends.create_appointment(
+        client_id=cliente["id"],
+        data_ora=f"{GIORNO}T09:00",
+        servizi=["Taglio + Barba"],
+        parrucchiere="Francesco",
+        gcal_event_id="evt_1",
+        durata_min=30,
+    )
+
+    esito = await execute_action(
+        {"action": "CANCELLA_APPUNTAMENTO", "app_id": 1, "gcal_event_id": "evt_1"},
+        "393331234567",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert esito["cancellazione"] == "completata"
+    assert len(backends.email_cancellazioni) == 1
+
+    email = backends.email_cancellazioni[0]
+    assert email["to"] == "mario@example.it"
+    assert email["data_ora"] == f"{GIORNO}T09:00"
+    assert email["servizi"] == ["Taglio + Barba"]
+
+
+@pytest.mark.asyncio
+async def test_senza_email_la_disdetta_si_fa_lo_stesso(monkeypatch):
+    """L'indirizzo non è obbligatorio: chi non l'ha lasciato deve poter disdire."""
+    from config import settings
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    monkeypatch.setattr(settings, "cancel_policy_hours", 2)
+    set_parrucchieri_cache(MAPPA_FINTA)
+
+    backends = FakeBackends(MAPPA_FINTA)
+    await _cliente_con_appuntamento(backends)  # senza email
+
+    esito = await execute_action(
+        {"action": "CANCELLA_APPUNTAMENTO", "app_id": 1},
+        "393331234567",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert esito["cancellazione"] == "completata"
+    assert backends.email_cancellazioni == []
+
+
+@pytest.mark.asyncio
 async def test_non_si_disdice_a_ridosso_dell_appuntamento(monkeypatch):
     """Sotto il preavviso minimo la disdetta la gestisce il salone al telefono."""
     from datetime import timedelta
