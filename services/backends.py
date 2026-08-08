@@ -72,6 +72,14 @@ class Backends:
     ) -> None:
         raise NotImplementedError
 
+    async def send_change_email(
+        self, to: str, nome: str, da: str, a: str, parrucchiere: str, servizi: list
+    ) -> None:
+        raise NotImplementedError
+
+    async def sposta_appuntamento(self, **kwargs) -> None:
+        raise NotImplementedError
+
     async def download_media(self, media_id: str):
         raise NotImplementedError
 
@@ -156,6 +164,18 @@ class RealBackends(Backends):
             parrucchiere=parrucchiere,
             servizi=servizi,
         )
+
+    async def send_change_email(self, to, nome, da, a, parrucchiere, servizi):
+        from services.email_service import send_change_email
+
+        await send_change_email(
+            to=to, nome=nome, da=da, a=a, parrucchiere=parrucchiere, servizi=servizi
+        )
+
+    async def sposta_appuntamento(self, **kwargs):
+        from services.db_service import sposta_appuntamento
+
+        await sposta_appuntamento(**kwargs)
 
     async def download_media(self, media_id):
         from services.whatsapp_service import download_media

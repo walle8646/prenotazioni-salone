@@ -345,6 +345,8 @@ async def execute_action(action: dict, phone: str, session: dict, backends=None)
             return await _crea_appuntamento(action, phone, session, backends)
         if action_type == "CANCELLA_APPUNTAMENTO":
             return await _cancella_appuntamento(action, phone, session, backends)
+        if action_type == "SPOSTA_APPUNTAMENTO":
+            return await _sposta_appuntamento(action, phone, session, backends)
         if action_type == "STORICO_APPUNTAMENTI":
             return await _storico_appuntamenti(phone, session, backends)
         if action_type == "INVIA_CODICE_VERIFICA":
@@ -779,12 +781,151 @@ async def _storico_appuntamenti(phone: str, session: dict, backends) -> dict:
     }
 
 
-async def _cancella_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
+def _preavviso_insufficiente(appuntamento: dict) -> str | None:
+    """Messaggio da restituire se manca troppo poco all'appuntamento, altrimenti None.
+
+    Vale sia per disdire sia per spostare: a poche ore di distanza l'operatore
+    ha già organizzato la giornata, e la modifica la gestisce il salone.
+    """
     from datetime import datetime, timedelta
 
     from config import settings
     from services.slots import FUSO_SALONE, adesso_salone
 
+    quando = datetime.strptime(appuntamento["data_ora"], "%Y-%m-%dT%H:%M").replace(
+        tzinfo=FUSO_SALONE
+    )
+    ore = settings.cancel_policy_hours
+    if quando - adesso_salone() >= timedelta(hours=ore):
+        return None
+
+    come = (
+        f"telefonare al salone allo {settings.salone_telefono}"
+        if settings.salone_telefono
+        else "telefonare al salone"
+    )
+    return (
+        f"Mancano meno di {ore} ore all'appuntamento, quindi da qui non si può "
+        f"più cambiare. Spiega al cliente che deve {come}."
+    )
+
+
+async def _sposta_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
+    """Sposta un appuntamento esistente a un altro orario o operatore.
+
+    Nel database la riga resta la stessa: nello storico il cliente vede un
+    appuntamento spostato, non uno annullato più uno preso. Sul calendario
+    invece si cancella e si ricrea, perché lì l'evento lo guarda solo il salone
+    e un identificativo nuovo non cambia nulla.
+    """
+    from services import catalogo
+
+    app_id = action["app_id"]
+    nuovo_slot = action["slot"]
+
+    trovato = await _appuntamenti_del_richiedente(phone, session, backends)
+    suoi = {a["app_id"]: a for a in (trovato or {}).get("appuntamenti", [])}
+    appuntamento = suoi.get(app_id)
+    if appuntamento is None:
+        return {
+            "errore": (
+                "Non trovo questo appuntamento fra quelli di chi sta scrivendo. "
+                "Rileggi lo storico con STORICO_APPUNTAMENTI e usa gli id di lì."
+            )
+        }
+    if appuntamento.get("stato") == "Cancellato":
+        return {
+            "errore": "Questo appuntamento è già annullato: se serve, prenotane uno nuovo."
+        }
+
+    troppo_tardi = _preavviso_insufficiente(appuntamento)
+    if troppo_tardi:
+        return {"errore": troppo_tardi}
+
+    operatore = action.get("parrucchiere") or appuntamento.get("parrucchiere")
+    if nuovo_slot == appuntamento["data_ora"] and operatore == appuntamento.get(
+        "parrucchiere"
+    ):
+        return {"errore": "Il nuovo orario è identico a quello attuale."}
+
+    servizi = appuntamento.get("servizi") or []
+    durata = appuntamento.get("durata_min") or catalogo.durata_totale(servizi)
+
+    cal_id = _risolvi_calendario(operatore)
+    if cal_id is None:
+        raise OperatoreSconosciuto(
+            "Manca l'operatore: non so su quale calendario spostare l'appuntamento."
+        )
+
+    # Il nuovo orario dev'essere davvero libero, altrimenti si finirebbe sopra
+    # a un altro cliente.
+    liberi = {
+        s["slot"]
+        for s in await backends.check_availability(nuovo_slot.split("T")[0], cal_id, durata)
+    }
+    if nuovo_slot not in liberi:
+        return {
+            "errore": (
+                f"L'orario {nuovo_slot} non è libero con {operatore}. "
+                "Verifica la disponibilità e proponi al cliente un altro orario."
+            )
+        }
+
+    cliente = (trovato or {}).get("cliente") or {}
+    nome_completo = f"{cliente.get('nome') or ''} {cliente.get('cognome') or ''}".strip()
+
+    # Prima si crea il nuovo evento, poi si cancella il vecchio: al contrario,
+    # se la creazione fallisse, il cliente resterebbe senza né l'uno né l'altro.
+    nuovo_event_id = await backends.create_event(
+        slot=nuovo_slot,
+        parrucchiere_cal_id=cal_id,
+        servizi=servizi,
+        durata=durata,
+        cliente_nome=nome_completo or "Cliente",
+        descrizione="Appuntamento spostato",
+    )
+
+    vecchio_event_id = appuntamento.get("gcal_event_id")
+    if vecchio_event_id:
+        try:
+            await backends.delete_event(
+                vecchio_event_id, _risolvi_calendario(appuntamento.get("parrucchiere"))
+            )
+        except Exception:  # noqa: BLE001 - un doppione sul calendario è meno grave
+            logger.exception("Il vecchio evento %s non è stato rimosso", vecchio_event_id)
+
+    await backends.sposta_appuntamento(
+        app_id=app_id,
+        data_ora=nuovo_slot,
+        parrucchiere=operatore,
+        gcal_event_id=nuovo_event_id,
+        durata_min=durata,
+    )
+
+    destinatario = cliente.get("email")
+    if destinatario:
+        try:
+            await backends.send_change_email(
+                to=destinatario,
+                nome=cliente.get("nome") or "",
+                da=appuntamento["data_ora"],
+                a=nuovo_slot,
+                parrucchiere=operatore or "",
+                servizi=servizi,
+            )
+        except Exception:  # noqa: BLE001 - l'email non deve annullare lo spostamento
+            logger.exception("Invio della conferma di spostamento fallito")
+
+    return {
+        "spostamento": "completato",
+        "da": appuntamento["data_ora"],
+        "a": nuovo_slot,
+        "parrucchiere": operatore,
+        "email_di_conferma": bool(destinatario),
+    }
+
+
+async def _cancella_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
     app_id = action["app_id"]
 
     # L'appuntamento deve essere di chi sta scrivendo. Gli id sono numeri
@@ -805,24 +946,9 @@ async def _cancella_appuntamento(action: dict, phone: str, session: dict, backen
     if appuntamento.get("stato") == "Cancellato":
         return {"cancellazione": "era già stata fatta"}
 
-    # Preavviso minimo: sotto la soglia la disdetta la gestisce il salone al
-    # telefono, perché a quel punto l'operatore ha già organizzato la giornata.
-    quando = datetime.strptime(appuntamento["data_ora"], "%Y-%m-%dT%H:%M").replace(
-        tzinfo=FUSO_SALONE
-    )
-    ore = settings.cancel_policy_hours
-    if quando - adesso_salone() < timedelta(hours=ore):
-        come = (
-            f"telefonare al salone allo {settings.salone_telefono}"
-            if settings.salone_telefono
-            else "telefonare al salone"
-        )
-        return {
-            "errore": (
-                f"Mancano meno di {ore} ore all'appuntamento, quindi da qui non si "
-                f"può più disdire. Spiega al cliente che per annullare deve {come}."
-            )
-        }
+    troppo_tardi = _preavviso_insufficiente(appuntamento)
+    if troppo_tardi:
+        return {"errore": troppo_tardi}
 
     gcal_event_id = action.get("gcal_event_id") or appuntamento.get("gcal_event_id")
     if gcal_event_id:

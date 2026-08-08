@@ -139,6 +139,29 @@ async def send_cancellation_email(
     )
 
 
+async def send_change_email(
+    to: str, nome: str, da: str, a: str, parrucchiere: str, servizi: list
+):
+    """Un solo messaggio per lo spostamento, invece di annullato più confermato."""
+    servizi_str = ", ".join(servizi or [])
+    await _invia(
+        to,
+        "Appuntamento spostato - Salone Nadia",
+        f"""
+            <h2>Ciao {nome}!</h2>
+            <p>Il tuo appuntamento è stato spostato.</p>
+            <p><s>{_quando(da)}</s><br>
+            <strong>{_quando(a)}</strong></p>
+            <ul>
+                <li><strong>Servizio:</strong> {servizi_str}</li>
+                <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
+            </ul>
+            <p>Se il nuovo orario non ti va bene, scrivici pure.</p>
+            <p>A presto!<br>Salone Nadia</p>
+        """,
+    )
+
+
 async def send_verification_code(to: str, codice: str):
     """Invia il codice che sblocca lo storico dalla chat del sito."""
     await _invia(

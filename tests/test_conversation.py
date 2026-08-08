@@ -774,6 +774,101 @@ async def test_si_puo_disdire_usando_i_dati_dello_storico(mock_redis, canale):
 
 
 @pytest.mark.asyncio
+async def test_spostare_non_lascia_due_appuntamenti(monkeypatch):
+    """Nel database la riga è la stessa: spostato, non annullato più preso."""
+    from config import settings
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    monkeypatch.setattr(settings, "cancel_policy_hours", 2)
+    set_parrucchieri_cache(MAPPA_FINTA)
+
+    backends = FakeBackends(MAPPA_FINTA)
+    cal_id = MAPPA_FINTA["Francesco"]
+    cliente = await backends.find_or_create_client(
+        phone="393331234567", nome="Mario", cognome="Rossi", email="mario@example.it"
+    )
+    vecchio_evento = await backends.create_event(
+        slot=f"{GIORNO}T09:00",
+        parrucchiere_cal_id=cal_id,
+        servizi=["Taglio"],
+        durata=30,
+        cliente_nome="Mario Rossi",
+    )
+    await backends.create_appointment(
+        client_id=cliente["id"],
+        data_ora=f"{GIORNO}T09:00",
+        servizi=["Taglio"],
+        parrucchiere="Francesco",
+        gcal_event_id=vecchio_evento,
+        durata_min=30,
+    )
+
+    esito = await execute_action(
+        {
+            "action": "SPOSTA_APPUNTAMENTO",
+            "app_id": 1,
+            "slot": f"{GIORNO}T11:00",
+        },
+        "393331234567",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert esito["spostamento"] == "completato"
+    assert esito["da"] == f"{GIORNO}T09:00"
+    assert esito["a"] == f"{GIORNO}T11:00"
+
+    # Una riga sola, spostata
+    assert len(backends.appuntamenti) == 1
+    assert backends.appuntamenti[0]["data_ora"] == f"{GIORNO}T11:00"
+    assert backends.appuntamenti[0]["stato"] == "Confermato"
+
+    # Sul calendario il vecchio evento non c'è più e il vecchio orario è libero
+    assert vecchio_evento not in backends.eventi
+    liberi = [s["slot"] for s in await backends.check_availability(GIORNO, cal_id, 30)]
+    assert f"{GIORNO}T09:00" in liberi
+    assert f"{GIORNO}T11:00" not in liberi
+
+    # Una sola email, quella di spostamento
+    assert len(backends.email_spostamenti) == 1
+    assert backends.email_spostamenti[0]["da"] == f"{GIORNO}T09:00"
+    assert backends.email_spostamenti[0]["a"] == f"{GIORNO}T11:00"
+    assert backends.email_cancellazioni == []
+
+
+@pytest.mark.asyncio
+async def test_non_si_sposta_su_un_orario_occupato(monkeypatch):
+    """Altrimenti si finirebbe sopra a un altro cliente."""
+    from config import settings
+    from prompts.system_prompt import set_parrucchieri_cache
+    from services.conversation import execute_action
+    from services.fakes import FakeBackends
+
+    monkeypatch.setattr(settings, "cancel_policy_hours", 2)
+    set_parrucchieri_cache(MAPPA_FINTA)
+
+    backends = FakeBackends(MAPPA_FINTA)
+    cal_id = MAPPA_FINTA["Francesco"]
+    await _cliente_con_appuntamento(backends)
+    # Qualcun altro ha già preso le 11:00
+    backends.occupa(cal_id, f"{GIORNO}T11:00", 30)
+
+    esito = await execute_action(
+        {"action": "SPOSTA_APPUNTAMENTO", "app_id": 1, "slot": f"{GIORNO}T11:00"},
+        "393331234567",
+        {"stato_flusso": "saluto", "dati_temp": {}},
+        backends,
+    )
+
+    assert "errore" in esito
+    assert backends.appuntamenti[0]["data_ora"] == f"{GIORNO}T09:00", (
+        "l'appuntamento non si deve muovere"
+    )
+
+
+@pytest.mark.asyncio
 async def test_la_disdetta_viene_confermata_per_email(monkeypatch):
     """Chi non ha chiesto lui la disdetta se ne accorgerebbe solo al salone."""
     from config import settings

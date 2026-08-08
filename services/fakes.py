@@ -63,6 +63,7 @@ class FakeBackends(Backends):
         self.email_inviate: list[dict] = []
         self.codici_inviati: list[dict] = []
         self.email_cancellazioni: list[dict] = []
+        self.email_spostamenti: list[dict] = []
         self.foto_salvate: list[str] = []
         self.giorni_chiusi: set[str] = set()
         self._contatore = 0
@@ -222,6 +223,7 @@ class FakeBackends(Backends):
                 {
                     "app_id": a["id"],
                     "data_ora": a.get("data_ora"),
+                    "durata_min": a.get("durata_min"),
                     "servizi": a.get("servizi"),
                     "parrucchiere": a.get("parrucchiere"),
                     "prezzo": a.get("prezzo"),
@@ -261,6 +263,32 @@ class FakeBackends(Backends):
 
     async def send_verification_code(self, to, codice):
         self.codici_inviati.append({"to": to, "codice": codice})
+
+    async def sposta_appuntamento(
+        self, app_id, data_ora, parrucchiere=None, gcal_event_id=None, durata_min=None
+    ):
+        for app in self.appuntamenti:
+            if app["id"] != app_id:
+                continue
+            app["data_ora"] = data_ora
+            if parrucchiere:
+                app["parrucchiere"] = parrucchiere
+            if gcal_event_id:
+                app["gcal_event_id"] = gcal_event_id
+            if durata_min:
+                app["durata_min"] = durata_min
+
+    async def send_change_email(self, to, nome, da, a, parrucchiere, servizi):
+        self.email_spostamenti.append(
+            {
+                "to": to,
+                "nome": nome,
+                "da": da,
+                "a": a,
+                "parrucchiere": parrucchiere,
+                "servizi": servizi,
+            }
+        )
 
     async def send_cancellation_email(self, to, nome, data_ora, parrucchiere, servizi):
         self.email_cancellazioni.append(

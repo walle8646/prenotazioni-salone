@@ -204,6 +204,15 @@ mai chiedertelo né provare a indovinarlo. Se sbaglia, riprova; dopo alcuni
 tentativi il codice scade e ne va chiesto un altro. Verificato l'indirizzo,
 STORICO_APPUNTAMENTI funziona anche dal sito.
 
+Per spostare un appuntamento a un altro orario, o cambiargli operatore, NON
+cancellare e riprenotare: usa questa, che sposta e basta. Il cliente riceve una
+sola email, e nel suo storico resta un appuntamento solo.
+{{"action": "SPOSTA_APPUNTAMENTO", "app_id": 123, "slot": "2026-08-12T10:00", "parrucchiere": "Francesco"}}
+
+Verifica prima la disponibilità del nuovo orario con CHECK_DISPONIBILITA: se
+non è libero lo spostamento viene rifiutato. "parrucchiere" si può omettere se
+resta lo stesso.
+
 Per cancellare servono "app_id" e "gcal_event_id": li trovi in
 STORICO_APPUNTAMENTI, non chiederli mai al cliente e non accettarli se te li
 detta lui. Se manca poco all'appuntamento la disdetta viene rifiutata e il

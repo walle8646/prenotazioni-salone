@@ -268,6 +268,7 @@ async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
             {
                 "app_id": a.id,
                 "data_ora": a.data_ora.strftime("%Y-%m-%dT%H:%M"),
+                "durata_min": a.durata_min,
                 "servizi": a.servizi,
                 "parrucchiere": a.parrucchiere.nome if a.parrucchiere else None,
                 "prezzo": float(a.prezzo) if a.prezzo is not None else None,
@@ -287,6 +288,45 @@ async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
         },
         "appuntamenti": appuntamenti,
     }
+
+
+async def sposta_appuntamento(
+    app_id: int,
+    data_ora: str,
+    parrucchiere: str | None = None,
+    gcal_event_id: str | None = None,
+    durata_min: int | None = None,
+) -> None:
+    """Sposta un appuntamento esistente invece di crearne uno nuovo.
+
+    La riga resta la stessa: nello storico del cliente si vede un appuntamento
+    spostato, non uno annullato più uno preso.
+    """
+    async with async_session() as db:
+        app = (
+            await db.execute(select(Appuntamento).where(Appuntamento.id == app_id))
+        ).scalar_one_or_none()
+        if app is None:
+            return
+
+        if parrucchiere:
+            parr = (
+                await db.execute(
+                    select(Parrucchiere).where(Parrucchiere.nome == parrucchiere)
+                )
+            ).scalar_one_or_none()
+            if parr:
+                app.parrucchiere_id = parr.id
+
+        app.data_ora = datetime.strptime(data_ora, "%Y-%m-%dT%H:%M")
+        if gcal_event_id:
+            app.gcal_event_id = gcal_event_id
+        if durata_min:
+            app.durata_min = durata_min
+        # Il promemoria va rimandato: quello già inviato parlava del vecchio orario
+        app.reminder_inviato = False
+
+        await db.commit()
 
 
 async def update_appointment_status(app_id: int, status: str):
