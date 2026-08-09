@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Form, Depends, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, date
 from models.database import get_db
@@ -606,8 +606,11 @@ async def presenze_salva(
             303,
         )
 
-    for fascia in list(operatore.presenze):
-        await db.delete(fascia)
+    # Cancellate con una sola istruzione, senza passare da `operatore.presenze`:
+    # è una relazione caricata pigramente, e leggerla qui solleva MissingGreenlet
+    # perché in asincrono il caricamento differito non può partire da solo.
+    await db.execute(delete(Presenza).where(Presenza.parrucchiere_id == operatore.id))
+
     for giorno, fasce in nuove.items():
         for inizio, fine in fasce:
             db.add(
@@ -632,12 +635,13 @@ async def presenze_come_il_salone(
     db=Depends(get_db),
 ):
     """Rimette un operatore sugli orari del salone, cancellando le sue fasce."""
+    from models.orm import Presenza
+
     operatore = await db.get(Parrucchiere, operatore_id)
     if operatore is None:
         return RedirectResponse("/admin/presenze?errore=Operatore+non+trovato", 303)
 
-    for fascia in list(operatore.presenze):
-        await db.delete(fascia)
+    await db.execute(delete(Presenza).where(Presenza.parrucchiere_id == operatore.id))
     operatore.orari_propri = False
     await db.commit()
     await _ricarica_presenze()

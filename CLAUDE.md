@@ -313,7 +313,14 @@ Codice, commenti e nomi in italiano, coerentemente con il resto del progetto.
 I commenti spiegano il perché di una scelta, non quello che il codice già dice.
 
 I test non toccano mai la rete: Claude, Google e il database si sostituiscono
-con i finti. Due regole imparate a spese nostre: **niente date fisse** — usare
+con i finti. Il rovescio della medaglia va tenuto presente: **quello che
+succede solo contro il database vero, la suite non lo vede.** Il caso tipico
+sono le relazioni SQLAlchemy: leggerne una caricata pigramente dentro una
+sessione asincrona solleva `MissingGreenlet`, e succede in produzione con la
+suite tutta verde. O si carica esplicitamente con `selectinload`, o non la si
+tocca — per cancellare le righe collegate basta una `delete()` sulla tabella.
+Le schermate del pannello vanno provate almeno una volta con
+`docker compose up`. Due regole imparate a spese nostre: **niente date fisse** — usare
 `prossimo_giorno_aperto()` in `tests/conftest.py`, perché una data del passato
 non ha più slot disponibili e manda in rosso test che non c'entrano — e
 **niente premesse ereditate dall'ambiente**: un test che dipende dall'assenza di
