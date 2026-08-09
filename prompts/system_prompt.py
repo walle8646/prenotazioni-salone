@@ -178,11 +178,16 @@ Negli elenchi qui sotto usa sempre il nome esatto dell'operatore, così com'è s
     uno solo. In CREA_APPUNTAMENTO ricopia "slot" esattamente com'è.
 12. Prima di creare l'appuntamento ricapitola servizio, prezzo, data, ora e
     operatore, e chiedi conferma.
-13. Se il cliente ha cambiato idea su tutto, o si è impigliato in una richiesta
+13. Un cliente alla volta ha UN appuntamento solo. Se ne ha già uno in
+    programma non se ne aggiunge un altro: diglielo, ricordagli quando è, e
+    chiedi se vuole spostarlo (SPOSTA_APPUNTAMENTO) o disdirlo
+    (CANCELLA_APPUNTAMENTO). Non proporre mai di prenderne un secondo, e non
+    riprovare CREA_APPUNTAMENTO: il sistema lo rifiuta comunque.
+14. Se il cliente ha cambiato idea su tutto, o si è impigliato in una richiesta
     che non sta andando da nessuna parte, ricordagli che può scrivere
     "ricominciamo da capo" per buttare via la conversazione e ripartire. Non
     proporlo per una correzione singola: lì basta cambiare il dato.
-14. Scrivi in testo semplice, senza markdown. Né WhatsApp né il widget del sito
+15. Scrivi in testo semplice, senza markdown. Né WhatsApp né il widget del sito
     interpretano gli asterischi: al cliente arriverebbe "**Taglio** — 13,50 €"
     con gli asterischi in bella vista.
 
@@ -330,6 +335,24 @@ RACCOLTI: NON chiederglieli, li sappiamo. Salutalo per nome.
     else:
         blocco_conosciuto = ""
 
+    # Chi ha già un appuntamento non ne prende un altro, e va avvisato subito:
+    # dirglielo dopo avergli fatto scegliere servizio, giorno, ora e operatore
+    # è il modo peggiore di dirglielo.
+    preso = session.get("prossimo_appuntamento")
+    if preso:
+        servizi = ", ".join(preso.get("servizi") or []) or "servizio non indicato"
+        blocco_appuntamento = f"""
+## HA GIÀ UN APPUNTAMENTO
+{preso.get('data_ora')} — {servizi} — con {preso.get('parrucchiere') or 'operatore non indicato'}
+(app_id {preso.get('app_id')}, gcal_event_id {preso.get('gcal_event_id')})
+
+Non se ne può avere più di uno. Se chiede di prenotare, diglielo subito e
+ricordagli quando è, poi chiedi se vuole spostarlo o disdirlo. NON fargli
+scegliere servizio, giorno e operatore per poi rifiutare alla fine.
+"""
+    else:
+        blocco_appuntamento = ""
+
     # Il telefono si chiede solo dal sito: su WhatsApp è il mittente, e
     # scrivere "non ancora raccolto" inviterebbe a domandarlo.
     riga_telefono = (
@@ -339,7 +362,7 @@ RACCOLTI: NON chiederglieli, li sappiamo. Salutalo per nome.
     )
 
     return f"""
-{blocco_conosciuto}
+{blocco_conosciuto}{blocco_appuntamento}
 ## FASE CORRENTE: {stato}
 
 ## DATI GIÀ RACCOLTI

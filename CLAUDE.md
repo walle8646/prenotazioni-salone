@@ -96,6 +96,19 @@ non deve stare. Ciò che sblocca lo storico è `email_verificata` nella sessione
 non l'opinione del modello: dirgli "ho già inserito il codice" non porta da
 nessuna parte.
 
+**Un cliente per volta ha un appuntamento solo**
+(`_appuntamento_futuro_di_chi_prenota()`, dentro `CREA_APPUNTAMENTO`). Senza
+questo controllo la stessa persona è finita due volte sulla stessa mezz'ora con
+due operatori diversi: due poltrone occupate per un cliente solo. Il rifiuto
+sta nel codice perché "mai" non può dipendere da quanto bene il modello se lo
+ricorda, ma la sessione annota anche l'appuntamento già preso
+(`prossimo_appuntamento`) e il prompt lo mostra dal primo messaggio: avvisare
+dopo avergli fatto scegliere servizio, giorno, ora e operatore sarebbe il modo
+peggiore di dirglielo. Quanto si racconta dipende da chi scrive: su WhatsApp
+data e operatore, dal sito non verificato solo che un appuntamento esiste —
+altrimenti basterebbe scrivere l'email di un conoscente per sapere quando va
+dal barbiere.
+
 **Disdette e spostamenti valgono solo sui propri appuntamenti.** Gli id sono
 progressivi: senza il controllo basterebbe dire "cancella il numero 3".
 

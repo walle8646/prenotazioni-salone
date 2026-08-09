@@ -740,6 +740,86 @@ async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
     return {"slots_disponibili": raggruppa_per_orario(slots)}
 
 
+def _primo_appuntamento_futuro(appuntamenti: list[dict] | None) -> dict | None:
+    """Il prossimo appuntamento ancora valido, se ce n'è uno."""
+    from datetime import datetime
+
+    from services.slots import adesso_salone
+
+    adesso = adesso_salone().strftime("%Y-%m-%dT%H:%M")
+    futuri = [
+        a
+        for a in (appuntamenti or [])
+        if a.get("stato") == "Confermato" and (a.get("data_ora") or "") > adesso
+    ]
+    if not futuri:
+        return None
+    return min(futuri, key=lambda a: a["data_ora"])
+
+
+async def _appuntamento_futuro_di_chi_prenota(
+    phone: str, session: dict, backends, email: str, telefono: str | None
+) -> dict | None:
+    """Il risultato da restituire se questo cliente ha già un appuntamento.
+
+    Chi ne ha uno non ne prende un altro: lo sposta. Prima non c'era nessun
+    controllo e la stessa persona è finita due volte sulla stessa mezz'ora, con
+    due operatori diversi — due poltrone occupate per un cliente solo.
+
+    Quanto si può raccontare dipende da chi sta scrivendo. Su WhatsApp il
+    numero è verificato dal gestore, quindi si dice quando e con chi. Dal sito
+    l'identità non è provata: si impedisce comunque il doppione, ma senza
+    descrivere l'appuntamento, altrimenti basterebbe scrivere l'indirizzo email
+    di un conoscente per sapere quando va dal barbiere.
+    """
+    identificato = not _dal_sito(phone) or bool(session.get("email_verificata"))
+
+    trovato = await _appuntamenti_del_richiedente(phone, session, backends)
+    if trovato is None and _dal_sito(phone):
+        # Senza verifica non sappiamo chi è: si cerca col contatto che sta
+        # lasciando adesso, e solo per impedire la seconda prenotazione.
+        for contatto in (email, telefono):
+            if not contatto:
+                continue
+            trovato = (
+                await backends.get_appuntamenti_per_email(contatto)
+                if "@" in contatto
+                else await backends.get_appuntamenti_per_telefono(contatto)
+            )
+            if trovato:
+                break
+
+    prossimo = _primo_appuntamento_futuro((trovato or {}).get("appuntamenti"))
+    if prossimo is None:
+        return None
+
+    if not identificato:
+        return {
+            "errore": (
+                "Con questo contatto risulta già un appuntamento in programma, e "
+                "non se ne può avere più di uno. Per vederlo o spostarlo serve "
+                "prima la verifica: chiedi al cliente l'email e mandagli un "
+                "codice con INVIA_CODICE_VERIFICA."
+            )
+        }
+
+    return {
+        "errore": (
+            "Questo cliente ha già un appuntamento e non se ne può avere più di "
+            "uno. NON crearne un altro: diglielo, e chiedi se vuole spostare "
+            "quello che ha (SPOSTA_APPUNTAMENTO) o disdirlo "
+            "(CANCELLA_APPUNTAMENTO)."
+        ),
+        "appuntamento_gia_preso": {
+            "app_id": prossimo.get("app_id"),
+            "data_ora": prossimo.get("data_ora"),
+            "servizi": prossimo.get("servizi"),
+            "parrucchiere": prossimo.get("parrucchiere"),
+            "gcal_event_id": prossimo.get("gcal_event_id"),
+        },
+    }
+
+
 async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
     from services import catalogo
 
@@ -759,6 +839,16 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     da_web = bool(phone) and phone.startswith("web_")
     # Dal sito il numero lo lascia il cliente, se vuole; da WhatsApp è il mittente.
     telefono = _normalizza_telefono(action.get("telefono") or dati.get("telefono"))
+
+    # Un cliente per volta ha un appuntamento solo. Il controllo sta qui e non
+    # nel prompt: è una regola che non può dipendere da quanto bene il modello
+    # se la ricorda, e il doppione l'abbiamo visto succedere — stessa persona,
+    # stessa ora, due operatori diversi.
+    gia_prenotato = await _appuntamento_futuro_di_chi_prenota(
+        phone, session, backends, email=email, telefono=telefono
+    )
+    if gia_prenotato:
+        return gia_prenotato
 
     # La durata la decide il catalogo, non Claude: se il modello sbaglia a
     # calcolarla il calendario resterebbe bloccato male.
@@ -967,6 +1057,19 @@ async def _riconosci_cliente(phone: str, session: dict, backends) -> None:
     ultimo = _ultimo_operatore(trovato.get("appuntamenti"))
     if ultimo:
         session["ultimo_operatore"] = ultimo
+
+    # Se ne ha già uno in programma il bot deve saperlo subito, non scoprirlo
+    # al momento di creare: avvisare dopo avergli fatto scegliere servizio,
+    # giorno, ora e operatore è il modo peggiore di dirglielo.
+    prossimo = _primo_appuntamento_futuro(trovato.get("appuntamenti"))
+    if prossimo:
+        session["prossimo_appuntamento"] = {
+            "app_id": prossimo.get("app_id"),
+            "data_ora": prossimo.get("data_ora"),
+            "servizi": prossimo.get("servizi"),
+            "parrucchiere": prossimo.get("parrucchiere"),
+            "gcal_event_id": prossimo.get("gcal_event_id"),
+        }
 
 
 async def _invia_codice_verifica(action: dict, phone: str, session: dict, backends) -> dict:
