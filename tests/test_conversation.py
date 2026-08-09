@@ -458,7 +458,7 @@ async def test_check_disponibilita_accetta_il_nome_dell_operatore():
     )
 
     assert risultato["slots_disponibili"], "gli slot devono essere trovati"
-    assert risultato["slots_disponibili"][0]["parrucchiere"] == "Francesco"
+    assert risultato["slots_disponibili"][0]["liberi"] == ["Francesco"]
 
 
 @pytest.mark.asyncio
@@ -485,6 +485,81 @@ async def test_operatore_sbagliato_non_sembra_agenda_piena():
 
     assert "errore" in risultato
     assert "slots_disponibili" not in risultato
+
+
+# ------------------------------------------- gli orari che arrivano al modello
+#
+# Il risultato di CHECK_DISPONIBILITA resta nello storico e viene rimandato a
+# prezzo pieno a ogni messaggio successivo. Cercando senza preferenza tornava
+# un orario per operatore, con l'identificativo del calendario appresso:
+# misurato, 18.851 caratteri per ricerca.
+
+
+def test_lo_stesso_orario_diventa_una_riga_sola():
+    from services.conversation import raggruppa_per_orario
+
+    grezzi = [
+        {"slot": "2026-08-11T09:00", "parrucchiere": "Simone Big", "parrucchiere_cal_id": "a@g"},
+        {"slot": "2026-08-11T09:00", "parrucchiere": "Francesco", "parrucchiere_cal_id": "b@g"},
+        {"slot": "2026-08-11T10:00", "parrucchiere": "Francesco", "parrucchiere_cal_id": "b@g"},
+    ]
+
+    assert raggruppa_per_orario(grezzi) == [
+        {"slot": "2026-08-11T09:00", "liberi": ["Simone Big", "Francesco"]},
+        {"slot": "2026-08-11T10:00", "liberi": ["Francesco"]},
+    ]
+
+
+def test_gli_identificativi_dei_calendari_non_arrivano_al_modello():
+    """Il codice glieli tiene nascosti apposta: farglieli ricopiare voleva dire
+    vederseli restituire troncati."""
+    from services.conversation import raggruppa_per_orario
+
+    grezzi = [{"slot": "2026-08-11T09:00", "parrucchiere": "Andrea",
+               "parrucchiere_cal_id": "segreto@group.calendar.google.com"}]
+
+    assert "segreto" not in str(raggruppa_per_orario(grezzi))
+
+
+def test_gli_orari_escono_in_ordine():
+    """Arrivano un calendario alla volta: senza riordinare, il primo orario
+    proposto dipenderebbe da chi ha risposto per primo."""
+    from services.conversation import raggruppa_per_orario
+
+    grezzi = [
+        {"slot": "2026-08-11T18:00", "parrucchiere": "Bario"},
+        {"slot": "2026-08-11T08:00", "parrucchiere": "Andrea"},
+        {"slot": "2026-08-11T11:30", "parrucchiere": "Giava"},
+    ]
+
+    assert [r["slot"] for r in raggruppa_per_orario(grezzi)] == [
+        "2026-08-11T08:00",
+        "2026-08-11T11:30",
+        "2026-08-11T18:00",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_una_giornata_intera_sta_in_poche_righe(backends):
+    """Il conto che ha fatto scattare il lavoro: sei operatori liberi tutto il
+    giorno erano centootto righe."""
+    import json
+
+    from services.conversation import execute_action
+
+    risultato = await execute_action(
+        {"action": "CHECK_DISPONIBILITA", "data": GIORNO, "parrucchiere": None},
+        "393331234567",
+        {"stato_flusso": "scelta_slot", "dati_temp": {}},
+        backends,
+    )
+
+    righe = risultato["slots_disponibili"]
+    assert len(righe) == len({r["slot"] for r in righe}), "un orario, una riga"
+    assert len(json.dumps(risultato, ensure_ascii=False)) < 3000, (
+        "il risultato è tornato a gonfiarsi: finisce nello storico e si "
+        "ripaga a ogni messaggio"
+    )
 
 
 # --------------------------------------------- quanto in là si può prenotare

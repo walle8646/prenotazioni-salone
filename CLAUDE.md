@@ -181,6 +181,18 @@ voce sta per intero, il titolo si può accorciare, e `routers/webhook.py` legge
 la descrizione. Senza, bastava una voce lunga perché l'intero elenco dei
 servizi arrivasse come testo — proprio la prima scelta, e la più importante.
 
+**La disponibilità torna un orario per riga, non uno per operatore**
+(`raggruppa_per_orario()`). Cercando con `parrucchiere: null` Google risponde
+per ogni calendario, quindi diciotto orari diventavano centootto righe, ognuna
+con l'identificativo del calendario appresso — novanta caratteri che il modello
+non usa mai e che il codice gli tiene nascosti apposta. Il costo non è il
+messaggio: quel risultato resta nello storico e viene **rimandato a prezzo
+pieno a ogni messaggio successivo**. Misurato su una prenotazione intera:
+18.851 caratteri per ricerca, 59.668 token a prezzo pieno, 19,7 centesimi.
+Raggruppando: 2.003 caratteri, 10.769 token, **6,6 centesimi**. Da qui la
+regola: prima di aggiungere un campo al risultato di un'azione, ricordarsi che
+lo si paga per tutti i messaggi che verranno dopo.
+
 **Il prompt è diviso in due e l'ordine non è estetico** (`parte_stabile()` e
 `parte_variabile()`): la cache di Anthropic è un confronto di prefisso e si
 ferma al primo byte diverso. Prima lo stato della conversazione stava in mezzo,

@@ -615,6 +615,41 @@ def _descrivi_servizi(servizi) -> str:
     return ", ".join(str(s) for s in servizi or [])
 
 
+def raggruppa_per_orario(slots: list[dict]) -> list[dict]:
+    """Un orario per riga, con l'elenco di chi è libero a quell'ora.
+
+    Cercando senza preferenza lo stesso orario torna una volta per operatore:
+    diciotto orari diventano centootto righe, e ognuna si porta dietro
+    l'identificativo del calendario — novanta caratteri che il modello non usa
+    mai, e che il codice gli tiene apposta nascosti altrove.
+
+    Il costo non è il messaggio: è che quel risultato resta nello storico e
+    viene rimandato a prezzo pieno a ogni messaggio successivo. Misurato, una
+    ricerca pesava 18.851 caratteri, circa 4.700 token, moltiplicati per tutte
+    le chiamate che seguono.
+
+    Come effetto secondario il modello non deve più togliere i doppioni: gli
+    orari gli arrivano già una volta sola.
+    """
+    per_orario: dict[str, list[str]] = {}
+    for slot in slots:
+        quando = slot.get("slot")
+        if not quando:
+            continue
+        liberi = per_orario.setdefault(quando, [])
+        nome = slot.get("parrucchiere")
+        if nome and nome not in liberi:
+            liberi.append(nome)
+
+    # In ordine di orario: l'elenco arriva dai calendari uno dopo l'altro, e
+    # senza riordinare il primo orario proposto dipenderebbe da quale
+    # calendario ha risposto per primo.
+    return [
+        {"slot": quando, "liberi": per_orario[quando]}
+        for quando in sorted(per_orario)
+    ]
+
+
 def _oltre_l_orizzonte(quando: str | None) -> str | None:
     """Messaggio se la data supera il limite di prenotazione, altrimenti None.
 
@@ -690,7 +725,7 @@ async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
             "slots_disponibili": [],
             "nota": "Nessuno slot libero in questa data. Proponi al cliente un altro giorno.",
         }
-    return {"slots_disponibili": slots}
+    return {"slots_disponibili": raggruppa_per_orario(slots)}
 
 
 async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
