@@ -47,23 +47,31 @@ def get_cal_id_for_parrucchiere(nome: str) -> str | None:
     return None
 
 
-def build_system_prompt(session: dict, canale: str = "whatsapp") -> str:
-    stato = session["stato_flusso"]
-    dati = session["dati_temp"]
+def parte_stabile(canale: str = "whatsapp") -> str:
+    """La parte del prompt che non cambia da un messaggio all'altro.
 
+    Sta tutta insieme e viene prima perché la cache di Anthropic è un confronto
+    di prefisso: si ferma al primo byte diverso. Con lo stato della
+    conversazione in mezzo — com'era prima — restavano cacheabili solo i primi
+    novecento token, sotto la soglia minima, e la cache non si attivava affatto.
+
+    Cambia una volta al giorno (la data) e ha due varianti (WhatsApp e sito):
+    sono due o tre prefissi diversi in tutto, non uno per messaggio.
+    """
     # Da WhatsApp il numero del cliente è il mittente stesso: chiederglielo
     # sarebbe assurdo. Dal sito non lo sappiamo, e alla receptionist serve per
     # avvisare in caso di imprevisti.
     dal_sito = canale == "web"
     if dal_sito:
-        blocco_telefono = f"""
+        # Nessun dato del cliente qui dentro: quello che è già stato raccolto
+        # sta in fondo, nella parte variabile.
+        blocco_telefono = """
 ## NUMERO DI TELEFONO
 Il cliente scrive dalla chat del sito, quindi il suo numero non ci è noto.
 Nella fase "contatti", dopo aver raccolto nome e cognome e PRIMA del riepilogo,
 chiediglielo spiegando che serve solo per avvisarlo in caso di imprevisti.
 NON è obbligatorio: se preferisce non lasciarlo si procede comunque, ma la
 domanda va fatta. Passalo in "telefono" dentro CREA_APPUNTAMENTO.
-Telefono raccolto: {dati.get('telefono') or 'non ancora raccolto'}
 """
         passo_telefono = (
             "- contatti → chiedi il numero di telefono, e se vuole anche la mail "
@@ -78,25 +86,6 @@ Il cliente scrive da WhatsApp: il suo numero ci è già noto. NON chiederglielo.
             "- contatti → chiedi se vuole lasciare la mail per conferma e "
             "promemoria (NON obbligatoria)\n"
         )
-
-    # Chi ha già prenotato viene riconosciuto dal codice prima ancora che il
-    # modello parli: qui si dice al bot di comportarsi di conseguenza, invece
-    # di chiedere cose che sono scritte due righe più sotto.
-    if session.get("cliente_conosciuto"):
-        ultimo = session.get("ultimo_operatore")
-        riga_operatore = (
-            f"L'ultima volta è venuto da {ultimo}: puoi chiedergli se vuole di "
-            "nuovo lui, ma non darlo per scontato.\n"
-            if ultimo
-            else ""
-        )
-        blocco_conosciuto = f"""
-## QUESTO CLIENTE LO CONOSCIAMO GIÀ
-Ha prenotato altre volte, e nome, cognome ed email sono qui sotto in DATI GIÀ
-RACCOLTI: NON chiederglieli, li sappiamo. Salutalo per nome.
-{riga_operatore}"""
-    else:
-        blocco_conosciuto = ""
 
     from config import settings
     from services.slots import adesso_salone
@@ -157,18 +146,6 @@ Regole sul listino:
 Tutti gli operatori eseguono tutti i servizi del listino.
 Negli elenchi qui sotto usa sempre il nome esatto dell'operatore, così com'è scritto.
 
-{blocco_conosciuto}
-## FASE CORRENTE: {stato}
-
-## DATI GIÀ RACCOLTI
-Servizio scelto: {dati.get('servizio') or 'non ancora scelto'}
-Giorno cercato: {dati.get('giorno') or 'non ancora scelto'}
-Operatore: {dati.get('parrucchiere') or 'non ancora scelto'}
-Slot: {dati.get('slot') or 'non ancora scelto'}
-Nome: {dati.get('nome') or 'non ancora raccolto'}
-Cognome: {dati.get('cognome') or 'non ancora raccolto'}
-Email: {dati.get('email') or 'non ancora raccolta'}
-
 ## REGOLE
 1. Non inventare mai disponibilità. Usa SEMPRE l'azione CHECK_DISPONIBILITA per
    verificare PRIMA di proporre qualsiasi data o orario.
@@ -217,8 +194,8 @@ altro: ogni riga in più è una riga che non legge.
 
 Non ripetere quello che hai già detto o mostrato. Se il listino è già passato,
 non rimandarlo per intero: nomina solo le voci che servono. Se il cliente ha già
-scelto qualcosa, dallo per acquisito e vai avanti — quello che sai è scritto qui
-sopra in DATI GIÀ RACCOLTI, e non va richiesto.
+scelto qualcosa, dallo per acquisito e vai avanti — quello che sai è elencato in
+fondo, in DATI GIÀ RACCOLTI, e non va richiesto.
 
 Un'emoji ogni tanto va bene, in una risposta su tre o quattro. In ogni messaggio
 diventa una tic.
@@ -320,3 +297,77 @@ scritto in righe normali: se lo scrivi come elenco diventa una fila di bottoni,
 e il cliente crede di dover scegliere fra "Nome: Mario Rossi" e "Operatore:
 Francesco".
 """
+
+
+def parte_variabile(session: dict, canale: str = "whatsapp") -> str:
+    """Lo stato di questa conversazione: cambia a ogni messaggio.
+
+    Sta in fondo, dopo il segnaposto della cache, perché tutto ciò che viene
+    dopo il primo byte diverso non è più cacheabile. Sono un centinaio di
+    token: quello che si ripaga per intero a ogni messaggio è solo questo.
+    """
+    stato = session["stato_flusso"]
+    dati = session.get("dati_temp") or {}
+
+    # Chi ha già prenotato viene riconosciuto dal codice prima ancora che il
+    # modello parli: qui si dice al bot di comportarsi di conseguenza, invece
+    # di chiedere cose che sono scritte due righe più sotto.
+    if session.get("cliente_conosciuto"):
+        ultimo = session.get("ultimo_operatore")
+        riga_operatore = (
+            f"L'ultima volta è venuto da {ultimo}: puoi chiedergli se vuole di "
+            "nuovo lui, ma non darlo per scontato.\n"
+            if ultimo
+            else ""
+        )
+        blocco_conosciuto = f"""
+## QUESTO CLIENTE LO CONOSCIAMO GIÀ
+Ha prenotato altre volte, e nome, cognome ed email sono qui sotto in DATI GIÀ
+RACCOLTI: NON chiederglieli, li sappiamo. Salutalo per nome.
+{riga_operatore}"""
+    else:
+        blocco_conosciuto = ""
+
+    # Il telefono si chiede solo dal sito: su WhatsApp è il mittente, e
+    # scrivere "non ancora raccolto" inviterebbe a domandarlo.
+    riga_telefono = (
+        f"Telefono: {dati.get('telefono') or 'non ancora raccolto'}\n"
+        if canale == "web"
+        else ""
+    )
+
+    return f"""
+{blocco_conosciuto}
+## FASE CORRENTE: {stato}
+
+## DATI GIÀ RACCOLTI
+Servizio scelto: {dati.get('servizio') or 'non ancora scelto'}
+Giorno cercato: {dati.get('giorno') or 'non ancora scelto'}
+Operatore: {dati.get('parrucchiere') or 'non ancora scelto'}
+Slot: {dati.get('slot') or 'non ancora scelto'}
+Nome: {dati.get('nome') or 'non ancora raccolto'}
+Cognome: {dati.get('cognome') or 'non ancora raccolto'}
+Email: {dati.get('email') or 'non ancora raccolta'}
+{riga_telefono}"""
+
+
+def build_system_prompt(session: dict, canale: str = "whatsapp") -> str:
+    """Il prompt intero, come stringa. Lo usano i test e il simulatore."""
+    return parte_stabile(canale) + parte_variabile(session, canale)
+
+
+def blocchi_system(session: dict, canale: str = "whatsapp") -> list[dict]:
+    """Il prompt diviso in due, col segnaposto della cache sulla parte stabile.
+
+    Le letture dalla cache costano un decimo dell'ingresso normale, e qui la
+    parte stabile è il 97% del prompt: senza, ogni messaggio ripaga per intero
+    listino, regole e istruzioni che non sono cambiate di una virgola.
+    """
+    return [
+        {
+            "type": "text",
+            "text": parte_stabile(canale),
+            "cache_control": {"type": "ephemeral"},
+        },
+        {"type": "text", "text": parte_variabile(session, canale)},
+    ]

@@ -181,6 +181,19 @@ voce sta per intero, il titolo si può accorciare, e `routers/webhook.py` legge
 la descrizione. Senza, bastava una voce lunga perché l'intero elenco dei
 servizi arrivasse come testo — proprio la prima scelta, e la più importante.
 
+**Il prompt è diviso in due e l'ordine non è estetico** (`parte_stabile()` e
+`parte_variabile()`): la cache di Anthropic è un confronto di prefisso e si
+ferma al primo byte diverso. Prima lo stato della conversazione stava in mezzo,
+e restavano cacheabili solo i primi 938 token — sotto la soglia minima di 1024
+di Sonnet, quindi la cache non si sarebbe attivata affatto, in silenzio.
+Spostato lo stato in fondo, il prefisso stabile fa 3.775 token e le letture
+costano un decimo: misurato, una chiamata a caldo passa da 3.876 token a prezzo
+pieno a un centinaio. Da qui la regola: **nella parte stabile non entra nessun
+dato del cliente**, nemmeno "Telefono raccolto", che infatti è stato spostato.
+`services/claude_client.py` scrive nei log quanti token vengono letti dalla
+cache: se non si attivasse non si romperebbe niente, si pagherebbe e basta, e
+nessuno se ne accorgerebbe.
+
 **La sessione annota servizio, giorno e operatore al primo
 `CHECK_DISPONIBILITA`.** Lo storico viene troncato agli ultimi
 `max_history_messages` messaggi e ogni turno ne aggiunge quattro: dal sesto

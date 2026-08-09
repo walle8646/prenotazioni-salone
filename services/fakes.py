@@ -339,8 +339,15 @@ class ScriptedClaude:
         self.risposte = list(risposte)
         self.chiamate: list[dict] = []
 
-    async def __call__(self, system_prompt: str, history: list[dict]) -> str:
-        self.chiamate.append({"system": system_prompt, "history": list(history)})
+    async def __call__(self, system_prompt, history: list[dict]) -> str:
+        # Il prompt arriva diviso in blocchi (il primo porta il segnaposto
+        # della cache). Qui si rimette insieme: ai test interessa il testo.
+        testo = (
+            system_prompt
+            if isinstance(system_prompt, str)
+            else "".join(b["text"] for b in system_prompt)
+        )
+        self.chiamate.append({"system": testo, "history": list(history)})
         if not self.risposte:
             return "Non ho altro da dire."
         return self.risposte.pop(0)

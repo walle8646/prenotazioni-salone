@@ -19,7 +19,7 @@ import re
 import secrets
 
 from prompts.system_prompt import (
-    build_system_prompt,
+    blocchi_system,
     get_cal_id_for_parrucchiere,
     get_parrucchieri_map_cached,
 )
@@ -294,7 +294,9 @@ async def _run_turn(session_key, session, channel, backends, claude) -> None:
     for _ in range(MAX_ITERATIONS):
         # Il canale cambia cosa il bot sa già del cliente: da WhatsApp il numero
         # è il mittente, dal sito no.
-        system_prompt = build_system_prompt(session, canale=channel.name)
+        # Due blocchi, non una stringa: sul primo — la parte che non cambia —
+        # viaggia il segnaposto della cache.
+        system_prompt = blocchi_system(session, canale=channel.name)
         response = await claude(system_prompt, session["history"])
         action, pre_text = try_parse_action(response)
 

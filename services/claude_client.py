@@ -29,8 +29,13 @@ def get_client():
     return _client
 
 
-async def call_claude(system_prompt: str, history: list[dict]) -> str:
-    """Chiama Claude con il system prompt e lo storico della conversazione."""
+async def call_claude(system_prompt, history: list[dict]) -> str:
+    """Chiama Claude con il system prompt e lo storico della conversazione.
+
+    `system_prompt` è la lista di blocchi che costruisce `blocchi_system()`:
+    il primo porta il segnaposto della cache. Accetta anche una stringa, per
+    il simulatore e per chiunque chiami questa funzione a mano.
+    """
     messages = [
         {"role": msg["role"], "content": msg["content"]} for msg in history
     ]
@@ -40,5 +45,15 @@ async def call_claude(system_prompt: str, history: list[dict]) -> str:
         max_tokens=1024,
         system=system_prompt,
         messages=messages,
+    )
+
+    # Se la cache non si attiva non si rompe niente, si paga e basta — quindi
+    # nessuno se ne accorgerebbe. Nei log resta il conto, per poterlo vedere.
+    uso = response.usage
+    logger.info(
+        "Claude: %s token letti dalla cache, %s scritti, %s a prezzo pieno",
+        getattr(uso, "cache_read_input_tokens", 0) or 0,
+        getattr(uso, "cache_creation_input_tokens", 0) or 0,
+        uso.input_tokens,
     )
     return response.content[0].text
