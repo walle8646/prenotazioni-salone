@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["sito"])
 templates = Jinja2Templates(directory="templates/sito")
 
+from services.statici import VERSIONE as _VERSIONE_STATICI  # noqa: E402
+
+templates.env.globals["v"] = _VERSIONE_STATICI
+
 ORARI = {
     "mar-ven": "08:00-12:00 / 14:30-19:30",
     "sabato": "08:00-18:00",

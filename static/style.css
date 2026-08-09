@@ -129,71 +129,118 @@ body {
     margin-bottom: 1rem;
 }
 
-/* Striscia dei sette giorni */
-.settimana {
+/* I sette giorni, come la riga di un calendario */
+.calendario {
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 5px rgba(0,0,0,0.08);
+    overflow: hidden;
+    margin-bottom: 1.2rem;
+}
+
+.calendario-testata {
     display: flex;
-    gap: 0.4rem;
-    align-items: stretch;
-    margin-bottom: 1rem;
-    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.8rem;
+    background: #2c3e50;
+    color: white;
+}
+
+.calendario-mese {
+    font-weight: 600;
+    font-size: 0.95rem;
+}
+
+.calendario-freccia {
+    color: white;
+    text-decoration: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 0.6rem;
+    opacity: 0.75;
+}
+
+.calendario-freccia:hover {
+    opacity: 1;
+}
+
+/* Sette colonne uguali: è quello che lo fa leggere come una settimana. */
+.settimana {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
 }
 
 .giorno {
-    flex: 1 1 5.5rem;
-    min-width: 5.5rem;
-    background: white;
-    border-radius: 6px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    padding: 0.5rem 0.4rem;
+    padding: 0.7rem 0.3rem 0.8rem;
     text-align: center;
     text-decoration: none;
     color: #2c3e50;
     display: flex;
     flex-direction: column;
-    gap: 0.1rem;
-    border: 2px solid transparent;
+    gap: 0.15rem;
+    border-right: 1px solid #ecf0f1;
+    border-bottom: 3px solid transparent;
+}
+
+.giorno:last-child {
+    border-right: none;
 }
 
 .giorno:hover {
-    border-color: #bdc3c7;
-}
-
-.giorno-scelto {
-    border-color: #3498db;
-}
-
-.giorno-chiuso {
-    opacity: 0.55;
+    background: #f8f9fa;
 }
 
 .giorno-nome {
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     text-transform: uppercase;
+    letter-spacing: 0.03em;
     color: #7f8c8d;
 }
 
 .giorno-numero {
-    font-size: 1.4rem;
+    font-size: 1.6rem;
     font-weight: 600;
     line-height: 1.1;
 }
 
 .giorno-quanti {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
     color: #7f8c8d;
 }
 
-.giorno-freccia {
-    display: flex;
-    align-items: center;
-    padding: 0 0.5rem;
-    text-decoration: none;
-    color: #7f8c8d;
-    font-size: 1.4rem;
+/* Oggi si riconosce dal numero cerchiato, come su un calendario. */
+.giorno-oggi .giorno-numero {
+    background: #e74c3c;
+    color: white;
+    border-radius: 50%;
+    width: 2.1rem;
+    height: 2.1rem;
+    line-height: 2.1rem;
+    margin: 0 auto;
 }
 
-.giorno-freccia:hover {
-    color: #2c3e50;
+.giorno-scelto {
+    background: #eaf4fb;
+    border-bottom-color: #3498db;
+}
+
+.giorno-scelto:hover {
+    background: #eaf4fb;
+}
+
+.giorno-chiuso {
+    background: #f8f9fa;
+    color: #b6bec4;
+}
+
+.giorno-chiuso .giorno-numero {
+    font-weight: 400;
+}
+
+@media (max-width: 640px) {
+    .giorno-numero { font-size: 1.2rem; }
+    .giorno-quanti { font-size: 0.65rem; }
 }
 
 .date-picker {

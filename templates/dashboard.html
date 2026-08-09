@@ -3,28 +3,36 @@
 
 {% block content %}
 <div class="dashboard">
-    <h2>Appuntamenti del {{ data_selezionata.strftime('%d/%m/%Y') }}</h2>
+    <h2>{{ titolo_giornata }}</h2>
 
-    {# I sette giorni da quello scelto: si clicca e si apre la giornata. #}
-    <div class="settimana">
-        <a class="giorno-freccia" href="/admin/dashboard?data={{ settimana_prima }}"
-           title="Sette giorni indietro">‹</a>
-        {% for g in settimana %}
-        <a class="giorno {{ 'giorno-scelto' if g.scelto }} {{ 'giorno-chiuso' if not g.aperto }}"
-           href="/admin/dashboard?data={{ g.iso }}">
-            <span class="giorno-nome">{{ g.nome }}{% if g.oggi %} · oggi{% endif %}</span>
-            <span class="giorno-numero">{{ g.numero }}</span>
-            <span class="giorno-quanti">
-                {%- if not g.aperto -%}
-                    chiuso
-                {%- elif g.quanti -%}
-                    {{ g.quanti }} appunt.
-                {%- else -%}
-                    libero
-                {%- endif -%}
-            </span>
-        </a>
-        {% endfor %}
+    {# I sette giorni da quello scelto: si clicca e si apre la giornata sotto. #}
+    <div class="calendario">
+        <div class="calendario-testata">
+            <a class="calendario-freccia" href="/admin/dashboard?data={{ settimana_prima }}"
+               title="Sette giorni indietro" aria-label="Sette giorni indietro">‹</a>
+            <span class="calendario-mese">{{ intestazione_settimana }}</span>
+            <a class="calendario-freccia" href="/admin/dashboard?data={{ settimana_dopo }}"
+               title="Sette giorni avanti" aria-label="Sette giorni avanti">›</a>
+        </div>
+
+        <div class="settimana">
+            {% for g in settimana %}
+            <a class="giorno{{ ' giorno-scelto' if g.scelto }}{{ ' giorno-chiuso' if not g.aperto }}{{ ' giorno-oggi' if g.oggi }}"
+               href="/admin/dashboard?data={{ g.iso }}">
+                <span class="giorno-nome">{{ g.nome }}</span>
+                <span class="giorno-numero">{{ g.numero }}</span>
+                <span class="giorno-quanti">
+                    {%- if not g.aperto -%}
+                        chiuso
+                    {%- elif g.quanti -%}
+                        {{ g.quanti }} appunt.
+                    {%- else -%}
+                        libero
+                    {%- endif -%}
+                </span>
+            </a>
+            {% endfor %}
+        </div>
     </div>
 
     <form class="date-picker" method="GET" action="/admin/dashboard">

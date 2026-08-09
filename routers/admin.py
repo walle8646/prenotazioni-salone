@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin", tags=["admin"])
 templates = Jinja2Templates(directory="templates")
 
+# Appesa agli indirizzi dei file statici: senza, dopo un deploy il browser
+# continua a usare il foglio di stile che ha in cache.
+from services.statici import VERSIONE as _VERSIONE_STATICI  # noqa: E402
+
+templates.env.globals["v"] = _VERSIONE_STATICI
+
 
 @router.get("/", include_in_schema=False)
 async def admin_home():
@@ -180,7 +186,43 @@ async def dashboard(request: Request, data: str = None, db=Depends(get_db)):
             "incasso_previsto": f"{incasso_previsto:.2f}".replace(".", ",") + " €",
             "settimana": await _settimana(db, target_date),
             "settimana_prima": (target_date - timedelta(days=7)).isoformat(),
+            "settimana_dopo": (target_date + timedelta(days=7)).isoformat(),
+            "intestazione_settimana": _intestazione_settimana(target_date),
+            "titolo_giornata": _in_italiano(target_date),
         },
+    )
+
+
+# I nomi stanno nel codice perché nel container non c'è il locale italiano.
+GIORNI_LUNGHI = [
+    "lunedì", "martedì", "mercoledì", "giovedì", "venerdì", "sabato", "domenica",
+]
+MESI = [
+    "gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno",
+    "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre",
+]
+
+
+def _in_italiano(giorno: date) -> str:
+    """"domenica 9 agosto 2026" — si legge meglio di 09/08/2026."""
+    return (
+        f"{GIORNI_LUNGHI[giorno.weekday()].capitalize()} {giorno.day} "
+        f"{MESI[giorno.month - 1]} {giorno.year}"
+    )
+
+
+def _intestazione_settimana(dal: date) -> str:
+    """Il periodo coperto dalla striscia, es. "9 – 15 agosto 2026"."""
+    al = dal + timedelta(days=6)
+    if dal.month == al.month:
+        return f"{dal.day} – {al.day} {MESI[al.month - 1]} {al.year}"
+    if dal.year == al.year:
+        return (
+            f"{dal.day} {MESI[dal.month - 1]} – {al.day} {MESI[al.month - 1]} {al.year}"
+        )
+    return (
+        f"{dal.day} {MESI[dal.month - 1]} {dal.year} – "
+        f"{al.day} {MESI[al.month - 1]} {al.year}"
     )
 
 
