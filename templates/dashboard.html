@@ -50,6 +50,7 @@
                 <th>Prezzo</th>
                 <th>Operatore</th>
                 <th>Note</th>
+                <th></th>
             </tr>
         </thead>
         <tbody>
@@ -66,13 +67,21 @@
                 <td>{{ prezzo_di(app) }}</td>
                 <td>{{ app.parrucchiere.nome if app.parrucchiere else '-' }}</td>
                 <td>{{ app.richieste_spec or '-' }}</td>
+                <td>
+                    <form method="POST" action="/admin/appuntamenti/{{ app.id }}/annulla"
+                          onsubmit="return confirm('Disdico l\'appuntamento delle {{ app.data_ora.strftime('%H:%M') }} di {{ app.cliente.nome or 'questo cliente' }}? Viene tolto anche da Google Calendar.');">
+                        <input type="hidden" name="data"
+                               value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
+                        <button type="submit" class="btn-small btn-neutro">Disdici</button>
+                    </form>
+                </td>
             </tr>
             {% endfor %}
         </tbody>
         <tfoot>
             <tr>
                 <td colspan="3"><strong>Totale giornata</strong></td>
-                <td colspan="3"><strong>{{ incasso_previsto }}</strong></td>
+                <td colspan="4"><strong>{{ incasso_previsto }}</strong></td>
             </tr>
         </tfoot>
     </table>

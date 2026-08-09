@@ -567,6 +567,72 @@ async def clienti_elenco(
     )
 
 
+@router.post("/appuntamenti/{appuntamento_id}/annulla")
+async def appuntamento_annulla(
+    appuntamento_id: int,
+    data: str = Form(...),
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Disdice un appuntamento solo, come quando il cliente telefona.
+
+    Dal pannello si poteva annullare solo una giornata intera (Assenze), che è
+    un'altra cosa: lì manca l'operatore ed è il salone a scusarsi. Qui è il
+    cliente che non viene, e riceve la normale email di disdetta.
+
+    Ogni passo va per conto suo, come nelle assenze: se Google non trova
+    l'evento l'appuntamento si annulla lo stesso, e un'email che non parte non
+    lo lascia a metà.
+    """
+    from services.backends import RealBackends
+
+    result = await db.execute(
+        select(Appuntamento)
+        .options(
+            selectinload(Appuntamento.cliente),
+            selectinload(Appuntamento.parrucchiere),
+        )
+        .where(Appuntamento.id == appuntamento_id)
+    )
+    appuntamento = result.scalar_one_or_none()
+    if appuntamento is None:
+        return RedirectResponse(f"/admin/dashboard?data={data}", 303)
+
+    backends = RealBackends()
+    cliente = appuntamento.cliente
+    operatore = appuntamento.parrucchiere
+
+    if appuntamento.gcal_event_id and operatore:
+        try:
+            await backends.delete_event(
+                appuntamento.gcal_event_id, operatore.gcal_calendar_id
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "Disdetta: evento %s non rimosso da Google",
+                appuntamento.gcal_event_id,
+                exc_info=True,
+            )
+
+    appuntamento.stato = "Cancellato"
+    await db.commit()
+
+    if cliente and cliente.email:
+        try:
+            await backends.send_cancellation_email(
+                to=cliente.email,
+                nome=f"{cliente.nome or ''} {cliente.cognome or ''}".strip() or "Cliente",
+                data_ora=appuntamento.data_ora.strftime("%Y-%m-%dT%H:%M"),
+                parrucchiere=operatore.nome if operatore else "",
+                servizi=appuntamento.servizi or [],
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("Disdetta: email a %s non partita", cliente.email, exc_info=True)
+
+    logger.info("Disdetto l'appuntamento %s", appuntamento_id)
+    return RedirectResponse(f"/admin/dashboard?data={data}", 303)
+
+
 # -------------------------------------------------------------------- presenze
 
 
