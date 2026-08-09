@@ -28,6 +28,7 @@ async def lifespan(app: FastAPI):
     # memoria che il resto dell'applicazione legge a ogni messaggio.
     from services.db_service import (
         get_parrucchieri_map,
+        get_presenze,
         get_servizi_attivi,
         seed_parrucchieri,
         seed_servizi,
@@ -44,6 +45,15 @@ async def lifespan(app: FastAPI):
         )
     await seed_parrucchieri(PARRUCCHIERI_MAP)
     set_parrucchieri_cache(await get_parrucchieri_map())
+
+    from services.presenze import set_presenze_cache
+
+    presenze = await get_presenze()
+    set_presenze_cache(presenze)
+    logging.getLogger(__name__).info(
+        "Operatori con orari propri: %s (gli altri seguono quelli del salone)",
+        len(presenze),
+    )
 
     await seed_servizi(catalogo.SERVIZI_INIZIALI)
     servizi = await get_servizi_attivi()

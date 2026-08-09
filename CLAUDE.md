@@ -225,7 +225,18 @@ compaiono sei bottoni identici.
 
 Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata),
 **Clienti** (elenco con ricerca e scheda singola), **Listino** e **Operatori**
-(modifica in linea, una riga per form), **Assenze**.
+(modifica in linea, una riga per form), **Presenze**, **Assenze**.
+
+**Presenze** (`services/presenze.py`) dice quando ciascuno è in salone, con
+fasce settimanali: la disponibilità toglie prima chi quel giorno non c'è, poi
+quello che Google segna occupato — il calendario dice se è impegnato, non se
+lavora. **Chi non ha orari suoi segue quelli del salone**, ed è ciò che rende
+innocuo l'aggiornamento: finché nessuno tocca la schermata, il bot fa esattamente
+quello che faceva prima. Distinguere i due casi richiede il flag
+`orari_propri` sull'operatore, perché "non ho ancora configurato niente" e "non
+lavora mai" sarebbero altrimenti la stessa tabella vuota — e attivare la
+funzione li avrebbe fatti sparire tutti insieme. Un giorno di assenza singolo
+non si mette qui: per quello c'è **Assenze**, che avvisa anche i clienti.
 
 **Assenze** (`services/assenze.py`) annulla in blocco la giornata di un
 operatore che non viene: toglie gli eventi da Google, annulla nel database e

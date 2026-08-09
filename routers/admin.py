@@ -480,6 +480,171 @@ async def clienti_elenco(
     )
 
 
+# -------------------------------------------------------------------- presenze
+
+
+async def _ricarica_presenze() -> None:
+    """Stessa ragione del listino: la disponibilità legge una cache."""
+    from services.db_service import get_presenze
+    from services.presenze import set_presenze_cache
+
+    set_presenze_cache(await get_presenze())
+
+
+def _giorni_di_apertura() -> list[tuple[int, str]]:
+    """I giorni in cui il salone apre, come (numero, nome)."""
+    from services.slots import ORARI_APERTURA
+
+    nomi = [
+        "lunedì", "martedì", "mercoledì", "giovedì",
+        "venerdì", "sabato", "domenica",
+    ]
+    return [(g, nomi[g]) for g in range(7) if ORARI_APERTURA.get(g)]
+
+
+def _fasce_dal_form(modulo, giorno: int) -> list[tuple[str, str]]:
+    """Le fasce di un giorno, lette dai campi del form.
+
+    Una fascia entra solo se ha entrambi gli estremi e l'inizio viene prima
+    della fine: mezzo orario scritto è quasi sempre un campo dimenticato, e
+    salvarlo così toglierebbe l'operatore dalla giornata senza dirlo.
+    """
+    if not modulo.get(f"g{giorno}_lavora"):
+        return []
+
+    fasce = []
+    for parte in ("m", "p"):
+        dalle = (modulo.get(f"g{giorno}_{parte}_dalle") or "").strip()
+        alle = (modulo.get(f"g{giorno}_{parte}_alle") or "").strip()
+        if dalle and alle and dalle < alle:
+            fasce.append((dalle, alle))
+    return fasce
+
+
+@router.get("/presenze", response_class=HTMLResponse)
+async def presenze_elenco(
+    request: Request,
+    errore: str = None,
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    from sqlalchemy.orm import selectinload
+
+    from services.slots import ORARI_APERTURA
+
+    result = await db.execute(
+        select(Parrucchiere)
+        .options(selectinload(Parrucchiere.presenze))
+        .where(Parrucchiere.attivo == True)  # noqa: E712
+        .order_by(Parrucchiere.nome)
+    )
+
+    operatori = []
+    for parr in result.scalars().all():
+        per_giorno: dict[int, list[tuple[str, str]]] = {}
+        for fascia in parr.presenze:
+            per_giorno.setdefault(fascia.giorno, []).append(
+                (fascia.ora_inizio, fascia.ora_fine)
+            )
+        for fasce in per_giorno.values():
+            fasce.sort()
+
+        giorni = []
+        for numero, nome in _giorni_di_apertura():
+            if parr.orari_propri:
+                fasce = per_giorno.get(numero, [])
+                lavora = bool(fasce)
+            else:
+                # Non ancora configurato: i campi mostrano gli orari del
+                # salone, che è esattamente quello che sta facendo adesso.
+                fasce = ORARI_APERTURA.get(numero, [])
+                lavora = True
+            mattina = fasce[0] if fasce else ("", "")
+            pomeriggio = fasce[1] if len(fasce) > 1 else ("", "")
+            giorni.append(
+                {
+                    "numero": numero,
+                    "nome": nome,
+                    "lavora": lavora,
+                    "mattina": mattina,
+                    "pomeriggio": pomeriggio,
+                }
+            )
+        operatori.append(
+            {"id": parr.id, "nome": parr.nome,
+             "orari_propri": parr.orari_propri, "giorni": giorni}
+        )
+
+    return templates.TemplateResponse(
+        "presenze.html",
+        {"request": request, "operatori": operatori, "errore": errore},
+    )
+
+
+@router.post("/presenze/{operatore_id}")
+async def presenze_salva(
+    operatore_id: int,
+    request: Request,
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    from models.orm import Presenza
+
+    operatore = await db.get(Parrucchiere, operatore_id)
+    if operatore is None:
+        return RedirectResponse("/admin/presenze?errore=Operatore+non+trovato", 303)
+
+    modulo = await request.form()
+    nuove = {
+        giorno: _fasce_dal_form(modulo, giorno)
+        for giorno, _ in _giorni_di_apertura()
+    }
+    if not any(nuove.values()):
+        return RedirectResponse(
+            "/admin/presenze?errore=Segna+almeno+un+giorno:+per+togliere+"
+            "un+operatore+dal+lavoro+mettilo+a+riposo+in+Operatori",
+            303,
+        )
+
+    for fascia in list(operatore.presenze):
+        await db.delete(fascia)
+    for giorno, fasce in nuove.items():
+        for inizio, fine in fasce:
+            db.add(
+                Presenza(
+                    parrucchiere_id=operatore.id,
+                    giorno=giorno,
+                    ora_inizio=inizio,
+                    ora_fine=fine,
+                )
+            )
+    operatore.orari_propri = True
+    await db.commit()
+    await _ricarica_presenze()
+    logger.info("Presenze: aggiornate quelle di %s", operatore.nome)
+    return RedirectResponse("/admin/presenze", 303)
+
+
+@router.post("/presenze/{operatore_id}/salone")
+async def presenze_come_il_salone(
+    operatore_id: int,
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Rimette un operatore sugli orari del salone, cancellando le sue fasce."""
+    operatore = await db.get(Parrucchiere, operatore_id)
+    if operatore is None:
+        return RedirectResponse("/admin/presenze?errore=Operatore+non+trovato", 303)
+
+    for fascia in list(operatore.presenze):
+        await db.delete(fascia)
+    operatore.orari_propri = False
+    await db.commit()
+    await _ricarica_presenze()
+    logger.info("Presenze: %s torna agli orari del salone", operatore.nome)
+    return RedirectResponse("/admin/presenze", 303)
+
+
 # --------------------------------------------------------------------- assenze
 
 

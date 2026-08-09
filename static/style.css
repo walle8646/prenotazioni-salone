@@ -324,6 +324,53 @@ body {
     padding: 0.7rem 1.2rem;
 }
 
+/* Presenze */
+.scheda-presenze {
+    background: white;
+    padding: 1rem 1.2rem;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    margin-bottom: 1.2rem;
+}
+
+.testata-presenze {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-bottom: 0.8rem;
+}
+
+.testata-presenze h3 {
+    margin: 0;
+}
+
+.griglia-presenze {
+    display: grid;
+    grid-template-columns: 7rem 5rem 1fr 1fr;
+    gap: 0.5rem;
+    align-items: center;
+}
+
+.riga-presenza {
+    padding: 0.25rem 0;
+}
+
+.fascia {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.fascia input[type="time"] {
+    padding: 0.35rem;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 0.9rem;
+}
+
+.azioni-presenze {
+    margin-top: 0.8rem;
+}
+
 /* Ritaglio della foto */
 .ritaglio {
     position: fixed;

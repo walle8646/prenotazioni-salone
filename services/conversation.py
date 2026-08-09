@@ -725,6 +725,18 @@ async def _check_disponibilita(action: dict, session: dict, backends) -> dict:
             "slots_disponibili": [],
             "nota": "Nessuno slot libero in questa data. Proponi al cliente un altro giorno.",
         }
+    # Google dice se l'operatore è occupato, non se quel giorno lavora.
+    from services.presenze import solo_chi_e_in_salone
+
+    slots = solo_chi_e_in_salone(slots)
+    if not slots:
+        return {
+            "slots_disponibili": [],
+            "nota": (
+                "In questa data nessun operatore è in salone negli orari liberi. "
+                "Proponi al cliente un altro giorno."
+            ),
+        }
     return {"slots_disponibili": raggruppa_per_orario(slots)}
 
 

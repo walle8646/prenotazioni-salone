@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block title %}Presenze - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <h2>Presenze</h2>
+    <p class="nota">
+        Quando ciascuno è in salone. Il bot propone solo chi c'è davvero a
+        quell'ora, e toglie comunque le fasce già prenotate.
+        Finché non salvi, un operatore segue gli orari del salone: i campi qui
+        sotto te li mostrano già così.
+        Per un giorno di assenza singolo — una malattia, un imprevisto — non si
+        cambia qui: si usa <a href="/admin/assenze">Assenze</a>, che avvisa
+        anche i clienti.
+    </p>
+
+    {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
+
+    {% for o in operatori %}
+    <div class="scheda-presenze">
+        <div class="testata-presenze">
+            <img class="faccia-in-elenco" src="/operatori/{{ o.nome | urlencode }}/foto"
+                 alt="" width="40" height="40">
+            <h3>{{ o.nome }}</h3>
+            <span class="nota">
+                {% if o.orari_propri %}orari suoi{% else %}orari del salone{% endif %}
+            </span>
+        </div>
+
+        <form method="POST" action="/admin/presenze/{{ o.id }}">
+            <div class="griglia-intestazione griglia-presenze">
+                <span>Giorno</span>
+                <span>In salone</span>
+                <span>Prima fascia</span>
+                <span>Seconda fascia</span>
+            </div>
+
+            {% for g in o.giorni %}
+            <div class="griglia-presenze riga-presenza">
+                <label for="g{{ o.id }}_{{ g.numero }}">{{ g.nome }}</label>
+                <input type="checkbox" id="g{{ o.id }}_{{ g.numero }}"
+                       name="g{{ g.numero }}_lavora" value="1"
+                       {{ 'checked' if g.lavora }}>
+                <span class="fascia">
+                    <input type="time" name="g{{ g.numero }}_m_dalle"
+                           value="{{ g.mattina[0] }}" aria-label="Inizio prima fascia">
+                    <input type="time" name="g{{ g.numero }}_m_alle"
+                           value="{{ g.mattina[1] }}" aria-label="Fine prima fascia">
+                </span>
+                <span class="fascia">
+                    <input type="time" name="g{{ g.numero }}_p_dalle"
+                           value="{{ g.pomeriggio[0] }}" aria-label="Inizio seconda fascia">
+                    <input type="time" name="g{{ g.numero }}_p_alle"
+                           value="{{ g.pomeriggio[1] }}" aria-label="Fine seconda fascia">
+                </span>
+            </div>
+            {% endfor %}
+
+            <div class="azioni-presenze">
+                <button type="submit" class="btn-small">Salva le presenze di {{ o.nome }}</button>
+            </div>
+        </form>
+
+        {% if o.orari_propri %}
+        <form method="POST" action="/admin/presenze/{{ o.id }}/salone" class="azioni-presenze">
+            <button type="submit" class="btn-small btn-neutro">
+                Rimetti sugli orari del salone
+            </button>
+        </form>
+        {% endif %}
+    </div>
+    {% endfor %}
+
+    {% if not operatori %}
+    <p class="empty-state">Nessun operatore in servizio.</p>
+    {% endif %}
+</div>
+{% endblock %}

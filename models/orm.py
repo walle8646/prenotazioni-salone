@@ -38,10 +38,41 @@ class Parrucchiere(Base):
     # l'avatar lo disegna services/avatar.py con le iniziali.
     foto = Column(LargeBinary, nullable=True)
     foto_mime = Column(String(50), nullable=True)
+    # False: lavora negli orari del salone, come è sempre stato. True: valgono
+    # le fasce in `presenze`, e un giorno senza fasce vuol dire che non c'è.
+    # Serve a distinguere "non ho ancora configurato niente" da "non lavora
+    # mai": senza, i due casi sarebbero la stessa tabella vuota.
+    orari_propri = Column(Boolean, default=False, nullable=False, server_default="0")
+
+    presenze = relationship(
+        "Presenza", back_populates="parrucchiere", cascade="all, delete-orphan"
+    )
 
     # Relazioni
     clienti_pref = relationship("Cliente", back_populates="parrucchiere_pref")
     appuntamenti = relationship("Appuntamento", back_populates="parrucchiere")
+
+
+class Presenza(Base):
+    """Una fascia in cui un operatore è in salone, ripetuta ogni settimana.
+
+    Righe separate invece di due colonne mattina/pomeriggio: chi fa orario
+    continuato ne ha una, chi spezza ne ha due, e chi un giorno fa solo un
+    paio d'ore non diventa un caso speciale.
+    """
+
+    __tablename__ = "presenze"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    parrucchiere_id = Column(
+        Integer, ForeignKey("parrucchieri.id"), nullable=False, index=True
+    )
+    # 0 = lunedì ... 6 = domenica, come datetime.weekday()
+    giorno = Column(Integer, nullable=False)
+    ora_inizio = Column(String(5), nullable=False)  # "08:00"
+    ora_fine = Column(String(5), nullable=False)  # "12:00"
+
+    parrucchiere = relationship("Parrucchiere", back_populates="presenze")
 
 
 class ServizioListino(Base):

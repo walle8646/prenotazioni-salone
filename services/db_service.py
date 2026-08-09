@@ -69,6 +69,35 @@ async def get_parrucchieri_map() -> dict[str, str]:
     return {p["nome"]: p["gcal_calendar_id"] for p in parrucchieri}
 
 
+async def get_presenze() -> dict[str, dict[int, list[tuple[str, str]]]]:
+    """Le fasce settimanali di chi ha orari suoi, per nome.
+
+    Chi non compare qui dentro lavora negli orari del salone: l'assenza dalla
+    mappa è il "non configurato", e va tenuta distinta da una mappa vuota.
+    """
+    from sqlalchemy.orm import selectinload
+
+    from models.orm import Parrucchiere
+
+    async with async_session() as db:
+        result = await db.execute(
+            select(Parrucchiere)
+            .options(selectinload(Parrucchiere.presenze))
+            .where(Parrucchiere.orari_propri == True)  # noqa: E712
+        )
+        presenze: dict[str, dict[int, list[tuple[str, str]]]] = {}
+        for parr in result.scalars().all():
+            per_giorno: dict[int, list[tuple[str, str]]] = {}
+            for fascia in sorted(
+                parr.presenze, key=lambda f: (f.giorno, f.ora_inizio)
+            ):
+                per_giorno.setdefault(fascia.giorno, []).append(
+                    (fascia.ora_inizio, fascia.ora_fine)
+                )
+            presenze[parr.nome] = per_giorno
+        return presenze
+
+
 async def seed_servizi(servizi_iniziali) -> None:
     """Riempie la tabella `servizi` al primo avvio.
 
