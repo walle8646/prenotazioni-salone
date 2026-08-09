@@ -223,7 +223,9 @@ compaiono sei bottoni identici.
 
 ## Pannello di gestione
 
-Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata),
+Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata,
+con la striscia dei sette giorni da cui si salta a un'altra data: un conteggio
+solo per tutta la settimana, non sette query),
 **Clienti** (elenco con ricerca e scheda singola), **Listino** e **Operatori**
 (modifica in linea, una riga per form), **Presenze**, **Assenze**.
 

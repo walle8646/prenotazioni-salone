@@ -23,7 +23,11 @@
                  alt="" width="40" height="40">
             <h3>{{ o.nome }}</h3>
             <span class="nota">
-                {% if o.orari_propri %}orari suoi{% else %}orari del salone{% endif %}
+                {% if o.orari_propri %}
+                    ha orari personalizzati
+                {% else %}
+                    segue gli orari del salone
+                {% endif %}
             </span>
         </div>
 

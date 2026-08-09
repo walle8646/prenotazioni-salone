@@ -129,6 +129,73 @@ body {
     margin-bottom: 1rem;
 }
 
+/* Striscia dei sette giorni */
+.settimana {
+    display: flex;
+    gap: 0.4rem;
+    align-items: stretch;
+    margin-bottom: 1rem;
+    flex-wrap: wrap;
+}
+
+.giorno {
+    flex: 1 1 5.5rem;
+    min-width: 5.5rem;
+    background: white;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    padding: 0.5rem 0.4rem;
+    text-align: center;
+    text-decoration: none;
+    color: #2c3e50;
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+    border: 2px solid transparent;
+}
+
+.giorno:hover {
+    border-color: #bdc3c7;
+}
+
+.giorno-scelto {
+    border-color: #3498db;
+}
+
+.giorno-chiuso {
+    opacity: 0.55;
+}
+
+.giorno-nome {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: #7f8c8d;
+}
+
+.giorno-numero {
+    font-size: 1.4rem;
+    font-weight: 600;
+    line-height: 1.1;
+}
+
+.giorno-quanti {
+    font-size: 0.75rem;
+    color: #7f8c8d;
+}
+
+.giorno-freccia {
+    display: flex;
+    align-items: center;
+    padding: 0 0.5rem;
+    text-decoration: none;
+    color: #7f8c8d;
+    font-size: 1.4rem;
+}
+
+.giorno-freccia:hover {
+    color: #2c3e50;
+}
+
 .date-picker {
     margin-bottom: 1.5rem;
     display: flex;
@@ -301,6 +368,16 @@ body {
     padding: 0.4rem;
     border: 1px solid #ddd;
     border-radius: 4px;
+}
+
+.passi {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+    margin: 0 0 1.2rem 1.2rem;
+}
+
+.passi li {
+    margin-bottom: 0.2rem;
 }
 
 .resoconto {

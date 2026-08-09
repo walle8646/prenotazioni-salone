@@ -3,12 +3,19 @@
 
 {% block content %}
 <div class="gestione">
-    <h2>Assenza di un operatore</h2>
+    <h2>Un operatore non viene</h2>
     <p class="nota">
-        Annulla in blocco gli appuntamenti di una giornata e avvisa i clienti
-        per email. Chi non ha lasciato l'email va chiamato: te lo elenchiamo
-        col numero, alla fine.
+        Da usare quando qualcuno salta una giornata all'improvviso: si annullano
+        i suoi appuntamenti di quel giorno e si avvisano i clienti per email.
+        Per gli orari di tutte le settimane non è questa la schermata, è
+        <a href="/admin/presenze">Presenze</a>.
     </p>
+
+    <ol class="passi">
+        <li>Scegli chi manca e il giorno.</li>
+        <li>Guarda l'elenco degli appuntamenti che verrebbero annullati.</li>
+        <li>Solo allora, sotto l'elenco, compare il bottone per confermare.</li>
+    </ol>
 
     <form class="date-picker" method="GET" action="/admin/assenze">
         <select name="operatore_id" required>
@@ -18,7 +25,7 @@
             {% endfor %}
         </select>
         <input type="date" name="data" value="{{ giorno.strftime('%Y-%m-%d') }}" required>
-        <button type="submit" class="btn-small">Vedi chi c'è</button>
+        <button type="submit" class="btn-small">Vedi gli appuntamenti di quel giorno</button>
     </form>
 
     {% if resoconto %}

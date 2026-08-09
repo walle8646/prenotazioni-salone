@@ -5,9 +5,31 @@
 <div class="dashboard">
     <h2>Appuntamenti del {{ data_selezionata.strftime('%d/%m/%Y') }}</h2>
 
+    {# I sette giorni da quello scelto: si clicca e si apre la giornata. #}
+    <div class="settimana">
+        <a class="giorno-freccia" href="/admin/dashboard?data={{ settimana_prima }}"
+           title="Sette giorni indietro">‹</a>
+        {% for g in settimana %}
+        <a class="giorno {{ 'giorno-scelto' if g.scelto }} {{ 'giorno-chiuso' if not g.aperto }}"
+           href="/admin/dashboard?data={{ g.iso }}">
+            <span class="giorno-nome">{{ g.nome }}{% if g.oggi %} · oggi{% endif %}</span>
+            <span class="giorno-numero">{{ g.numero }}</span>
+            <span class="giorno-quanti">
+                {%- if not g.aperto -%}
+                    chiuso
+                {%- elif g.quanti -%}
+                    {{ g.quanti }} appunt.
+                {%- else -%}
+                    libero
+                {%- endif -%}
+            </span>
+        </a>
+        {% endfor %}
+    </div>
+
     <form class="date-picker" method="GET" action="/admin/dashboard">
         <input type="date" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
-        <button type="submit" class="btn-small">Vai</button>
+        <button type="submit" class="btn-small">Vai a un'altra data</button>
     </form>
 
     {% if appuntamenti %}

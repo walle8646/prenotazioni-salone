@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import selectinload
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from models.database import get_db
 from models.orm import Appuntamento, Cliente, Parrucchiere, ServizioListino
 from services import catalogo
@@ -178,8 +178,53 @@ async def dashboard(request: Request, data: str = None, db=Depends(get_db)):
             "data_selezionata": target_date,
             "prezzo_di": prezzo_di,
             "incasso_previsto": f"{incasso_previsto:.2f}".replace(".", ",") + " €",
+            "settimana": await _settimana(db, target_date),
+            "settimana_prima": (target_date - timedelta(days=7)).isoformat(),
         },
     )
+
+
+async def _settimana(db, dal: date) -> list[dict]:
+    """I sette giorni a partire da quello scelto, con quanti appuntamenti hanno.
+
+    Un conteggio solo per tutta la striscia, non sette query: la giornata
+    aperta si vede già nella tabella sotto, qui serve solo sapere dove
+    guardare.
+    """
+    from sqlalchemy import func
+
+    from services.slots import is_open
+
+    giorni = [dal + timedelta(days=i) for i in range(7)]
+    inizio = datetime.combine(giorni[0], datetime.min.time())
+    fine = datetime.combine(giorni[-1], datetime.max.time())
+
+    result = await db.execute(
+        select(func.date(Appuntamento.data_ora), func.count())
+        .where(
+            Appuntamento.data_ora >= inizio,
+            Appuntamento.data_ora <= fine,
+            Appuntamento.stato == "Confermato",
+        )
+        .group_by(func.date(Appuntamento.data_ora))
+    )
+    quanti = {riga[0]: riga[1] for riga in result.all()}
+
+    nomi = ["lun", "mar", "mer", "gio", "ven", "sab", "dom"]
+    oggi = date.today()
+    return [
+        {
+            "data": giorno,
+            "iso": giorno.isoformat(),
+            "nome": nomi[giorno.weekday()],
+            "numero": giorno.day,
+            "quanti": quanti.get(giorno, 0),
+            "aperto": is_open(giorno.isoformat()),
+            "oggi": giorno == oggi,
+            "scelto": giorno == dal,
+        }
+        for giorno in giorni
+    ]
 
 
 @router.get("/cliente/{cliente_id}", response_class=HTMLResponse)
