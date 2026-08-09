@@ -74,6 +74,29 @@ async def send_text_message(to: str, text: str) -> bool:
     )
 
 
+async def segna_letto_e_sta_scrivendo(message_id: str) -> bool:
+    """Spunte blu e "sta scrivendo…" sul messaggio appena arrivato.
+
+    Fra Claude e i calendari una risposta può richiedere qualche secondo, e su
+    Render appena risvegliato anche una trentina: senza nessun segnale il
+    cliente crede di aver scritto nel vuoto e riscrive, o se ne va.
+
+    Una sola chiamata fa le due cose. L'indicatore sparisce quando rispondiamo,
+    o da solo dopo venticinque secondi.
+    """
+    if not message_id:
+        return False
+    return await _invia(
+        {
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": message_id,
+            "typing_indicator": {"type": "text"},
+        },
+        "la conferma di lettura",
+    )
+
+
 async def send_image(to: str, link: str, caption: str = "") -> bool:
     """Invia un'immagine presa da un indirizzo pubblico.
 

@@ -129,6 +129,14 @@ restano sei scelte tutte impegnative, e va scritto a mano. Si interviene solo
 quando le voci sono tutte e sole nomi di operatori, così un elenco di orari o di
 servizi non viene toccato.
 
+**Su WhatsApp il cliente vede subito che il messaggio è arrivato.** Appena il
+webhook ha risposto a Meta, `segna_letto_e_sta_scrivendo()` mette le spunte blu
+e l'indicatore "sta scrivendo" — una chiamata sola per entrambe le cose. Dura
+venticinque secondi o fino alla risposta, e serve l'id del messaggio in arrivo.
+Senza, fra Claude e i calendari passano secondi di silenzio, e su Render appena
+risvegliato una trentina: il cliente crede di aver scritto nel vuoto. Se il
+segnale non parte non cambia niente, è cortesia e non funzionamento.
+
 **Su WhatsApp le facce stanno in un'immagine sola, non una per riga.** Non è
 una scorciatoia: le liste di Meta ammettono solo intestazioni di testo e nelle
 righe non entra nessuna immagine, mentre i messaggi a bottoni accettano

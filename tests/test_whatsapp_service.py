@@ -120,6 +120,26 @@ async def test_anche_bottoni_lista_e_template_dicono_se_sono_partiti(meta):
     assert await whatsapp_service.send_template("393331234567", "promemoria", []) is False
 
 
+async def test_lettura_e_sta_scrivendo_viaggiano_insieme(meta):
+    """Una chiamata sola fa le spunte blu e l'indicatore. La forma la valida
+    Meta: `type` accetta solo "text", verificato contro le API vere."""
+    meta.rispondi(200, {"success": True})
+
+    assert await whatsapp_service.segna_letto_e_sta_scrivendo("wamid.42") is True
+    assert meta.inviati[0]["payload"] == {
+        "messaging_product": "whatsapp",
+        "status": "read",
+        "message_id": "wamid.42",
+        "typing_indicator": {"type": "text"},
+    }
+
+
+async def test_senza_id_del_messaggio_non_si_chiama_nessuno(meta):
+    """Meta lo rifiuterebbe: tanto vale non disturbarla."""
+    assert await whatsapp_service.segna_letto_e_sta_scrivendo("") is False
+    assert meta.inviati == []
+
+
 async def test_il_token_viene_riletto_a_ogni_invio(meta, monkeypatch):
     """Il token di Meta scade: congelarlo all'import lo lascerebbe quello vecchio."""
     from config import settings

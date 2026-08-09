@@ -43,13 +43,20 @@ def _payload(message_id: str = "wamid.1", testo: str = "vorrei un taglio") -> di
 def client(monkeypatch):
     """App minima col solo webhook, e la conversazione sostituita da una spia."""
     elaborati = []
+    segnalati = []
 
     async def finto_handle(redis, **argomenti):
         # Simula il tempo vero di un giro con Claude e Google
         await asyncio.sleep(0.05)
         elaborati.append(argomenti)
 
+    async def finto_segnale(message_id):
+        segnalati.append(message_id)
+        return True
+
     monkeypatch.setattr(webhook, "handle_incoming_message", finto_handle)
+    # Senza questo i test chiamerebbero davvero Meta: qui non si tocca la rete.
+    monkeypatch.setattr(webhook, "segna_letto_e_sta_scrivendo", finto_segnale)
 
     app = FastAPI()
     app.include_router(webhook.router)
@@ -57,6 +64,7 @@ def client(monkeypatch):
 
     with TestClient(app) as c:
         c.elaborati = elaborati
+        c.segnalati = segnalati
         yield c
 
 
@@ -149,6 +157,27 @@ def test_meta_riceve_conferma_e_il_lavoro_viene_dopo(client):
     assert len(client.elaborati) == 1
     assert client.elaborati[0]["text"] == "vorrei un taglio"
     assert client.elaborati[0]["phone"] == "393331234567"
+
+
+def test_il_cliente_vede_subito_che_il_messaggio_e_arrivato(client):
+    """Fra Claude e i calendari passano dei secondi, e su Render appena
+    risvegliato una trentina: senza segnale il cliente riscrive o se ne va."""
+    client.post("/webhook/whatsapp", json=_payload(message_id="wamid.7"))
+
+    assert client.segnalati == ["wamid.7"]
+
+
+def test_un_segnale_non_partito_non_impedisce_la_risposta(client, monkeypatch):
+    """È solo un'indicazione di cortesia: se fallisce, si prenota lo stesso."""
+
+    async def esplode(message_id):
+        raise RuntimeError("Meta non risponde")
+
+    monkeypatch.setattr(webhook, "segna_letto_e_sta_scrivendo", esplode)
+
+    client.post("/webhook/whatsapp", json=_payload(message_id="wamid.8"))
+
+    assert len(client.elaborati) == 1
 
 
 def test_lo_stesso_messaggio_non_viene_elaborato_due_volte(client):

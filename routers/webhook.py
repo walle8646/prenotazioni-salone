@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, Request, Query, HTTPException
 from fastapi.responses import PlainTextResponse
 from config import settings
 from services.conversation import handle_incoming_message
+from services.whatsapp_service import segna_letto_e_sta_scrivendo
 import logging
 
 logger = logging.getLogger(__name__)
@@ -33,12 +34,20 @@ async def _gia_visto(redis, message_id: str) -> bool:
         return False
 
 
-async def _elabora(redis, **argomenti) -> None:
+async def _elabora(redis, message_id: str = None, **argomenti) -> None:
     """Esegue la conversazione dopo che a Meta è già stato risposto.
 
     Gli errori si fermano qui: la risposta HTTP è partita da un pezzo, e
     lasciar propagare un'eccezione servirebbe solo a sporcare i log del server.
     """
+    try:
+        # Prima di tutto il resto: da qui in avanti si aspetta Claude e Google,
+        # e il cliente deve vedere subito che il messaggio è arrivato. Se
+        # fallisce non importa, è solo un segnale.
+        await segna_letto_e_sta_scrivendo(message_id)
+    except Exception:  # noqa: BLE001
+        logger.warning("Indicatore di scrittura non inviato", exc_info=True)
+
     try:
         await handle_incoming_message(redis=redis, **argomenti)
     except Exception:  # noqa: BLE001
@@ -141,6 +150,7 @@ async def receive_message(request: Request, background: BackgroundTasks):
     background.add_task(
         _elabora,
         redis,
+        message_id=message.get("id"),
         phone=phone_number,
         text=text,
         msg_type=msg_type,
