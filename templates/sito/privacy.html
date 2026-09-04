@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Informativa sulla privacy — Salone Nadia</title>
+    <link rel="stylesheet" href="/static/sito.css?v={{ v }}">
+</head>
+<body>
+    <header class="site-header">
+        <nav>
+            <a href="/" class="logo">Salone Nadia</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/chi-siamo">Chi siamo</a>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-content">
+        <h1>Informativa sulla privacy</h1>
+        <p><em>Ultimo aggiornamento: {{ aggiornata }}</em></p>
+
+        <p>
+            Questa pagina spiega quali dati raccogliamo quando prenoti un
+            appuntamento dal nostro sito o scrivendoci su WhatsApp, perché li
+            usiamo e a chi vengono comunicati.
+        </p>
+
+        <h2>Chi tratta i tuoi dati</h2>
+        <p>
+            Titolare del trattamento è <strong>{{ titolare }}</strong>.
+            Per qualsiasi richiesta puoi scrivere a
+            {% if email_salone %}<a href="mailto:{{ email_salone }}">{{ email_salone }}</a>{% else %}l'indirizzo email del salone{% endif %}{% if telefono_salone %}
+            o telefonare al {{ telefono_salone }}{% endif %}.
+        </p>
+
+        <h2>Quali dati raccogliamo</h2>
+        <ul>
+            <li><strong>Nome e cognome</strong>, per intestare l'appuntamento.</li>
+            <li><strong>Numero di telefono</strong>, se ci scrivi su WhatsApp: è
+                il numero da cui arriva il messaggio.</li>
+            <li><strong>Indirizzo email</strong>, se ce lo fornisci, per mandarti
+                la conferma dell'appuntamento e per verificare la tua identità
+                con un codice quando scrivi dal sito.</li>
+            <li><strong>Gli appuntamenti</strong>: data, ora, servizi richiesti,
+                operatore scelto ed eventuali richieste particolari che ci
+                comunichi.</li>
+            <li><strong>Il testo dei messaggi</strong> che ci scrivi in chat, per
+                il tempo necessario a portare a termine la conversazione.</li>
+        </ul>
+        <p>
+            Non chiediamo e non registriamo dati di pagamento, e non trattiamo
+            categorie particolari di dati.
+        </p>
+
+        <h2>Perché li usiamo</h2>
+        <ul>
+            <li>Per prendere, spostare e disdire i tuoi appuntamenti: è
+                l'esecuzione del servizio che ci hai chiesto.</li>
+            <li>Per mandarti via email la conferma, la modifica o l'annullamento
+                di un appuntamento, e per avvisarti se un operatore non può
+                riceverti.</li>
+            <li>Per riconoscerti quando torni, così da non doverti chiedere ogni
+                volta gli stessi dati.</li>
+        </ul>
+        <p>
+            Non usiamo i tuoi dati per pubblicità e non li vendiamo a nessuno.
+        </p>
+
+        <h2>A chi vengono comunicati</h2>
+        <p>
+            Per far funzionare il servizio ci appoggiamo ad alcuni fornitori, che
+            trattano i dati per nostro conto:
+        </p>
+        <ul>
+            <li><strong>Meta Platforms</strong> — se ci scrivi su WhatsApp, i
+                messaggi passano dalla piattaforma WhatsApp Business.</li>
+            <li><strong>Anthropic</strong> — il testo dei messaggi viene
+                elaborato dal modello che risponde in chat, per capire cosa
+                stai chiedendo.</li>
+            <li><strong>Google</strong> — gli appuntamenti vengono scritti sul
+                calendario dell'operatore, con il tuo nome e i servizi
+                prenotati.</li>
+            <li><strong>Render</strong> — ospita l'applicazione e la banca dati
+                degli appuntamenti.</li>
+            <li>Il <strong>fornitore di posta elettronica</strong> del salone,
+                per l'invio delle email di conferma.</li>
+        </ul>
+        <p>
+            Alcuni di questi fornitori si trovano fuori dall'Unione Europea. Il
+            trasferimento avviene sulla base delle clausole contrattuali tipo
+            approvate dalla Commissione Europea.
+        </p>
+
+        <h2>Per quanto tempo li conserviamo</h2>
+        <ul>
+            <li>La <strong>conversazione in corso</strong> viene tenuta in memoria
+                per un paio d'ore e poi scartata.</li>
+            <li>La tua <strong>scheda cliente</strong> e lo storico degli
+                appuntamenti restano finché sei nostro cliente, per poterti
+                riconoscere alla visita successiva. Se ci chiedi di cancellarli
+                lo facciamo.</li>
+        </ul>
+
+        <h2>I tuoi diritti</h2>
+        <p>
+            Puoi chiederci in qualsiasi momento di <strong>vedere</strong> i dati
+            che abbiamo su di te, di <strong>correggerli</strong>, di
+            <strong>cancellarli</strong> o di
+            <strong>smettere di usarli</strong>. Basta scriverci
+            {% if email_salone %}a <a href="mailto:{{ email_salone }}">{{ email_salone }}</a>{% else %}all'indirizzo email del salone{% endif %}:
+            rispondiamo entro trenta giorni.
+        </p>
+        <p>
+            Se ritieni che i tuoi dati non siano trattati correttamente puoi
+            rivolgerti al Garante per la protezione dei dati personali
+            (<a href="https://www.garanteprivacy.it" rel="noopener">garanteprivacy.it</a>).
+        </p>
+
+        <h2>Cookie</h2>
+        <p>
+            Il sito non usa cookie di profilazione né strumenti di analisi di
+            terze parti. La chat conserva nel tuo browser solo un identificativo
+            temporaneo, che serve a non perdere il filo della conversazione
+            mentre la stai scrivendo.
+        </p>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 Salone Nadia. Tutti i diritti riservati.</p>
+    </footer>
+</body>
+</html>

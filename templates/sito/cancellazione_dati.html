@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cancellazione dei dati — Salone Nadia</title>
+    <link rel="stylesheet" href="/static/sito.css?v={{ v }}">
+</head>
+<body>
+    <header class="site-header">
+        <nav>
+            <a href="/" class="logo">Salone Nadia</a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/chi-siamo">Chi siamo</a>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-content">
+        <h1>Come cancellare i tuoi dati</h1>
+
+        <p>
+            Se non vuoi più che il Salone Nadia conservi i tuoi dati, puoi
+            chiederne la cancellazione in qualsiasi momento. Non serve motivare
+            la richiesta e non costa niente.
+        </p>
+
+        <h2>Come si chiede</h2>
+        <p>
+            Scrivi
+            {% if email_salone %}a <a href="mailto:{{ email_salone }}?subject=Cancellazione%20dei%20miei%20dati">{{ email_salone }}</a>{% else %}all'indirizzo email del salone{% endif %},
+            oppure mandaci un messaggio WhatsApp
+            {% if telefono_salone %}al {{ telefono_salone }}{% endif %},
+            indicando <strong>il nome e il numero di telefono o l'indirizzo
+            email</strong> con cui hai prenotato: ci servono per trovare la
+            scheda giusta ed essere sicuri di cancellare la tua e non quella di
+            un'altra persona.
+        </p>
+        {% if telefono_salone %}
+        <p>
+            Puoi anche telefonare al {{ telefono_salone }} e chiederlo a voce.
+        </p>
+        {% endif %}
+
+        <h2>Che cosa cancelliamo</h2>
+        <ul>
+            <li>La tua scheda cliente: nome, cognome, telefono, email e le note
+                che ti riguardano.</li>
+            <li>Lo storico dei tuoi appuntamenti.</li>
+            <li>Gli appuntamenti futuri, che vengono <strong>annullati</strong>:
+                cancellare i dati e tenere il posto in agenda sarebbe una
+                contraddizione. Se vuoi solo disdire un appuntamento, chiedi
+                quello e la scheda resta.</li>
+            <li>Gli eventi corrispondenti sul calendario dell'operatore.</li>
+        </ul>
+
+        <h2>In quanto tempo</h2>
+        <p>
+            Entro trenta giorni dalla richiesta, di solito molto prima. Ti
+            confermiamo per iscritto quando è stato fatto.
+        </p>
+
+        <h2>Cosa succede dopo</h2>
+        <p>
+            Dopo la cancellazione non ti riconosciamo più: se torni a
+            prenotare, ricominci da cliente nuovo e ti richiediamo i dati.
+        </p>
+
+        <p>
+            Per sapere quali dati raccogliamo e perché, vedi
+            l'<a href="/privacy">informativa sulla privacy</a>.
+        </p>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 Salone Nadia. Tutti i diritti riservati.</p>
+        <p><a href="/privacy">Informativa sulla privacy</a></p>
+    </footer>
+</body>
+</html>

@@ -148,3 +148,61 @@ async def _immagine_operatore(nome: str) -> tuple[bytes, str]:
 @router.get("/chi-siamo", response_class=HTMLResponse)
 async def chi_siamo(request: Request):
     return templates.TemplateResponse("chi_siamo.html", {"request": request})
+
+
+# Denominazione da esporre nell'informativa. Scritta qui e non nel template
+# perché è un dato dell'attività, non una scelta di impaginazione: va
+# completata con ragione sociale, sede e partita IVA reali.
+TITOLARE_PRIVACY = "Salone Nadia"
+
+# Fissa e non calcolata da `date.today()`: la data dice quando l'informativa è
+# stata cambiata l'ultima volta, non quando la si sta leggendo. Aggiornarla a
+# ogni visita farebbe credere a una revisione che non c'è stata.
+PRIVACY_AGGIORNATA = "5 settembre 2026"
+
+
+@router.get("/privacy", response_class=HTMLResponse)
+async def privacy(request: Request):
+    """Informativa sul trattamento dei dati.
+
+    Deve esistere a un indirizzo pubblico e stabile: Meta la pretende per
+    pubblicare l'app, e finché l'app non è pubblicata non consegna al webhook
+    nessun messaggio di produzione — nemmeno quelli dell'amministratore.
+
+    I contatti si leggono dalla configurazione invece di essere scritti nel
+    template: l'indirizzo a cui un cliente chiede la cancellazione dei propri
+    dati deve essere lo stesso da cui partono le email, altrimenti la richiesta
+    arriva in una casella che nessuno guarda.
+    """
+    from config import settings
+
+    return templates.TemplateResponse(
+        "privacy.html",
+        {
+            "request": request,
+            "titolare": TITOLARE_PRIVACY,
+            "email_salone": settings.smtp_user,
+            "telefono_salone": settings.salone_telefono,
+            "aggiornata": PRIVACY_AGGIORNATA,
+        },
+    )
+
+
+@router.get("/cancellazione-dati", response_class=HTMLResponse)
+async def cancellazione_dati(request: Request):
+    """Istruzioni per farsi cancellare.
+
+    Pagina separata dall'informativa e non un suo paragrafo: Meta chiede i due
+    indirizzi e **rifiuta lo stesso URL per entrambi**, quindi un'ancora
+    `/privacy#cancellazione` non basterebbe.
+    """
+    from config import settings
+
+    return templates.TemplateResponse(
+        "cancellazione_dati.html",
+        {
+            "request": request,
+            "email_salone": settings.smtp_user,
+            "telefono_salone": settings.salone_telefono,
+        },
+    )
