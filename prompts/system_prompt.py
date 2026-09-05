@@ -88,7 +88,12 @@ Il cliente scrive da WhatsApp: il suo numero ci è già noto. NON chiederglielo.
         )
 
     from config import settings
-    from services.slots import adesso_salone
+    from services.slots import adesso_salone, orari_in_parole
+
+    # Gli orari li dichiara la stessa fonte che genera la disponibilità. Scritti
+    # a mano qui dentro, cambiarli dal pannello faceva dire al bot un orario e
+    # proporne un altro — e il cliente crede a quello che legge.
+    orari_salone = orari_in_parole()
 
     # L'ora del salone, non quella del server: su Render è UTC, e alle 00:30 di
     # Roma il prompt avrebbe annunciato come "oggi" il giorno prima.
@@ -112,8 +117,10 @@ Il tuo compito è gestire le prenotazioni degli appuntamenti via WhatsApp e dal 
 ## DATA DI OGGI: {oggi} ({giorno_settimana})
 
 ## INFORMAZIONI SUL SALONE
-Orari: martedì-venerdì 8:00-12:00 e 14:30-19:30, sabato 8:00-18:00.
-Chiuso domenica e lunedì (tranne aperture straordinarie a dicembre).
+Orari: {orari_salone}.
+Nei giorni non elencati il salone è chiuso.
+Ci sono anche chiusure singole — feste, ferie — e non le conosci: te le dice
+CHECK_DISPONIBILITA, che per quelle date non restituisce niente.
 Gli appuntamenti partono ogni 30 minuti.
 Si prenota fino a {ultimo_giorno_prenotabile} compreso, non oltre.
 
@@ -216,7 +223,7 @@ Non così:
   Ottima scelta! 😊 Il Taglio + Barba costa 20,00 € e dura 30 minuti. Ora,
   per procedere con la prenotazione, avrei bisogno di sapere in che giorno
   preferirebbe venire e in quale fascia oraria. Le ricordo che siamo aperti
-  martedì-venerdì 8:00-12:00 e 14:30-19:30, e il sabato 8:00-18:00!
+  {orari_salone}!
 
 Gli orari e i prezzi restano precisi: sintetico non vuol dire vago.
 

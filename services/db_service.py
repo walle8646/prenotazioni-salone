@@ -1,7 +1,7 @@
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from models.orm import Cliente, Appuntamento, Parrucchiere
 from models.database import async_session
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 import logging
 
 logger = logging.getLogger(__name__)
@@ -637,3 +637,120 @@ async def conversazione_con_messaggi(conversazione_id: int) -> dict | None:
             for m in messaggi.scalars().all()
         ]
         return voce
+
+
+# ------------------------------------------------- orari del salone e chiusure
+
+
+async def seed_orari_salone(iniziali: dict[int, list[tuple[str, str]]]) -> None:
+    """Riempie la tabella degli orari al primo avvio, e mai più.
+
+    Il controllo è sulla tabella vuota e non sui singoli giorni: se il salone
+    decide di chiudere il mercoledì, quel giorno resta una riga con gli orari a
+    NULL, e riempirlo di nuovo con i valori del codice disferebbe la scelta a
+    ogni deploy — lo stesso difetto già pagato con `seed_parrucchieri`.
+    """
+    from models.orm import OrarioSalone
+
+    async with async_session() as db:
+        gia_presenti = await db.execute(select(OrarioSalone.id).limit(1))
+        if gia_presenti.scalar_one_or_none() is not None:
+            return
+
+        for giorno in range(7):
+            fasce = iniziali.get(giorno) or []
+            if not fasce:
+                db.add(OrarioSalone(giorno=giorno, ora_inizio=None, ora_fine=None))
+                continue
+            for inizio, fine in fasce:
+                db.add(
+                    OrarioSalone(giorno=giorno, ora_inizio=inizio, ora_fine=fine)
+                )
+        await db.commit()
+        logger.info("Orari del salone inseriti per la prima volta")
+
+
+async def get_orari_salone() -> dict[int, list[tuple[str, str]]]:
+    """Gli orari di apertura, per giorno della settimana.
+
+    Un giorno chiuso torna come lista vuota, che è la forma che il resto del
+    codice si aspetta: le righe con gli orari a NULL servono al database per
+    ricordarsi che quel giorno è stato deciso, non a chi legge.
+    """
+    from models.orm import OrarioSalone
+
+    async with async_session() as db:
+        righe = await db.execute(
+            select(OrarioSalone).order_by(OrarioSalone.giorno, OrarioSalone.ora_inizio)
+        )
+        orari: dict[int, list[tuple[str, str]]] = {g: [] for g in range(7)}
+        for riga in righe.scalars().all():
+            if riga.ora_inizio and riga.ora_fine:
+                orari[riga.giorno].append((riga.ora_inizio, riga.ora_fine))
+        return orari
+
+
+async def salva_orari_salone(orari: dict[int, list[tuple[str, str]]]) -> None:
+    """Riscrive tutti e sette i giorni in un colpo solo.
+
+    Si cancella con una `delete()` sulla tabella e non leggendo una relazione:
+    quella sarebbe caricata pigramente e in sessione asincrona solleverebbe
+    `MissingGreenlet`, con la suite tutta verde perché gira sui finti.
+    """
+    from models.orm import OrarioSalone
+
+    async with async_session() as db:
+        await db.execute(delete(OrarioSalone))
+        for giorno in range(7):
+            fasce = orari.get(giorno) or []
+            if not fasce:
+                db.add(OrarioSalone(giorno=giorno, ora_inizio=None, ora_fine=None))
+                continue
+            for inizio, fine in fasce:
+                db.add(OrarioSalone(giorno=giorno, ora_inizio=inizio, ora_fine=fine))
+        await db.commit()
+
+
+async def get_chiusure(da: date | None = None) -> list[dict]:
+    """Le chiusure straordinarie, dalla data indicata in avanti.
+
+    Quelle passate non si mostrano ma non si cancellano: sono la storia di
+    quando il salone è stato chiuso, e servirebbero a capire un buco in agenda.
+    """
+    from models.orm import ChiusuraSalone
+
+    async with async_session() as db:
+        query = select(ChiusuraSalone).order_by(ChiusuraSalone.data)
+        if da is not None:
+            query = query.where(ChiusuraSalone.data >= da)
+        righe = await db.execute(query)
+        return [
+            {"id": r.id, "data": r.data, "motivo": r.motivo}
+            for r in righe.scalars().all()
+        ]
+
+
+async def aggiungi_chiusura(giorno: date, motivo: str | None = None) -> bool:
+    """Segna un giorno di chiusura. False se c'era già."""
+    from models.orm import ChiusuraSalone
+
+    async with async_session() as db:
+        esistente = await db.execute(
+            select(ChiusuraSalone.id).where(ChiusuraSalone.data == giorno)
+        )
+        if esistente.scalar_one_or_none() is not None:
+            return False
+        db.add(ChiusuraSalone(data=giorno, motivo=(motivo or "").strip() or None))
+        await db.commit()
+        return True
+
+
+async def togli_chiusura(chiusura_id: int) -> None:
+    """Il salone quel giorno riapre."""
+    from models.orm import ChiusuraSalone
+
+    async with async_session() as db:
+        await db.execute(
+            delete(ChiusuraSalone).where(ChiusuraSalone.id == chiusura_id)
+        )
+        await db.commit()

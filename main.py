@@ -46,6 +46,33 @@ async def lifespan(app: FastAPI):
     await seed_parrucchieri(PARRUCCHIERI_MAP)
     set_parrucchieri_cache(await get_parrucchieri_map())
 
+    # Gli orari del salone prima delle presenze: chi non ha orari suoi segue
+    # quelli, e caricarli dopo vorrebbe dire un momento in cui gli operatori
+    # seguono gli orari scritti nel codice invece di quelli veri.
+    from services.db_service import (
+        get_chiusure,
+        get_orari_salone,
+        seed_orari_salone,
+    )
+    from services.slots import ORARI_APERTURA, set_chiusure, set_orari_salone
+
+    await seed_orari_salone(ORARI_APERTURA)
+    orari = await get_orari_salone()
+    set_orari_salone(orari)
+
+    from datetime import date as _date
+
+    chiusure = await get_chiusure(da=_date.today())
+    set_chiusure({c["data"].isoformat() for c in chiusure})
+
+    from services.slots import orari_in_parole
+
+    logging.getLogger(__name__).info(
+        "Orari del salone: %s | chiusure future: %s",
+        orari_in_parole(orari),
+        len(chiusure),
+    )
+
     from services.presenze import set_presenze_cache
 
     presenze = await get_presenze()

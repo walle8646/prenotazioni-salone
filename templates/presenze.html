@@ -16,6 +16,96 @@
 
     {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
 
+    <h3>Orari del salone</h3>
+    <p class="nota">
+        Quando è aperto il salone, indipendentemente da chi c'è. Cambiarli
+        sposta tutto insieme: gli orari che il bot propone, quelli che dice a
+        voce, quelli sul sito e le fasce di chi non ha orari suoi.
+        Togli la spunta a un giorno per chiuderlo tutte le settimane.
+    </p>
+
+    <div class="scheda-presenze">
+        <form method="POST" action="/admin/presenze/salone">
+            <div class="griglia-intestazione griglia-presenze">
+                <span>Giorno</span>
+                <span>Aperto</span>
+                <span>Prima fascia</span>
+                <span>Seconda fascia</span>
+            </div>
+
+            {% for g in salone %}
+            <div class="griglia-presenze riga-presenza">
+                <label for="salone_{{ g.numero }}">{{ g.nome }}</label>
+                <input type="checkbox" id="salone_{{ g.numero }}"
+                       name="s{{ g.numero }}_lavora" value="1"
+                       {{ 'checked' if g.lavora }}>
+                <span class="fascia">
+                    <input type="time" name="s{{ g.numero }}_m_dalle"
+                           value="{{ g.mattina[0] }}" aria-label="Apertura prima fascia">
+                    <input type="time" name="s{{ g.numero }}_m_alle"
+                           value="{{ g.mattina[1] }}" aria-label="Chiusura prima fascia">
+                </span>
+                <span class="fascia">
+                    <input type="time" name="s{{ g.numero }}_p_dalle"
+                           value="{{ g.pomeriggio[0] }}" aria-label="Apertura seconda fascia">
+                    <input type="time" name="s{{ g.numero }}_p_alle"
+                           value="{{ g.pomeriggio[1] }}" aria-label="Chiusura seconda fascia">
+                </span>
+            </div>
+            {% endfor %}
+
+            <p class="nota">
+                La seconda fascia serve solo a chi chiude a mezzogiorno. Con
+                orario continuato si lascia vuota.
+            </p>
+
+            <div class="azioni-presenze">
+                <button type="submit" class="btn-small">Salva gli orari del salone</button>
+            </div>
+        </form>
+    </div>
+
+    <h3>Giorni di chiusura</h3>
+    <p class="nota">
+        Feste, ferie, un giorno saltato. In quelle date il bot non propone
+        niente e non fa prenotare nessuno.
+        Attenzione: chiudere <strong>non avvisa</strong> chi aveva già
+        prenotato quel giorno — per quello serve
+        <a href="/admin/assenze">Assenze</a>, operatore per operatore.
+    </p>
+
+    <div class="scheda-presenze">
+        <form class="date-picker" method="POST" action="/admin/chiusure">
+            <input type="date" name="data" min="{{ oggi }}" required
+                   aria-label="Giorno di chiusura">
+            <input type="text" name="motivo" placeholder="Ferie, Natale, corso…"
+                   aria-label="Motivo">
+            <button type="submit" class="btn-small">Segna come chiuso</button>
+        </form>
+
+        {% if chiusure %}
+        <div class="griglia-intestazione griglia-presenze">
+            <span>Giorno</span><span></span><span>Motivo</span><span></span>
+        </div>
+        {% for c in chiusure %}
+        <div class="griglia-presenze riga-presenza">
+            <span>{{ c.quando }}</span>
+            <span></span>
+            <span class="nota" style="margin:0">{{ c.motivo or '—' }}</span>
+            <form method="POST" action="/admin/chiusure/{{ c.id }}/togli">
+                <button type="submit" class="btn-small btn-neutro">Riapri</button>
+            </form>
+        </div>
+        {% endfor %}
+        {% else %}
+        <p class="nota" style="margin:0.6rem 0 0">
+            Nessuna chiusura in programma.
+        </p>
+        {% endif %}
+    </div>
+
+    <h3>Chi c'è, giorno per giorno</h3>
+
     {% for o in operatori %}
     <div class="scheda-presenze">
         <div class="testata-presenze">

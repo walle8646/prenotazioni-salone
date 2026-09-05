@@ -644,31 +644,48 @@ async def _ricarica_presenze() -> None:
     set_presenze_cache(await get_presenze())
 
 
+async def _ricarica_orari() -> None:
+    """Rimette in memoria orari e chiusure appena cambiati.
+
+    Stessa ragione del listino: la disponibilità legge una copia in memoria, e
+    senza questa riga il bot continuerebbe a proporre gli orari vecchi fino al
+    riavvio — cioè a dare appuntamenti a salone chiuso.
+    """
+    from datetime import date as _date
+
+    from services.db_service import get_chiusure, get_orari_salone
+    from services.slots import set_chiusure, set_orari_salone
+
+    set_orari_salone(await get_orari_salone())
+    chiusure = await get_chiusure(da=_date.today())
+    set_chiusure({c["data"].isoformat() for c in chiusure})
+
+
 def _giorni_di_apertura() -> list[tuple[int, str]]:
     """I giorni in cui il salone apre, come (numero, nome)."""
-    from services.slots import ORARI_APERTURA
+    from services.slots import NOMI_GIORNI, orari_salone
 
-    nomi = [
-        "lunedì", "martedì", "mercoledì", "giovedì",
-        "venerdì", "sabato", "domenica",
-    ]
-    return [(g, nomi[g]) for g in range(7) if ORARI_APERTURA.get(g)]
+    orari = orari_salone()
+    return [(g, NOMI_GIORNI[g]) for g in range(7) if orari.get(g)]
 
 
-def _fasce_dal_form(modulo, giorno: int) -> list[tuple[str, str]]:
+def _fasce_dal_form(modulo, giorno: int, prefisso: str = "g") -> list[tuple[str, str]]:
     """Le fasce di un giorno, lette dai campi del form.
 
     Una fascia entra solo se ha entrambi gli estremi e l'inizio viene prima
     della fine: mezzo orario scritto è quasi sempre un campo dimenticato, e
     salvarlo così toglierebbe l'operatore dalla giornata senza dirlo.
+
+    Il prefisso distingue i campi dell'operatore da quelli del salone, che
+    stanno nella stessa pagina.
     """
-    if not modulo.get(f"g{giorno}_lavora"):
+    if not modulo.get(f"{prefisso}{giorno}_lavora"):
         return []
 
     fasce = []
     for parte in ("m", "p"):
-        dalle = (modulo.get(f"g{giorno}_{parte}_dalle") or "").strip()
-        alle = (modulo.get(f"g{giorno}_{parte}_alle") or "").strip()
+        dalle = (modulo.get(f"{prefisso}{giorno}_{parte}_dalle") or "").strip()
+        alle = (modulo.get(f"{prefisso}{giorno}_{parte}_alle") or "").strip()
         if dalle and alle and dalle < alle:
             fasce.append((dalle, alle))
     return fasce
@@ -683,7 +700,7 @@ async def presenze_elenco(
 ):
     from sqlalchemy.orm import selectinload
 
-    from services.slots import ORARI_APERTURA
+    from services.slots import orari_salone
 
     result = await db.execute(
         select(Parrucchiere)
@@ -710,7 +727,7 @@ async def presenze_elenco(
             else:
                 # Non ancora configurato: i campi mostrano gli orari del
                 # salone, che è esattamente quello che sta facendo adesso.
-                fasce = ORARI_APERTURA.get(numero, [])
+                fasce = orari_salone().get(numero, [])
                 lavora = True
             mattina = fasce[0] if fasce else ("", "")
             pomeriggio = fasce[1] if len(fasce) > 1 else ("", "")
@@ -730,8 +747,50 @@ async def presenze_elenco(
 
     return templates.TemplateResponse(
         "presenze.html",
-        {"request": request, "operatori": operatori, "errore": errore},
+        {
+            "request": request,
+            "operatori": operatori,
+            "errore": errore,
+            "salone": _giorni_del_salone(),
+            "chiusure": await _chiusure_future(),
+            "oggi": date.today().isoformat(),
+        },
     )
+
+
+def _giorni_del_salone() -> list[dict]:
+    """Tutti e sette i giorni, aperti o no.
+
+    Qui non si filtra per giorno di apertura come si fa per gli operatori: è
+    proprio la schermata da cui si riapre il lunedì, e un giorno chiuso che non
+    compare non si può più riaprire.
+    """
+    from services.slots import NOMI_GIORNI, orari_salone
+
+    orari = orari_salone()
+    giorni = []
+    for numero in range(7):
+        fasce = orari.get(numero, [])
+        giorni.append(
+            {
+                "numero": numero,
+                "nome": NOMI_GIORNI[numero],
+                "lavora": bool(fasce),
+                "mattina": fasce[0] if fasce else ("", ""),
+                "pomeriggio": fasce[1] if len(fasce) > 1 else ("", ""),
+            }
+        )
+    return giorni
+
+
+async def _chiusure_future() -> list[dict]:
+    from services.db_service import get_chiusure
+
+    chiusure = await get_chiusure(da=date.today())
+    return [
+        {"id": c["id"], "quando": _in_italiano(c["data"]), "motivo": c["motivo"]}
+        for c in chiusure
+    ]
 
 
 @router.post("/presenze/{operatore_id}")
@@ -1102,3 +1161,84 @@ async def conversazione_chiudi(
 
     await chiudi_conversazione_operatore(conversazione_id)
     return RedirectResponse("/admin/conversazioni", 303)
+
+
+# ------------------------------------------------ orari del salone e chiusure
+
+
+@router.post("/presenze/salone")
+async def orari_salone_salva(
+    request: Request,
+    utente=Depends(utente_del_pannello),
+):
+    """Riscrive gli orari di apertura del salone.
+
+    Cambiarli sposta tutto: la disponibilità che il bot propone, gli orari che
+    dichiara a voce, quelli sul sito e le fasce di chi non ha orari suoi. Per
+    questo alla fine si ricarica la cache — senza, il bot continuerebbe a dare
+    appuntamenti negli orari vecchi fino al riavvio.
+    """
+    from services.db_service import salva_orari_salone
+
+    modulo = await request.form()
+    nuovi = {giorno: _fasce_dal_form(modulo, giorno, prefisso="s") for giorno in range(7)}
+
+    if not any(nuovi.values()):
+        return RedirectResponse(
+            "/admin/presenze?errore=Il+salone+deve+essere+aperto+almeno+un+giorno",
+            303,
+        )
+
+    await salva_orari_salone(nuovi)
+    await _ricarica_orari()
+    logger.info("Orari del salone aggiornati dal pannello")
+    return RedirectResponse("/admin/presenze", 303)
+
+
+@router.post("/chiusure")
+async def chiusura_aggiungi(
+    data: str = Form(),
+    motivo: str = Form(""),
+    utente=Depends(utente_del_pannello),
+):
+    """Segna un giorno in cui il salone non apre.
+
+    Non manda niente ai clienti che avevano già preso appuntamento quel
+    giorno: per quello c'è **Assenze**, che li avvisa uno per uno. Qui si
+    chiude la porta ai nuovi, e gli appuntamenti già presi restano da
+    gestire a mano — annullarli in silenzio sarebbe il danno peggiore.
+    """
+    from services.db_service import aggiungi_chiusura
+
+    try:
+        giorno = datetime.strptime(data, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        return RedirectResponse("/admin/presenze?errore=Data+non+valida", 303)
+
+    if giorno < date.today():
+        return RedirectResponse(
+            "/admin/presenze?errore=Si+chiude+da+oggi+in+avanti,+non+nel+passato",
+            303,
+        )
+
+    if not await aggiungi_chiusura(giorno, motivo):
+        return RedirectResponse(
+            "/admin/presenze?errore=Quel+giorno+era+gia+segnato+come+chiuso", 303
+        )
+
+    await _ricarica_orari()
+    logger.info("Chiusura del %s aggiunta dal pannello", giorno)
+    return RedirectResponse("/admin/presenze", 303)
+
+
+@router.post("/chiusure/{chiusura_id}/togli")
+async def chiusura_togli(
+    chiusura_id: int,
+    utente=Depends(utente_del_pannello),
+):
+    """Il salone quel giorno riapre."""
+    from services.db_service import togli_chiusura
+
+    await togli_chiusura(chiusura_id)
+    await _ricarica_orari()
+    return RedirectResponse("/admin/presenze", 303)

@@ -18,11 +18,16 @@ from services.statici import VERSIONE as _VERSIONE_STATICI  # noqa: E402
 
 templates.env.globals["v"] = _VERSIONE_STATICI
 
-ORARI = {
-    "mar-ven": "08:00-12:00 / 14:30-19:30",
-    "sabato": "08:00-18:00",
-    "dom-lun": "Chiuso",
-}
+def _orari_del_salone() -> dict[str, str]:
+    """Gli orari da mostrare, dagli stessi dati che usa la disponibilità.
+
+    Erano scritti a mano qui dentro, e quando il salone li ha cambiati dal
+    pannello il sito ha continuato a dichiarare i vecchi: un cliente leggeva
+    un orario e il bot gliene proponeva un altro.
+    """
+    from services.slots import orari_a_coppie
+
+    return orari_a_coppie()
 
 
 def _operatori_in_servizio() -> list[str]:
@@ -44,7 +49,7 @@ async def homepage(request: Request):
         "index.html",
         {
             "request": request,
-            "orari": ORARI,
+            "orari": _orari_del_salone(),
             # Listino e durate arrivano dal catalogo: una sola fonte di verità
             # condivisa con il bot, così sito e chat non possono divergere.
             "servizi": catalogo.elenco_per_sito(),

@@ -329,6 +329,29 @@ lavora mai" sarebbero altrimenti la stessa tabella vuota — e attivare la
 funzione li avrebbe fatti sparire tutti insieme. Un giorno di assenza singolo
 non si mette qui: per quello c'è **Assenze**, che avvisa anche i clienti.
 
+Sulla stessa schermata si cambiano gli **orari del salone** e si segnano i
+**giorni di chiusura**. Gli orari stavano in una costante e cambiarli voleva
+dire un deploy; ora vivono nella tabella `orari_salone` e a runtime si leggono
+da una copia in memoria, come listino e operatori. Tre conseguenze da tenere a
+mente.
+
+**Un giorno chiuso è una riga con gli orari a NULL, non l'assenza di righe.**
+Serve a distinguere "chiuso il lunedì" da "nessuno ha ancora configurato
+niente": senza, chiudere tutta la settimana dal pannello la farebbe riempire di
+nuovo al riavvio con gli orari del codice — lo stesso difetto già pagato con
+`seed_parrucchieri`.
+
+**Gli orari li dichiara una fonte sola.** Il prompt (`orari_in_parole()`) e il
+sito (`orari_a_coppie()`) leggono gli stessi dati che generano la
+disponibilità. Scritti a mano in tre posti, cambiarli dal pannello faceva dire
+al bot un orario e proporne un altro — e il cliente crede a quello che legge.
+
+**Le chiusure straordinarie le applica `generate_slots()`**, non i chiamanti:
+tutto passa da lì, `is_open()` compreso, e un controllo in più altrove sarebbe
+uno da dimenticare. Chiudere un giorno **non avvisa** chi aveva già prenotato:
+per quello serve **Assenze**, operatore per operatore. Annullare in silenzio
+sarebbe il danno peggiore.
+
 **Assenze** (`services/assenze.py`) annulla in blocco la giornata di un
 operatore che non viene: toglie gli eventi da Google, annulla nel database e
 manda ai clienti un'email diversa da quella della disdetta normale — qui la
@@ -395,8 +418,11 @@ account come `writer`. L'associazione nome → id sta in `GCAL_PARRUCCHIERE_IDS`
 **oggetto JSON, non lista**: con la lista i nomi non sono noti, la mappa resta
 vuota e ogni operatore risulta non configurato.
 
-Orari: martedì-venerdì 8:00-12:00 e 14:30-19:30, sabato 8:00-18:00 continuato,
-chiuso domenica e lunedì. Slot da 30 minuti.
+Orari: **martedì-sabato 9:00-19:00 continuato**, chiuso domenica e lunedì. Slot
+da 30 minuti. Fino a settembre 2026 il codice diceva 8:00-12:00 e 14:30-19:30,
+che il salone non ha mai fatto: adesso quelli scritti in `ORARI_APERTURA` sono
+solo i valori iniziali, e a comandare è la tabella che si modifica da
+**Presenze**.
 
 ## Email
 

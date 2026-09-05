@@ -16,7 +16,7 @@ from services.presenze import (
 )
 from services.slots import ORARI_APERTURA
 
-# Un martedì: ORARI_APERTURA lo dà aperto 8-12 e 14:30-19:30.
+# Un martedì: gli orari iniziali lo danno aperto 9-19 continuato.
 MARTEDI = "2026-08-11"
 MERCOLEDI = "2026-08-12"
 
@@ -141,3 +141,25 @@ async def test_la_ricerca_non_propone_chi_quel_giorno_non_c_e(backends):
     liberi = {n for riga in risultato["slots_disponibili"] for n in riga["liberi"]}
     assert "Francesco" not in liberi
     assert liberi, "gli altri operatori devono restare disponibili"
+
+
+# ---------------------------------- gli orari del salone cambiano dal pannello
+
+
+def test_chi_non_ha_orari_suoi_segue_quelli_cambiati(orari_del_salone):
+    """La regola è "segue il salone", non "segue quello scritto nel codice".
+
+    Leggere la costante iniziale invece della cache voleva dire che, cambiati
+    gli orari dal pannello, gli operatori non configurati restavano sui vecchi
+    — cioè quasi tutti, appena dopo l'aggiornamento.
+    """
+    orari_del_salone({1: [("10:00", "16:00")]})
+
+    assert fasce_di("Francesco", 1) == [("10:00", "16:00")]
+
+
+def test_chi_ha_orari_suoi_non_li_perde_se_il_salone_cambia(orari_del_salone):
+    set_presenze_cache({"Francesco": {1: [("09:00", "12:00")]}})
+    orari_del_salone({1: [("14:00", "19:00")]})
+
+    assert fasce_di("Francesco", 1) == [("09:00", "12:00")]

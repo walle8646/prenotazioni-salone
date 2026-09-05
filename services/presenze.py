@@ -19,7 +19,7 @@ ogni modifica dal pannello.
 
 from __future__ import annotations
 
-from services.slots import ORARI_APERTURA
+from services.slots import orari_salone
 
 # nome operatore → {giorno della settimana: [(inizio, fine), ...]}
 # Chi non compare qui dentro lavora negli orari del salone.
@@ -45,7 +45,7 @@ def fasce_di(nome: str, giorno: int) -> list[tuple[str, str]]:
     """
     suoi = _cache.get(nome)
     if suoi is None:
-        return ORARI_APERTURA.get(giorno, [])
+        return orari_salone().get(giorno, [])
     return suoi.get(giorno, [])
 
 

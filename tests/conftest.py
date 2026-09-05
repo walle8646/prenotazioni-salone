@@ -75,3 +75,32 @@ def sample_session():
         },
         "last_activity": "2026-05-16T10:00:00",
     }
+
+
+@pytest.fixture
+def orari_del_salone():
+    """Cambia gli orari in vigore per la durata del test, e poi li rimette.
+
+    Senza il ripristino un test che chiude il martedì farebbe fallire tutti
+    quelli che vengono dopo, e la causa sarebbe altrove: la cache degli orari
+    vive nel modulo, non nel test.
+    """
+    from services.slots import set_orari_salone
+
+    def cambia(orari: dict[int, list[tuple[str, str]]]):
+        set_orari_salone(orari)
+
+    yield cambia
+    set_orari_salone(None)
+
+
+@pytest.fixture
+def chiusure_del_salone():
+    """Come sopra, per le chiusure straordinarie."""
+    from services.slots import set_chiusure
+
+    def cambia(date):
+        set_chiusure(date)
+
+    yield cambia
+    set_chiusure(set())

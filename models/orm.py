@@ -177,3 +177,40 @@ class MessaggioConversazione(Base):
     autore = Column(String(20), nullable=False)
     testo = Column(Text, nullable=False)
     creato_il = Column(DateTime, nullable=False, default=datetime.now, index=True)
+
+
+class OrarioSalone(Base):
+    """Una fascia di apertura del salone, ripetuta ogni settimana.
+
+    Una riga per fascia, come le presenze degli operatori: chi fa orario
+    continuato ne ha una, chi spezza ne ha due.
+
+    Un giorno di chiusura è una riga con gli orari a NULL, e non l'assenza di
+    righe. Serve a distinguere "chiuso il lunedì" da "nessuno ha ancora
+    configurato niente": senza, svuotare la tabella dal pannello per chiudere
+    tutta la settimana la farebbe riempire di nuovo al riavvio successivo, con
+    gli orari iniziali del codice.
+    """
+
+    __tablename__ = "orari_salone"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    # 0 = lunedì ... 6 = domenica, come datetime.weekday()
+    giorno = Column(Integer, nullable=False, index=True)
+    ora_inizio = Column(String(5))  # "09:00", NULL se quel giorno è chiuso
+    ora_fine = Column(String(5))
+
+
+class ChiusuraSalone(Base):
+    """Un giorno in cui il salone non apre pur essendo giorno di apertura.
+
+    Feste, ferie, la settimana di agosto. È diverso dalle assenze, che
+    riguardano un operatore solo: qui non apre nessuno, e la disponibilità per
+    quella data non esiste proprio.
+    """
+
+    __tablename__ = "chiusure_salone"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    data = Column(Date, nullable=False, unique=True, index=True)
+    motivo = Column(String(120))
