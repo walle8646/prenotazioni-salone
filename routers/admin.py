@@ -1242,3 +1242,18 @@ async def chiusura_togli(
     await togli_chiusura(chiusura_id)
     await _ricarica_orari()
     return RedirectResponse("/admin/presenze", 303)
+
+
+# --------------------------------------------------------------------- guida
+
+
+@router.get("/guida", response_class=HTMLResponse)
+async def guida(request: Request, utente=Depends(utente_del_pannello)):
+    """La guida per chi lavora in salone.
+
+    Sta dietro il login e non sul sito pubblico: spiega come si usa il
+    pannello e nomina l'account Google del salone. Quello che non c'è, ed è
+    voluto, è la password di quell'account — una pagina web non è il posto
+    per una password, nemmeno dietro un login.
+    """
+    return templates.TemplateResponse("guida.html", {"request": request})

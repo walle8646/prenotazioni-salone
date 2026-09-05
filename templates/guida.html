@@ -1,0 +1,338 @@
+{% extends "base.html" %}
+{% block title %}Guida - Salone Nadia{% endblock %}
+
+{% block content %}
+{# La guida per chi lavora in salone. Sta nel pannello, dietro il login, e non
+   sul sito pubblico: parla di come si usa il pannello e nomina l'account
+   Google del salone. Il testo è lo stesso della pagina consegnata come
+   artefatto; il CSS è confinato sotto .guida per non litigare con style.css. #}
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Public+Sans:wght@400;500;600&display=swap">
+<style>
+  .guida {
+    --ground: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #1f2a36;
+    --muted: #6a7683;
+    --line: #dde3ea;
+    --accent: #2f6fa3;
+    --accent-ink: #ffffff;
+    --pill: #2c3e50;
+    --pill-ink: #ffffff;
+    --bubble-in: #ffffff;
+    --bubble-out: #dcf4d2;
+    --bubble-line: #d5dbe2;
+    --note-bg: #fff7e6;
+    --note-line: #e6c98a;
+    --note-ink: #6b4d0a;
+    --code-bg: #eef1f5;
+  }
+  
+
+  .guida a { color: var(--accent); }
+  .guida a:focus-visible, .guida button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .guida .pagina { max-width: 68ch; margin: 0 auto; padding: 2.5rem 1.2rem 5rem; }
+
+  .guida header.testata { border-bottom: 1px solid var(--line); padding-bottom: 1.6rem; margin-bottom: 2rem; }
+  .guida .sopratitolo {
+    font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; margin: 0 0 0.6rem;
+  }
+  .guida h1, .guida h2, .guida h3 {
+    font-family: "Newsreader", Georgia, "Times New Roman", serif;
+    font-weight: 500; line-height: 1.15; text-wrap: balance; margin: 0;
+  }
+  .guida h1 { font-size: 2.5rem; font-variation-settings: "opsz" 72; }
+  .guida h2 { font-size: 1.8rem; margin: 3rem 0 0.9rem; padding-top: 2.2rem; border-top: 1px solid var(--line); }
+  .guida h3 { font-size: 1.28rem; margin: 2rem 0 0.5rem; }
+  .guida .testata p { margin: 0.8rem 0 0; color: var(--muted); max-width: 52ch; }
+  .guida p { margin: 0 0 1rem; }
+  .guida ul, .guida ol { margin: 0 0 1rem; padding-left: 1.3rem; }
+  .guida li { margin-bottom: 0.35rem; }
+  .guida strong { font-weight: 600; }
+
+  /* Indice */
+  .guida nav.indice { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 1.1rem 1.3rem; margin-bottom: 2.4rem; }
+  .guida nav.indice .sopratitolo { margin-bottom: 0.5rem; }
+  .guida nav.indice ol { margin: 0; padding-left: 1.2rem; columns: 2; column-gap: 2rem; }
+  .guida nav.indice li { break-inside: avoid; margin-bottom: 0.25rem; }
+  .guida nav.indice a { text-decoration: none; }
+  .guida nav.indice a:hover { text-decoration: underline; }
+  @media (max-width: 560px) { nav.indice ol { columns: 1; } }
+
+  /* La voce di menù così com'è nel pannello: chi legge deve riconoscerla
+     a colpo d'occhio, quindi riprende lo stesso blu scuro della barra. */
+  .guida .voce-menu {
+    display: inline-block; background: var(--pill); color: var(--pill-ink);
+    font-size: 0.8rem; font-weight: 600; letter-spacing: 0.04em;
+    padding: 0.25rem 0.7rem; border-radius: 4px; margin: 0 0 0.9rem;
+  }
+  .guida .voce-menu small { font-weight: 400; opacity: 0.75; margin-right: 0.4rem; letter-spacing: 0; }
+
+  /* I bottoni come sono scritti sullo schermo */
+  .guida kbd {
+    font: inherit; font-size: 0.92em; font-weight: 500;
+    background: var(--code-bg); border: 1px solid var(--line); border-bottom-width: 2px;
+    border-radius: 4px; padding: 0.05rem 0.45rem; white-space: nowrap;
+  }
+
+  /* Cosa vede il cliente: una chat, perché è quello che vede */
+  .guida .chat {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+    padding: 0.9rem 1rem; margin: 1.2rem 0 1.4rem;
+    display: flex; flex-direction: column; gap: 0.45rem;
+  }
+  .guida .chat .chi { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin-bottom: 0.2rem; }
+  .guida .chat .msg { max-width: 85%; padding: 0.5rem 0.8rem; border-radius: 12px; border: 1px solid var(--bubble-line); font-size: 0.95rem; line-height: 1.45; }
+  .guida .chat .bot { background: var(--bubble-in); align-self: flex-start; border-bottom-left-radius: 3px; }
+  .guida .chat .cliente { background: var(--bubble-out); align-self: flex-end; border-bottom-right-radius: 3px; }
+
+  .guida .nota {
+    background: var(--note-bg); border: 1px solid var(--note-line); color: var(--note-ink);
+    border-radius: 8px; padding: 0.9rem 1.1rem; margin: 1.2rem 0 1.4rem;
+  }
+  .guida .nota strong { color: inherit; }
+  .guida .nota p:last-child { margin-bottom: 0; }
+
+  /* Un fatto alla volta, in griglia: le tre regole si guardano, non si leggono */
+  .guida .regole { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.8rem; margin: 1.4rem 0 1.6rem; }
+  .guida .regola { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 0.9rem 1rem; }
+  .guida .regola .numero { font-family: "Newsreader", Georgia, serif; font-size: 2rem; line-height: 1; color: var(--accent); font-weight: 500; }
+  .guida .regola p { margin: 0.35rem 0 0; font-size: 0.93rem; line-height: 1.45; }
+  @media (max-width: 600px) { .regole { grid-template-columns: 1fr; } }
+
+  .guida table { width: 100%; border-collapse: collapse; margin: 1rem 0 1.4rem; font-size: 0.95rem; }
+  .guida th, .guida td { text-align: left; padding: 0.55rem 0.6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  .guida th { font-size: 0.75rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .guida .tabella-scorre { overflow-x: auto; }
+
+  .guida footer { margin-top: 4rem; padding-top: 1.4rem; border-top: 1px solid var(--line); color: var(--muted); font-size: 0.9rem; }
+  .guida {
+    font-family: "Public Sans", "Segoe UI", system-ui, sans-serif;
+    font-size: 17px; line-height: 1.6; color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+  .guida .pagina { max-width: 68ch; margin: 0 auto; padding: 0.5rem 0 3rem; }
+</style>
+
+<div class="guida"><div class="pagina">
+
+<header class="testata">
+  <p class="sopratitolo">Salone Nadia · Guida all'uso</p>
+  <h1>L'assistente che prende gli appuntamenti</h1>
+  <p>Come funziona, cosa vedono i clienti e cosa trovate nel pannello. Scritta per chi lavora in salone, non per chi programma.</p>
+</header>
+
+<nav class="indice">
+  <p class="sopratitolo">In questa guida</p>
+  <ol>
+    <li><a href="#cosa">Cos'è e cosa fa</a></li>
+    <li><a href="#cliente">Cosa vede il cliente</a></li>
+    <li><a href="#entrare">Entrare nel pannello</a></li>
+    <li><a href="#appuntamenti">Appuntamenti</a></li>
+    <li><a href="#conversazioni">Conversazioni</a></li>
+    <li><a href="#clienti">Clienti</a></li>
+    <li><a href="#listino">Listino</a></li>
+    <li><a href="#operatori">Operatori</a></li>
+    <li><a href="#presenze">Presenze</a></li>
+    <li><a href="#assenze">Assenze</a></li>
+    <li><a href="#calendar">Google Calendar</a></li>
+    <li><a href="#problemi">Se qualcosa non torna</a></li>
+  </ol>
+</nav>
+
+<h2 id="cosa" style="border-top:none;padding-top:0;margin-top:0">Cos'è e cosa fa</h2>
+
+<p>Il salone ha un assistente automatico che risponde ai clienti su <strong>WhatsApp</strong>, al numero <strong>+39 351 639 5494</strong>, e nella <strong>chat del sito</strong>. Si presenta come Nadia e lavora da solo, a qualsiasi ora, senza che nessuno debba stare al telefono.</p>
+
+<p>Quello che sa fare per un cliente:</p>
+<ul>
+  <li><strong>Prendere un appuntamento.</strong> Chiede quale servizio vuole, che giorno, gli propone gli orari liberi e poi con chi vuole stare fra chi è disponibile a quell'ora.</li>
+  <li><strong>Spostarlo o disdirlo.</strong> Riconosce l'appuntamento del cliente e lo cambia o lo cancella, avvisandolo per email.</li>
+  <li><strong>Dirgli quando ha l'appuntamento</strong>, se non se lo ricorda.</li>
+  <li><strong>Passare la parola a voi</strong>, quando chiede di parlare con una persona. Da quel momento risponde il salone, dal pannello.</li>
+</ul>
+
+<p>Quello che non fa, di proposito: non inventa prezzi né sconti, non risponde di cose che non riguardano il salone, e non prende mai un appuntamento senza prima aver controllato che il posto sia davvero libero.</p>
+
+<p>Ogni appuntamento finisce in due posti insieme: nel <strong>pannello</strong> e sul <strong>calendario Google</strong> dell'operatore. Sono la stessa cosa vista da due parti, e ne parliamo alla fine.</p>
+
+<div class="regole">
+  <div class="regola"><div class="numero">30</div><p><strong>giorni</strong> in avanti al massimo. Più in là il bot dice che non si può ancora.</p></div>
+  <div class="regola"><div class="numero">2</div><p><strong>ore</strong> di preavviso, sia per prenotare sia per disdire. Sotto, invita a telefonare.</p></div>
+  <div class="regola"><div class="numero">1</div><p><strong>appuntamento</strong> per volta per cliente. Chi ne ha già uno in programma può spostarlo, non aggiungerne un altro.</p></div>
+</div>
+
+<h2 id="cliente">Cosa vede il cliente</h2>
+
+<p>Una conversazione normale, come con una persona. Il bot fa una domanda alla volta, e quando ci sono cose da scegliere le mostra come bottoni da toccare.</p>
+
+<div class="chat">
+  <div class="chi">Su WhatsApp</div>
+  <div class="msg cliente">Vorrei prenotare un taglio</div>
+  <div class="msg bot">Volentieri! Quale preferisci? Taglio · Taglio + Shampoo · Taglio + Barba · Taglio + Shampoo + Barba</div>
+  <div class="msg cliente">Taglio + Barba</div>
+  <div class="msg bot">Che giorno ti va bene?</div>
+  <div class="msg cliente">Giovedì</div>
+  <div class="msg bot">Giovedì 10 settembre ho posto alle 09:30, 11:00, 15:00 e 17:30. Quale preferisci?</div>
+</div>
+
+<p>Quando all'orario scelto sono liberi più operatori, il bot mostra le loro <strong>foto</strong> e fa scegliere, con in fondo la voce "Indifferente" per chi non ha preferenze.</p>
+
+<p>Su WhatsApp il bot <strong>riconosce chi ha già prenotato</strong> dal numero: non richiede nome e cognome a chi viene da anni. Dal sito invece non sa chi sta scrivendo, quindi per vedere o disdire i propri appuntamenti il cliente deve confermare la propria email con un codice a sei cifre che gli arriva per posta.</p>
+
+<p>Il cliente riceve un'<strong>email</strong> alla conferma, allo spostamento e alla disdetta, se ha lasciato l'indirizzo. Su WhatsApp l'indirizzo non è obbligatorio.</p>
+
+<div class="nota">
+  <p><strong>Se un cliente si impunta o il bot non lo segue più</strong>, gli basta scrivere <em>ricominciamo da capo</em>: la conversazione riparte pulita. Oppure può chiedere di parlare con una persona, e a quel punto tocca a voi (vedi <a href="#conversazioni">Conversazioni</a>).</p>
+</div>
+
+<h2 id="entrare">Entrare nel pannello</h2>
+
+<p>Il pannello è all'indirizzo <strong>salone-nadia-bot.onrender.com/admin</strong>. Funziona anche dal telefono. Si entra con utente e password del salone; se le avete dimenticate, chi gestisce il sistema può reimpostarle.</p>
+
+<p>In alto c'è il menù con le sette schermate. Qui sotto sono spiegate una per una, nell'ordine in cui compaiono.</p>
+
+<h2 id="appuntamenti">Appuntamenti</h2>
+<span class="voce-menu"><small>menù</small>Appuntamenti</span>
+
+<p>È la schermata di lavoro di tutti i giorni: <strong>la giornata di oggi</strong>, con gli appuntamenti in ordine di ora.</p>
+
+<p>Sopra c'è la <strong>striscia dei sette giorni</strong>, come in un'agenda. Il giorno di oggi ha il numero cerchiato in rosso; sotto ogni giorno c'è quanti appuntamenti ha, oppure "chiuso" o "libero". Si tocca un giorno per vederlo, e le frecce ai lati spostano di una settimana. Per una data lontana c'è il campo <kbd>Vai a un'altra data</kbd>.</p>
+
+<p>Per ogni appuntamento vedete ora, cliente (con il telefono), servizi, prezzo pattuito, operatore e le richieste particolari che il cliente ha scritto. In fondo, il <strong>totale della giornata</strong>.</p>
+
+<p>Il bottone <kbd>Disdici</kbd> cancella l'appuntamento: lo toglie dal pannello <em>e</em> dal calendario Google, e manda al cliente l'email di disdetta. Chiede conferma prima di farlo.</p>
+
+<div class="nota">
+  <p><strong>Se un cliente telefona per disdire</strong>, fatelo da qui e non dal calendario Google: solo così il cliente riceve l'email e il pannello resta in ordine. Il perché è spiegato nella parte su <a href="#calendar">Google Calendar</a>.</p>
+</div>
+
+<h2 id="conversazioni">Conversazioni</h2>
+<span class="voce-menu"><small>menù</small>Conversazioni</span>
+
+<p>Qui compaiono i clienti che hanno chiesto di <strong>parlare con una persona</strong>. Quando succede, il bot dice al cliente che ha passato la richiesta e <strong>smette di rispondergli</strong>: da quel momento su quel numero risponde solo il salone. Arriva anche un'email di avviso alla casella del salone, così non serve tenere il pannello aperto.</p>
+
+<p>L'elenco mostra chi aspetta, da quanto, e cosa ha chiesto. Toccando una riga si apre la conversazione: si legge quello che il cliente si era già detto col bot, e in fondo c'è la casella per rispondere. Quello che scrivete arriva al cliente su WhatsApp, dal numero del salone. I messaggi nuovi del cliente compaiono da soli, senza ricaricare la pagina.</p>
+
+<p>Quando avete finito, <kbd>Ho finito, ridai la conversazione al bot</kbd>: da lì in poi il cliente torna a parlare con l'assistente. Se nessuno risponde per un giorno intero, il bot riprende da solo, così il cliente non resta senza risposta.</p>
+
+<div class="nota">
+  <p><strong>Si può scrivere solo entro 24 ore dall'ultimo messaggio del cliente.</strong> È una regola di WhatsApp, non nostra. La pagina dice quanto manca, e quando le 24 ore sono passate toglie la casella: a quel punto o gli telefonate, o aspettate che riscriva lui — al suo prossimo messaggio si può di nuovo rispondere.</p>
+</div>
+
+<h2 id="clienti">Clienti</h2>
+<span class="voce-menu"><small>menù</small>Clienti</span>
+
+<p>L'elenco di chi ha prenotato almeno una volta, con una casella per cercare per <strong>nome, cognome, telefono o email</strong>. Ogni riga dice da dove è arrivato (WhatsApp o sito), la prima e l'ultima visita.</p>
+
+<p>Toccando un cliente si apre la sua <strong>scheda</strong>: i contatti, le note private e lo storico di tutti gli appuntamenti con il loro stato. Le note private le vedete solo voi — servono per ricordarsi una preferenza o un'allergia.</p>
+
+<h2 id="listino">Listino</h2>
+<span class="voce-menu"><small>menù</small>Listino</span>
+
+<p>I servizi che il bot propone, con prezzo e durata. Ogni riga si modifica sul posto e si conferma con <kbd>Salva</kbd>; in fondo si aggiunge un servizio nuovo con <kbd>Aggiungi</kbd>. Le modifiche valgono <strong>subito</strong>: il bot usa il prezzo nuovo dal messaggio dopo.</p>
+
+<div class="tabella-scorre">
+<table>
+  <tr><th>Campo</th><th>A cosa serve</th></tr>
+  <tr><td>Ordine</td><td>La posizione nell'elenco che il bot mostra. Mettete per primi i servizi più richiesti.</td></tr>
+  <tr><td>Nome</td><td>Come lo chiama il bot e come compare sul sito.</td></tr>
+  <tr><td>Prezzo</td><td>In euro. Si scrive 13,50 come lo scrivereste a mano.</td></tr>
+  <tr><td>Durata</td><td>In minuti. È lo spazio che l'appuntamento occupa in agenda: un colore da due ore blocca due ore, non mezz'ora.</td></tr>
+  <tr><td>Altri nomi</td><td>Come lo chiamano i clienti: "taglio e barba", "taglio+barba". Aiuta il bot a capire al volo.</td></tr>
+</table>
+</div>
+
+<p>Un servizio che non fate più non si cancella: si <kbd>Sospendi</kbd>. Sparisce dalle scelte del bot ma resta negli appuntamenti già presi, che altrimenti diventerebbero illeggibili. Si può sempre <kbd>Riattiva</kbd>re.</p>
+
+<div class="nota">
+  <p><strong>Le combinazioni non sommano le durate.</strong> "Taglio + Barba" dura 30 minuti perché è una voce del listino a sé, con la sua durata. Se aggiungete una combinazione nuova, datele la durata reale.</p>
+</div>
+
+<h2 id="operatori">Operatori</h2>
+<span class="voce-menu"><small>menù</small>Operatori</span>
+
+<p>Chi lavora in salone. Per ognuno: il nome, che è quello che il bot dice ai clienti; il calendario Google collegato; e la <strong>foto</strong>, quella che il cliente vede quando sceglie con chi stare.</p>
+
+<p>Per la foto, scegliete un file dal telefono: si apre un riquadro dove <strong>trascinate e ingrandite</strong> il viso dentro il tondo, esattamente come lo vedrà il cliente, poi <kbd>Usa questa</kbd>. Finché un operatore non ha la foto, al suo posto compare un disco colorato con le iniziali.</p>
+
+<p>Chi lascia il salone non si cancella: si <kbd>Metti a riposo</kbd>. Il bot smette di proporlo, ma i suoi appuntamenti passati restano leggibili. <kbd>Rimetti in servizio</kbd> lo riporta fra le scelte. Chi arriva si aggiunge in fondo con <kbd>Aggiungi</kbd>: serve un calendario Google dedicato, che chi gestisce il sistema può preparare.</p>
+
+<h2 id="presenze">Presenze</h2>
+<span class="voce-menu"><small>menù</small>Presenze</span>
+
+<p>Quando il salone è aperto e quando c'è ciascuno. Tre parti, dall'alto.</p>
+
+<h3>Orari del salone</h3>
+<p>I sette giorni della settimana, con la spunta "aperto" e gli orari. Con l'orario continuato basta la prima fascia; la seconda serve solo se si chiude a mezzogiorno. Togliere la spunta a un giorno lo chiude tutte le settimane. Si conferma con <kbd>Salva gli orari del salone</kbd>.</p>
+<p>Cambiare gli orari sposta tutto insieme: gli orari che il bot propone, quelli che dice a voce, quelli scritti sul sito, e le ore di chi non ha orari suoi.</p>
+
+<h3>Giorni di chiusura</h3>
+<p>Per feste, ferie o un giorno saltato: scegliete la data, scrivete un motivo se volete, e <kbd>Segna come chiuso</kbd>. In quella data il bot non propone niente. <kbd>Riapri</kbd> la toglie.</p>
+
+<div class="nota">
+  <p><strong>Chiudere un giorno non avvisa chi aveva già prenotato.</strong> Chiude la porta ai nuovi e basta. Per annullare e avvisare i clienti già in agenda si usa <a href="#assenze">Assenze</a>, un operatore per volta.</p>
+</div>
+
+<h3>Chi c'è, giorno per giorno</h3>
+<p>Per ogni operatore, in quali giorni e a che ore è in salone. Finché non salvate niente, un operatore <strong>segue gli orari del salone</strong>, e i campi ve li mostrano già così. Se qualcuno fa il part-time o non c'è il mercoledì, si sistema qui e si salva: da quel momento il bot lo propone solo quando c'è davvero.</p>
+<p>Questa parte è per le abitudini che si ripetono ogni settimana. Per un giorno singolo — una malattia, un imprevisto — non si cambia qui: c'è Assenze.</p>
+
+<h2 id="assenze">Assenze</h2>
+<span class="voce-menu"><small>menù</small>Assenze</span>
+
+<p>Da usare quando un operatore <strong>salta una giornata all'improvviso</strong> e ha già appuntamenti presi.</p>
+
+<ol>
+  <li>Scegliete chi manca e il giorno, poi <kbd>Vedi gli appuntamenti di quel giorno</kbd>.</li>
+  <li>La pagina mostra l'elenco dei clienti che verrebbero annullati, con come li avviseremo.</li>
+  <li>Solo sotto quell'elenco compare il bottone per confermare.</li>
+</ol>
+
+<p>Confermando, gli appuntamenti vengono annullati, tolti dal calendario Google, e ai clienti parte un'email diversa da quella della disdetta normale: qui la colpa non è loro, e il salone si scusa. Alla fine la pagina dice quanti sono stati avvisati e, soprattutto, <strong>chi va chiamato a mano</strong> perché non ha lasciato un'email — con il numero di telefono accanto.</p>
+
+<h2 id="calendar">Google Calendar</h2>
+
+<p>Ogni operatore ha un <strong>calendario Google suo</strong>, condiviso con l'account Google del salone. Si vedono tutti insieme nell'app Google Calendar sul telefono, ognuno con il suo colore, e si possono spegnere e accendere uno per uno.</p>
+
+<p>Quando il bot prende un appuntamento, lo scrive lì: il titolo è il nome del cliente e il servizio, la durata è quella del listino. Se lo sposta o lo disdice, aggiorna anche il calendario. Quindi sul telefono avete sempre l'agenda vera, senza aprire il pannello.</p>
+
+<h3>L'account Google del salone</h3>
+
+<p>I calendari appartengono all'account <strong>parrucchiere.bot.test@gmail.com</strong>. È lo stesso da cui partono le email ai clienti e dove arrivano gli avvisi quando qualcuno chiede di parlare con una persona. La password ve la comunica chi gestisce il sistema: non è scritta qui apposta, perché questa pagina la può leggere chiunque entri nel pannello.</p>
+
+<p>Il modo migliore per vedere l'agenda sul proprio telefono è però un altro, e non richiede nessuna password condivisa: da quell'account si <strong>condividono i sei calendari con l'account Google di ciascuno</strong> di voi. Ognuno li vede nella propria app Google Calendar, accanto ai suoi impegni, e se un giorno qualcuno lascia il salone basta togliergli la condivisione.</p>
+
+<h3>Una regola che vale in tutte e due le direzioni</h3>
+
+<p><strong>Tutto quello che è sul calendario, per il bot è occupato.</strong> Non guarda solo i suoi appuntamenti: guarda ogni evento.</p>
+
+<p>Questo è comodo: se un cliente prenota <strong>al telefono o di persona</strong>, scrivetelo sul calendario dell'operatore come un evento normale, con la durata giusta, e il bot non darà quell'ora a nessun altro. Lo stesso per una pausa, una visita, un pomeriggio libero: un evento sul calendario, e per il bot quello spazio non esiste.</p>
+
+<div class="nota">
+  <p><strong>Non cancellate dal calendario gli appuntamenti presi dal bot.</strong> Se lo fate, il cliente non riceve nessuna email e nel pannello l'appuntamento risulta ancora confermato: lui si presenta, e per voi era stato tolto. Per disdire si usa <kbd>Disdici</kbd> in Appuntamenti, che fa tutte e tre le cose — pannello, calendario, email — in un colpo solo.</p>
+</div>
+
+<p>Spostare a mano un evento del bot sul calendario funziona a metà per lo stesso motivo: il bot vede l'ora nuova come occupata, ma il cliente non lo sa e il pannello mostra ancora l'ora vecchia. Se un cliente chiede di spostare, meglio dirgli di scriverlo al bot, oppure disdire e rifare.</p>
+
+<h2 id="problemi">Se qualcosa non torna</h2>
+
+<div class="tabella-scorre">
+<table>
+  <tr><th>Cosa succede</th><th>Da dove cominciare</th></tr>
+  <tr><td>Il bot non risponde a un cliente</td><td>Guardate <strong>Conversazioni</strong>: se quel cliente ha una conversazione aperta, il bot tace apposta finché non la chiudete.</td></tr>
+  <tr><td>Il bot propone orari in cui siete chiusi, o non ne propone in cui siete aperti</td><td><strong>Presenze</strong>, orari del salone e giorni di chiusura. Poi le ore del singolo operatore.</td></tr>
+  <tr><td>Un operatore non viene mai proposto</td><td><strong>Operatori</strong>: è in servizio? Poi <strong>Presenze</strong>: ha ore in quel giorno? Poi il suo calendario: è pieno?</td></tr>
+  <tr><td>Il bot dice un prezzo sbagliato</td><td><strong>Listino</strong>. La modifica vale subito.</td></tr>
+  <tr><td>Un cliente non ha ricevuto l'email</td><td>Ha lasciato l'indirizzo? Lo vedete nella sua scheda in <strong>Clienti</strong>. Su WhatsApp non è obbligatorio.</td></tr>
+  <tr><td>Un cliente dice che il bot "non lo capisce"</td><td>Può scrivere <em>ricominciamo da capo</em>, oppure chiedere di parlare con una persona: arriva a voi in <strong>Conversazioni</strong>.</td></tr>
+</table>
+</div>
+
+<footer>
+  Salone Nadia · settembre 2026. Se qualcosa in questa guida non corrisponde a quello che vedete sullo schermo, è la guida a essere indietro: ditelo a chi gestisce il sistema.
+</footer>
+
+</div></div>
+{% endblock %}
