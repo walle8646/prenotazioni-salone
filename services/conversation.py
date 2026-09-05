@@ -24,6 +24,14 @@ from prompts.system_prompt import (
     get_parrucchieri_map_cached,
 )
 from services.channels import Channel, MetaWhatsAppChannel, WebChannel
+from services.operatore_umano import (
+    MESSAGGIO_PASSAGGIO,
+    MESSAGGIO_PASSAGGIO_WEB,
+    MESSAGGIO_PASSAGGIO_WEB_SENZA_NUMERO,
+    passaggio_dimenticato,
+    storico_da_salvare,
+    vuole_una_persona,
+)
 from services.operatori import PREFISSO_NON_CONFIGURATO
 from services.session_manager import get_session, new_session, save_session
 
@@ -98,6 +106,114 @@ async def _ricomincia(redis, session_key: str, channel: Channel) -> None:
     )
     await save_session(redis, session_key, sessione)
     await channel.send_text(session_key, MESSAGGIO_RICOMINCIATO)
+
+
+async def _in_mano_a_una_persona(phone: str, text: str, backends) -> bool:
+    """True se su questo numero deve rispondere una persona e non il bot.
+
+    Registra anche il messaggio appena arrivato, perché è quello che la
+    receptionist leggerà nel pannello.
+
+    Se il database non risponde si torna False e il bot parla: una risposta
+    doppia è spiacevole, il silenzio totale è peggio — il cliente non ha modo
+    di sapere che qualcuno lo sta leggendo.
+    """
+    try:
+        conversazione = await backends.conversazione_operatore_aperta(phone)
+    except Exception:  # noqa: BLE001
+        logger.exception("Non riesco a sapere se %s è in mano a una persona", phone)
+        return False
+
+    if not conversazione:
+        return False
+
+    from datetime import datetime
+
+    if passaggio_dimenticato(conversazione, datetime.now()):
+        # Nessuno ha risposto per troppo tempo: il bot riprende, altrimenti il
+        # cliente resta a scrivere a un numero che tace per sempre.
+        logger.warning(
+            "Passaggio a operatore dimenticato per %s, il bot riprende", phone
+        )
+        await backends.chiudi_conversazione_operatore(conversazione["id"])
+        return False
+
+    await backends.registra_messaggio_conversazione(
+        conversazione["id"], "cliente", text or "[messaggio senza testo]"
+    )
+    return True
+
+
+async def _chiudi_passaggio_se_aperto(phone: str, backends) -> None:
+    """Restituisce la conversazione al bot, se era in mano a qualcuno."""
+    try:
+        conversazione = await backends.conversazione_operatore_aperta(phone)
+        if conversazione:
+            await backends.chiudi_conversazione_operatore(conversazione["id"])
+    except Exception:  # noqa: BLE001
+        logger.warning("Chiusura del passaggio non riuscita per %s", phone, exc_info=True)
+
+
+async def _passa_a_operatore(
+    session_key: str,
+    session: dict,
+    channel: Channel,
+    backends,
+    motivo: str | None = None,
+) -> None:
+    """Fa da parte il bot e mette la conversazione in coda nel pannello.
+
+    Sul sito non si passa niente a nessuno: la receptionist risponde da
+    WhatsApp, e una pagina che il cliente ha chiuso non si può richiamare.
+    Meglio dargli il numero che lasciarlo ad aspettare una risposta che non
+    arriverà.
+
+    Quello che distingue i due casi non è il nome del canale — nel simulatore e
+    nei test se ne chiamano altri — ma se in mano resta un recapito a cui
+    riscrivere domani.
+    """
+    if channel.name == "web" or _dal_sito(session_key):
+        from config import settings
+
+        testo = (
+            MESSAGGIO_PASSAGGIO_WEB.format(telefono=settings.salone_telefono)
+            if settings.salone_telefono
+            else MESSAGGIO_PASSAGGIO_WEB_SENZA_NUMERO
+        )
+        session["history"].append({"role": "assistant", "content": testo})
+        await channel.send_text(session_key, testo)
+        return
+
+    try:
+        conversazione = await backends.apri_conversazione_operatore(
+            telefono=session_key,
+            canale="whatsapp",
+            nome_visualizzato=session["dati_temp"].get("nome_profilo_wa")
+            or session["dati_temp"].get("nome"),
+            motivo=motivo,
+            # Senza gli ultimi scambi la receptionist legge "va bene allora" e
+            # non sa a cosa si riferisca.
+            storico=storico_da_salvare(session["history"]),
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("Passaggio a una persona non riuscito per %s", session_key)
+        await channel.send_text(session_key, MESSAGGIO_FALLBACK)
+        return
+
+    session["history"].append({"role": "assistant", "content": MESSAGGIO_PASSAGGIO})
+    await channel.send_text(session_key, MESSAGGIO_PASSAGGIO)
+
+    # L'avviso al salone è la differenza fra una funzione che si usa e una che
+    # funziona solo per chi si ricorda di aprire il pannello. Se non parte, la
+    # conversazione è comunque già registrata.
+    try:
+        await backends.send_handoff_email(
+            telefono=session_key,
+            nome=conversazione.get("nome_visualizzato"),
+            motivo=motivo,
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Avviso di passaggio non inviato", exc_info=True)
 
 
 async def _claude_reale(system_prompt: str, history: list[dict]) -> str:
@@ -311,6 +427,17 @@ async def _run_turn(session_key, session, channel, backends, claude) -> None:
             await deliver(channel, session_key, pre_text)
             risposta_inviata = True
 
+        # Il passaggio a una persona non è un'azione come le altre: chiude il
+        # turno invece di produrre un risultato da rimandare al modello. Ed è il
+        # codice a scrivere la frase, non Claude — chi sta chiedendo aiuto deve
+        # sentirsi dire sempre la stessa cosa, non una variazione sul tema.
+        if action.get("action") == "PASSA_A_OPERATORE":
+            await _passa_a_operatore(
+                session_key, session, channel, backends, motivo=action.get("motivo")
+            )
+            risposta_inviata = True
+            break
+
         result = await execute_action(action, session_key, session, backends)
         session["history"].append({"role": "assistant", "content": response})
         session["history"].append(
@@ -352,7 +479,15 @@ async def handle_incoming_message(
         return
 
     if vuole_ricominciare(text):
+        # Vale anche come via d'uscita da un passaggio a una persona: se il
+        # cliente cambia idea non deve restare in coda ad aspettare qualcuno.
+        await _chiudi_passaggio_se_aperto(phone, backends)
         await _ricomincia(redis, phone, channel)
+        return
+
+    # Prima di tutto il resto, e prima di spendere un solo token: se la
+    # conversazione è in mano a una persona il bot non deve dire niente.
+    if await _in_mano_a_una_persona(phone, text, backends):
         return
 
     session = await get_session(redis, phone)
@@ -371,6 +506,15 @@ async def handle_incoming_message(
     session["history"].append(
         {"role": "user", "content": text or "[immagine senza didascalia]"}
     )
+
+    # Come per `vuole_ricominciare()`, il riconoscimento sta nel codice e non
+    # solo nel prompt: è l'ultima via d'uscita di chi non sta ottenendo quello
+    # che vuole, e non può dipendere da quanto bene il modello se la ricorda in
+    # fondo a una conversazione lunga.
+    if vuole_una_persona(text, list(get_parrucchieri_map_cached())):
+        await _passa_a_operatore(phone, session, channel, backends, motivo=text)
+        await save_session(redis, phone, session)
+        return
 
     try:
         await _run_turn(phone, session, channel, backends, claude)
@@ -462,6 +606,14 @@ async def handle_incoming_message_web(
         session["dati_temp"]["email"] = email
 
     session["history"].append({"role": "user", "content": text})
+
+    # Dal sito non si passa a nessuno, ma la richiesta va comunque riconosciuta:
+    # rispondere il numero del salone è meglio che continuare a proporre orari a
+    # chi ha appena detto che vuole parlare con una persona.
+    if vuole_una_persona(text, list(get_parrucchieri_map_cached())):
+        await _passa_a_operatore(session_id, session, channel, backends, motivo=text)
+        await save_session(redis, session_id, session)
+        return channel.payload()
 
     try:
         await _run_turn(session_id, session, channel, backends, claude)

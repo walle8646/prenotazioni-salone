@@ -73,6 +73,10 @@ class FakeBackends(Backends):
         self.email_spostamenti: list[dict] = []
         self.foto_salvate: list[str] = []
         self.giorni_chiusi: set[str] = set()
+        # Le conversazioni passate a una persona, con dentro il loro scambio:
+        # nei finti stanno insieme, in database sono due tabelle.
+        self.conversazioni_operatore: list[dict] = []
+        self.email_handoff: list[dict] = []
         self._contatore = 0
 
     # ---------------------------------------------------------------- utility
@@ -325,6 +329,70 @@ class FakeBackends(Backends):
                 "parrucchiere": parrucchiere,
                 "servizi": servizi,
             }
+        )
+
+    # ------------------------------------ passaggio della conversazione a una persona
+
+    async def conversazione_operatore_aperta(self, telefono):
+        for conversazione in reversed(self.conversazioni_operatore):
+            if conversazione["telefono"] == telefono and conversazione["stato"] != "chiusa":
+                return conversazione
+        return None
+
+    async def apri_conversazione_operatore(
+        self, telefono, canale="whatsapp", nome_visualizzato=None, motivo=None,
+        storico=None,
+    ):
+        gia_aperta = await self.conversazione_operatore_aperta(telefono)
+        if gia_aperta:
+            return gia_aperta
+
+        adesso = datetime.now()
+        conversazione = {
+            "id": len(self.conversazioni_operatore) + 1,
+            "telefono": telefono,
+            "canale": canale,
+            "cliente_id": None,
+            "nome_visualizzato": nome_visualizzato,
+            "stato": "attesa",
+            "motivo": motivo,
+            "aperta_il": adesso,
+            "ultimo_messaggio_cliente": adesso,
+            "presa_il": None,
+            "chiusa_il": None,
+            "messaggi": [
+                {"autore": autore, "testo": testo, "creato_il": adesso}
+                for autore, testo in (storico or ())
+            ],
+        }
+        self.conversazioni_operatore.append(conversazione)
+        return conversazione
+
+    async def registra_messaggio_conversazione(self, conversazione_id, autore, testo):
+        for conversazione in self.conversazioni_operatore:
+            if conversazione["id"] != conversazione_id:
+                continue
+            adesso = datetime.now()
+            conversazione["messaggi"].append(
+                {"autore": autore, "testo": testo, "creato_il": adesso}
+            )
+            if autore == "cliente":
+                conversazione["ultimo_messaggio_cliente"] = adesso
+            elif autore == "operatore":
+                conversazione["stato"] = "presa"
+                conversazione["presa_il"] = adesso
+            return
+
+    async def chiudi_conversazione_operatore(self, conversazione_id):
+        for conversazione in self.conversazioni_operatore:
+            if conversazione["id"] == conversazione_id:
+                conversazione["stato"] = "chiusa"
+                conversazione["chiusa_il"] = datetime.now()
+                return
+
+    async def send_handoff_email(self, telefono, nome, motivo):
+        self.email_handoff.append(
+            {"telefono": telefono, "nome": nome, "motivo": motivo}
         )
 
 

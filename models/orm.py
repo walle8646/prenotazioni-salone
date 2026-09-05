@@ -119,3 +119,61 @@ class Appuntamento(Base):
     # Relazioni
     cliente = relationship("Cliente", back_populates="appuntamenti")
     parrucchiere = relationship("Parrucchiere", back_populates="appuntamenti")
+
+
+class ConversazioneOperatore(Base):
+    """Una conversazione che il bot ha passato a una persona.
+
+    Finché ne esiste una aperta per un numero, il bot su quel numero tace: due
+    risposte diverse alla stessa domanda, una del bot e una della receptionist,
+    sono peggio di una risposta lenta.
+
+    Il telefono è la chiave e non il cliente: chi chiede di parlare con
+    qualcuno spesso non è ancora in anagrafica, e proprio per quello scrive.
+    """
+
+    __tablename__ = "conversazioni_operatore"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    telefono = Column(String(64), nullable=False, index=True)
+    canale = Column(String(20), nullable=False, default="whatsapp")
+    cliente_id = Column(Integer, ForeignKey("clienti.id"), nullable=True)
+    # Il nome del profilo WhatsApp: serve al pannello quando il cliente non è
+    # ancora in anagrafica e c'è solo un numero da guardare.
+    nome_visualizzato = Column(String(120))
+    stato = Column(String(20), nullable=False, default="attesa", index=True)
+    # La frase con cui il cliente ha chiesto una persona: è la prima cosa che
+    # la receptionist vuole leggere, prima ancora di aprire lo scambio.
+    motivo = Column(Text)
+    aperta_il = Column(DateTime, nullable=False, default=datetime.now, index=True)
+    # Ultimo messaggio ARRIVATO dal cliente. Da qui si calcola se la finestra
+    # di 24 ore di WhatsApp è ancora aperta: fuori da quella non si può
+    # scrivere testo libero, e la schermata deve dirlo prima di far scrivere.
+    ultimo_messaggio_cliente = Column(DateTime, nullable=False, default=datetime.now)
+    presa_il = Column(DateTime)
+    chiusa_il = Column(DateTime)
+
+    cliente = relationship("Cliente")
+
+
+class MessaggioConversazione(Base):
+    """Una riga dello scambio, salvata solo per le conversazioni passate a una persona.
+
+    Le conversazioni normali col bot restano dove sono sempre state, nella
+    sessione Redis che scade da sola: registrarle tutte in database vorrebbe
+    dire conservare a tempo indeterminato ogni parola detta da ogni cliente,
+    che non è quello che l'informativa promette. Qui si salva solo ciò che una
+    persona deve poter leggere per rispondere.
+    """
+
+    __tablename__ = "messaggi_conversazione"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    conversazione_id = Column(
+        Integer, ForeignKey("conversazioni_operatore.id"), nullable=False, index=True
+    )
+    # cliente | bot | operatore. Non "in/out": in un'unica conversazione ci
+    # sono due voci diverse che scrivono nella stessa direzione.
+    autore = Column(String(20), nullable=False)
+    testo = Column(Text, nullable=False)
+    creato_il = Column(DateTime, nullable=False, default=datetime.now, index=True)

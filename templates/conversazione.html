@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}{{ c.nome }} - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <p class="nota"><a href="/admin/conversazioni">← Tutte le conversazioni</a></p>
+
+    <h2>{{ c.nome }}</h2>
+    <p class="nota">
+        {{ c.telefono }}
+        {% if c.cliente_id %} — <a href="/admin/cliente/{{ c.cliente_id }}">scheda cliente</a>{% endif %}
+        {% if c.motivo %}<br><strong>Ha chiesto:</strong> {{ c.motivo }}{% endif %}
+    </p>
+
+    {% if esito == 'ok' %}
+    <div class="resoconto"><p>Messaggio inviato.</p></div>
+    {% elif esito == 'errore' %}
+    <div class="error">
+        <strong>WhatsApp non l'ha accettato.</strong>
+        Il messaggio non è partito e non è stato registrato. Il motivo esatto è
+        nei log del server. Se è urgente, telefona al cliente.
+    </div>
+    {% elif esito == 'canale' %}
+    <div class="error">
+        Questa conversazione arriva dal sito, non da WhatsApp: non c'è nessun
+        numero a cui scrivere. Contatta il cliente dalla sua scheda.
+    </div>
+    {% endif %}
+
+    <div class="scambio">
+        {% for m in c.messaggi %}
+        <div class="messaggio messaggio-{{ m.autore }}">
+            <div class="messaggio-autore">
+                {% if m.autore == 'cliente' %}{{ c.nome }}
+                {% elif m.autore == 'bot' %}Bot
+                {% else %}Salone{% endif %}
+                <small>{{ m.creato_il.strftime('%d/%m %H:%M') }}</small>
+            </div>
+            <div class="messaggio-testo">{{ m.testo }}</div>
+        </div>
+        {% else %}
+        <p class="empty-state">Nessun messaggio registrato.</p>
+        {% endfor %}
+    </div>
+
+    {% if c.stato == 'chiusa' %}
+    <p class="nota">
+        Conversazione chiusa: su questo numero risponde di nuovo il bot.
+    </p>
+    {% elif not c.finestra_aperta %}
+    {# WhatsApp lascia scrivere testo libero solo entro 24 ore dall'ultimo
+       messaggio del cliente. Dirlo prima, e togliere la casella, evita di far
+       scrivere una risposta che verrebbe rifiutata dopo l'invio. #}
+    <div class="error">
+        <strong>Sono passate più di 24 ore</strong> dall'ultimo messaggio del
+        cliente, e WhatsApp non lascia più scrivere testo libero a questo numero.
+        Puoi telefonargli, oppure aspettare che riscriva lui: al suo prossimo
+        messaggio la finestra si riapre.
+    </div>
+    <form method="POST" action="/admin/conversazioni/{{ c.id }}/chiudi">
+        <button type="submit" class="btn-small btn-neutro">Ridai la conversazione al bot</button>
+    </form>
+    {% else %}
+    <form class="risposta" method="POST" action="/admin/conversazioni/{{ c.id }}/rispondi">
+        <label for="testo">Rispondi come salone</label>
+        <textarea id="testo" name="testo" rows="3" required
+                  placeholder="Il messaggio arriva su WhatsApp dal numero del salone."></textarea>
+        <div class="risposta-azioni">
+            <button type="submit" class="btn-small">Invia</button>
+            <small>Si può scrivere ancora per {{ c.finestra_scade_fra }}.</small>
+        </div>
+    </form>
+
+    <form method="POST" action="/admin/conversazioni/{{ c.id }}/chiudi"
+          onsubmit="return confirm('Chiudo la conversazione? Da adesso al cliente risponde di nuovo il bot.');">
+        <button type="submit" class="btn-small btn-neutro">Ho finito, ridai la conversazione al bot</button>
+    </form>
+    {% endif %}
+</div>
+{% endblock %}

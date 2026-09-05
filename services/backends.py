@@ -98,6 +98,36 @@ class Backends:
     ) -> None:
         raise NotImplementedError
 
+    # ------------------------------------ passaggio della conversazione a una persona
+
+    async def conversazione_operatore_aperta(self, telefono: str) -> dict | None:
+        """Il passaggio ancora aperto per questo numero, se c'è."""
+        raise NotImplementedError
+
+    async def apri_conversazione_operatore(
+        self,
+        telefono: str,
+        canale: str = "whatsapp",
+        nome_visualizzato: str | None = None,
+        motivo: str | None = None,
+        storico: list | None = None,
+    ) -> dict:
+        raise NotImplementedError
+
+    async def registra_messaggio_conversazione(
+        self, conversazione_id: int, autore: str, testo: str
+    ) -> None:
+        raise NotImplementedError
+
+    async def chiudi_conversazione_operatore(self, conversazione_id: int) -> None:
+        raise NotImplementedError
+
+    async def send_handoff_email(
+        self, telefono: str, nome: str | None, motivo: str | None
+    ) -> None:
+        """Avvisa il salone che qualcuno aspetta una risposta umana."""
+        raise NotImplementedError
+
 
 class RealBackends(Backends):
     """I servizi veri: Google Calendar, PostgreSQL, Resend, WhatsApp Cloud API."""
@@ -213,4 +243,45 @@ class RealBackends(Backends):
             data_ora=data_ora,
             parrucchiere=parrucchiere,
             servizi=servizi,
+        )
+
+    async def conversazione_operatore_aperta(self, telefono):
+        from services.db_service import conversazione_operatore_aperta
+
+        return await conversazione_operatore_aperta(telefono)
+
+    async def apri_conversazione_operatore(
+        self, telefono, canale="whatsapp", nome_visualizzato=None, motivo=None,
+        storico=None,
+    ):
+        from services.db_service import apri_conversazione_operatore
+
+        return await apri_conversazione_operatore(
+            telefono=telefono,
+            canale=canale,
+            nome_visualizzato=nome_visualizzato,
+            motivo=motivo,
+            storico=storico,
+        )
+
+    async def registra_messaggio_conversazione(self, conversazione_id, autore, testo):
+        from services.db_service import registra_messaggio_conversazione
+
+        await registra_messaggio_conversazione(conversazione_id, autore, testo)
+
+    async def chiudi_conversazione_operatore(self, conversazione_id):
+        from services.db_service import chiudi_conversazione_operatore
+
+        await chiudi_conversazione_operatore(conversazione_id)
+
+    async def send_handoff_email(self, telefono, nome, motivo):
+        from config import settings
+        from services.email_service import send_handoff_email
+
+        base = (settings.public_base_url or "").rstrip("/")
+        await send_handoff_email(
+            telefono=telefono,
+            nome=nome,
+            motivo=motivo,
+            url_pannello=f"{base}/admin/conversazioni" if base else None,
         )

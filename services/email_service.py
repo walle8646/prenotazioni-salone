@@ -223,3 +223,42 @@ async def send_reminder_email(to: str, nome: str, orario: str, parrucchiere: str
             <p>A domani!<br>Salone Nadia</p>
         """,
     )
+
+
+async def send_handoff_email(
+    telefono: str, nome: str | None, motivo: str | None, url_pannello: str | None = None
+):
+    """Avvisa il salone che un cliente ha chiesto di parlare con una persona.
+
+    Va alla casella del salone, cioè a `smtp_user`: è l'unico indirizzo che
+    sappiamo essere letto da qualcuno. Senza questo avviso la funzione
+    esisterebbe solo per chi si ricorda di aprire il pannello, e un cliente in
+    attesa di risposta non può dipendere da quello.
+
+    Se l'invio fallisce non succede niente di grave: la conversazione è già
+    registrata e compare comunque nel pannello.
+    """
+    destinatario = settings.smtp_user
+    if not destinatario:
+        return
+
+    chi = nome or telefono
+    collegamento = (
+        f'<p><a href="{url_pannello}">Apri la conversazione nel pannello</a></p>'
+        if url_pannello
+        else ""
+    )
+    await _invia(
+        destinatario,
+        f"{chi} vuole parlare con una persona - Salone Nadia",
+        f"""
+            <h2>{chi} ha chiesto di parlare con qualcuno</h2>
+            <p><strong>Numero:</strong> {telefono}</p>
+            <p><strong>Ha scritto:</strong> {motivo or "(nessun messaggio)"}</p>
+            <p>Il bot si è fermato su questo numero e non risponderà finché non
+            chiudi la conversazione dal pannello.</p>
+            {collegamento}
+            <p>Si può rispondere con testo libero entro 24 ore dall'ultimo
+            messaggio del cliente.</p>
+        """,
+    )

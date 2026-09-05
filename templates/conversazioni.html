@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Conversazioni - Salone Nadia{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <h2>Chi vuole parlare con una persona</h2>
+    <p class="nota">
+        Quando un cliente chiede di parlare con qualcuno, il bot si ferma su quel
+        numero e la conversazione compare qui. Finché resta aperta risponde solo
+        chi la prende in mano: chiudendola il bot riparte.
+    </p>
+
+    <p class="nota">
+        {% if tutte %}
+        Stai vedendo anche quelle chiuse — <a href="/admin/conversazioni">mostra solo le aperte</a>.
+        {% else %}
+        <a href="/admin/conversazioni?tutte=1">Mostra anche quelle già chiuse</a>
+        {% endif %}
+    </p>
+
+    {% if conversazioni %}
+    <div class="conversazioni">
+        {% for c in conversazioni %}
+        <a class="conversazione-riga{{ ' conversazione-chiusa' if c.stato == 'chiusa' }}"
+           href="/admin/conversazioni/{{ c.id }}">
+            <div class="conversazione-chi">
+                <strong>{{ c.nome }}</strong>
+                <small>{{ c.telefono }}</small>
+            </div>
+            <div class="conversazione-motivo">{{ c.motivo or '—' }}</div>
+            <div class="conversazione-stato">
+                {% if c.stato == 'attesa' %}
+                <span class="badge badge-attesa">in attesa da {{ c.attesa }}</span>
+                {% elif c.stato == 'presa' %}
+                <span class="badge badge-presa">già risposto</span>
+                {% else %}
+                <span class="badge">chiusa</span>
+                {% endif %}
+
+                {% if c.stato != 'chiusa' and not c.finestra_aperta %}
+                <span class="badge badge-scaduta">non si può più scrivere</span>
+                {% endif %}
+            </div>
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="empty-state">
+        {% if tutte %}Non è mai stata passata nessuna conversazione.
+        {% else %}Nessuno sta aspettando. {% endif %}
+    </p>
+    {% endif %}
+</div>
+{% endblock %}

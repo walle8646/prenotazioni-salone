@@ -422,3 +422,211 @@ async def get_inactive_clients(days: int) -> list:
             select(Cliente).where(Cliente.ultima_visita < cutoff)
         )
         return result.scalars().all()
+
+
+# --------------------------------------------------- conversazioni con una persona
+
+
+def _conversazione_dict(riga) -> dict:
+    """Riga ORM → dizionario. Solo colonne proprie, mai relazioni.
+
+    Leggere una relazione caricata pigramente dentro una sessione asincrona
+    solleva MissingGreenlet, e succede in produzione con la suite tutta verde:
+    i test girano sui finti, dove le relazioni non esistono.
+    """
+    return {
+        "id": riga.id,
+        "telefono": riga.telefono,
+        "canale": riga.canale,
+        "cliente_id": riga.cliente_id,
+        "nome_visualizzato": riga.nome_visualizzato,
+        "stato": riga.stato,
+        "motivo": riga.motivo,
+        "aperta_il": riga.aperta_il,
+        "ultimo_messaggio_cliente": riga.ultimo_messaggio_cliente,
+        "presa_il": riga.presa_il,
+        "chiusa_il": riga.chiusa_il,
+    }
+
+
+async def conversazione_operatore_aperta(telefono: str) -> dict | None:
+    """Il passaggio ancora aperto per questo numero, se c'è.
+
+    È questa riga a tenere zitto il bot: finché esiste, su quel numero risponde
+    una persona. Una sola per numero, la più recente.
+    """
+    from models.orm import ConversazioneOperatore
+
+    async with async_session() as db:
+        risultato = await db.execute(
+            select(ConversazioneOperatore)
+            .where(
+                ConversazioneOperatore.telefono == telefono,
+                ConversazioneOperatore.stato != "chiusa",
+            )
+            .order_by(ConversazioneOperatore.aperta_il.desc())
+            .limit(1)
+        )
+        riga = risultato.scalar_one_or_none()
+        return _conversazione_dict(riga) if riga else None
+
+
+async def apri_conversazione_operatore(
+    telefono: str,
+    canale: str = "whatsapp",
+    nome_visualizzato: str | None = None,
+    motivo: str | None = None,
+    storico: list[tuple[str, str]] | None = None,
+) -> dict:
+    """Passa la conversazione a una persona e ci travasa gli ultimi scambi.
+
+    Se ce n'è già una aperta si restituisce quella: un cliente che insiste
+    ("c'è nessuno?") non deve produrre tre righe nel pannello.
+    """
+    from models.orm import Cliente, ConversazioneOperatore, MessaggioConversazione
+
+    gia_aperta = await conversazione_operatore_aperta(telefono)
+    if gia_aperta:
+        return gia_aperta
+
+    async with async_session() as db:
+        cliente_id = None
+        risultato = await db.execute(
+            select(Cliente.id).where(Cliente.telefono_wa == telefono)
+        )
+        cliente_id = risultato.scalar_one_or_none()
+
+        adesso = datetime.now()
+        conversazione = ConversazioneOperatore(
+            telefono=telefono,
+            canale=canale,
+            cliente_id=cliente_id,
+            nome_visualizzato=nome_visualizzato,
+            stato="attesa",
+            motivo=motivo,
+            aperta_il=adesso,
+            ultimo_messaggio_cliente=adesso,
+        )
+        db.add(conversazione)
+        await db.flush()
+
+        for autore, testo in storico or ():
+            db.add(
+                MessaggioConversazione(
+                    conversazione_id=conversazione.id,
+                    autore=autore,
+                    testo=testo,
+                    creato_il=adesso,
+                )
+            )
+
+        await db.commit()
+        await db.refresh(conversazione)
+        return _conversazione_dict(conversazione)
+
+
+async def registra_messaggio_conversazione(
+    conversazione_id: int, autore: str, testo: str
+) -> None:
+    """Aggiunge una riga allo scambio.
+
+    Quando a scrivere è il cliente aggiorna anche `ultimo_messaggio_cliente`:
+    è da lì che si calcola la finestra di 24 ore, e tenerla in due posti
+    diversi vorrebbe dire vederla scadere in anticipo nel pannello.
+    """
+    from models.orm import ConversazioneOperatore, MessaggioConversazione
+
+    async with async_session() as db:
+        adesso = datetime.now()
+        db.add(
+            MessaggioConversazione(
+                conversazione_id=conversazione_id,
+                autore=autore,
+                testo=testo,
+                creato_il=adesso,
+            )
+        )
+        if autore == "cliente":
+            await db.execute(
+                update(ConversazioneOperatore)
+                .where(ConversazioneOperatore.id == conversazione_id)
+                .values(ultimo_messaggio_cliente=adesso)
+            )
+        elif autore == "operatore":
+            await db.execute(
+                update(ConversazioneOperatore)
+                .where(ConversazioneOperatore.id == conversazione_id)
+                .values(stato="presa", presa_il=adesso)
+            )
+        await db.commit()
+
+
+async def chiudi_conversazione_operatore(conversazione_id: int) -> None:
+    """Restituisce la conversazione al bot."""
+    from models.orm import ConversazioneOperatore
+
+    async with async_session() as db:
+        await db.execute(
+            update(ConversazioneOperatore)
+            .where(ConversazioneOperatore.id == conversazione_id)
+            .values(stato="chiusa", chiusa_il=datetime.now())
+        )
+        await db.commit()
+
+
+async def elenco_conversazioni_operatore(aperte: bool = True, limite: int = 50) -> list[dict]:
+    """Le conversazioni per il pannello, con il nome del cliente se lo sappiamo.
+
+    Il nome si prende con una join esplicita e non leggendo `riga.cliente`:
+    quella è una relazione pigra e in sessione asincrona esplode.
+    """
+    from models.orm import Cliente, ConversazioneOperatore
+
+    async with async_session() as db:
+        query = (
+            select(ConversazioneOperatore, Cliente.nome, Cliente.cognome)
+            .outerjoin(Cliente, ConversazioneOperatore.cliente_id == Cliente.id)
+            .order_by(ConversazioneOperatore.aperta_il.desc())
+            .limit(limite)
+        )
+        if aperte:
+            query = query.where(ConversazioneOperatore.stato != "chiusa")
+
+        elenco = []
+        for riga, nome, cognome in (await db.execute(query)).all():
+            voce = _conversazione_dict(riga)
+            intero = " ".join(p for p in (nome, cognome) if p)
+            voce["nome"] = intero or riga.nome_visualizzato or riga.telefono
+            elenco.append(voce)
+        return elenco
+
+
+async def conversazione_con_messaggi(conversazione_id: int) -> dict | None:
+    """Una conversazione e il suo scambio, in ordine di tempo."""
+    from models.orm import Cliente, ConversazioneOperatore, MessaggioConversazione
+
+    async with async_session() as db:
+        risultato = await db.execute(
+            select(ConversazioneOperatore, Cliente.nome, Cliente.cognome)
+            .outerjoin(Cliente, ConversazioneOperatore.cliente_id == Cliente.id)
+            .where(ConversazioneOperatore.id == conversazione_id)
+        )
+        riga = risultato.first()
+        if riga is None:
+            return None
+
+        conversazione, nome, cognome = riga
+        voce = _conversazione_dict(conversazione)
+        intero = " ".join(p for p in (nome, cognome) if p)
+        voce["nome"] = intero or conversazione.nome_visualizzato or conversazione.telefono
+
+        messaggi = await db.execute(
+            select(MessaggioConversazione)
+            .where(MessaggioConversazione.conversazione_id == conversazione_id)
+            .order_by(MessaggioConversazione.creato_il, MessaggioConversazione.id)
+        )
+        voce["messaggi"] = [
+            {"autore": m.autore, "testo": m.testo, "creato_il": m.creato_il}
+            for m in messaggi.scalars().all()
+        ]
+        return voce

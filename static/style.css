@@ -596,3 +596,145 @@ body {
     background: #d1ecf1;
     color: #0c5460;
 }
+
+/* ---------------------------------------------------- conversazioni con una persona */
+
+/* Righe cliccabili, non una tabella: ogni riga porta a una schermata sua e
+   deve restare leggibile anche stretta, sul telefono della receptionist. */
+.conversazioni {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-top: 1rem;
+}
+
+.conversazione-riga {
+    display: grid;
+    grid-template-columns: 14rem 1fr auto;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.9rem 1rem;
+    background: #fff;
+    border: 1px solid #e1e4e8;
+    border-left: 4px solid #c0392b;
+    border-radius: 6px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.conversazione-riga:hover {
+    background: #fafbfc;
+}
+
+.conversazione-chiusa {
+    border-left-color: #d0d7de;
+    opacity: 0.65;
+}
+
+.conversazione-chi small {
+    display: block;
+    color: #6a737d;
+}
+
+.conversazione-motivo {
+    color: #444;
+}
+
+.badge-attesa {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.badge-presa {
+    background: #d4edda;
+    color: #155724;
+}
+
+.badge-scaduta {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.scambio {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    margin: 1.2rem 0;
+    padding: 1rem;
+    background: #f6f8fa;
+    border-radius: 6px;
+}
+
+.messaggio {
+    max-width: 80%;
+    padding: 0.6rem 0.9rem;
+    border-radius: 10px;
+    background: #fff;
+    border: 1px solid #e1e4e8;
+}
+
+/* Il cliente a sinistra, il salone a destra: la stessa disposizione che la
+   receptionist ha sotto gli occhi in WhatsApp, così non deve tradurre. */
+.messaggio-cliente {
+    align-self: flex-start;
+}
+
+.messaggio-bot,
+.messaggio-operatore {
+    align-self: flex-end;
+}
+
+.messaggio-bot {
+    background: #eef2f7;
+}
+
+.messaggio-operatore {
+    background: #d9f0e3;
+}
+
+.messaggio-autore {
+    font-size: 0.78rem;
+    color: #6a737d;
+    margin-bottom: 0.2rem;
+}
+
+.messaggio-autore small {
+    margin-left: 0.4rem;
+}
+
+.messaggio-testo {
+    white-space: pre-wrap;
+}
+
+.risposta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+}
+
+.risposta textarea {
+    width: 100%;
+    padding: 0.6rem;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    font: inherit;
+    resize: vertical;
+}
+
+.risposta-azioni {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.risposta-azioni small {
+    color: #6a737d;
+}
+
+@media (max-width: 700px) {
+    .conversazione-riga {
+        grid-template-columns: 1fr;
+        gap: 0.3rem;
+    }
+}

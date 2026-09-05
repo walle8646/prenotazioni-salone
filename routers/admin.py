@@ -927,3 +927,139 @@ async def assenze_annulla(
             "resoconto": resoconto,
         },
     )
+
+
+# -------------------------------------------------------------- conversazioni
+
+
+def _ore_e_minuti(quanto: timedelta) -> str:
+    """Un'attesa detta come la direbbe una persona: "2 h 15 min", non 8100 s."""
+    minuti = max(0, int(quanto.total_seconds() // 60))
+    if minuti < 60:
+        return f"{minuti} min"
+    return f"{minuti // 60} h {minuti % 60:02d} min"
+
+
+async def _conversazione_per_pannello(conversazione: dict, adesso: datetime) -> dict:
+    """Aggiunge alla conversazione quello che serve a chi la guarda."""
+    from services.operatore_umano import finestra_aperta, minuti_rimasti
+
+    aperta = finestra_aperta(conversazione.get("ultimo_messaggio_cliente"), adesso)
+    rimasti = minuti_rimasti(conversazione.get("ultimo_messaggio_cliente"), adesso)
+    return {
+        **conversazione,
+        "attesa": _ore_e_minuti(adesso - conversazione["aperta_il"]),
+        "finestra_aperta": aperta,
+        "finestra_scade_fra": _ore_e_minuti(timedelta(minutes=rimasti)),
+    }
+
+
+@router.get("/conversazioni", response_class=HTMLResponse)
+async def conversazioni_elenco(
+    request: Request,
+    tutte: int = 0,
+    utente=Depends(utente_del_pannello),
+):
+    """Chi sta aspettando una risposta da una persona."""
+    from services.db_service import elenco_conversazioni_operatore
+
+    adesso = datetime.now()
+    elenco = await elenco_conversazioni_operatore(aperte=not tutte)
+    return templates.TemplateResponse(
+        "conversazioni.html",
+        {
+            "request": request,
+            "conversazioni": [
+                await _conversazione_per_pannello(c, adesso) for c in elenco
+            ],
+            "tutte": bool(tutte),
+        },
+    )
+
+
+@router.get("/conversazioni/{conversazione_id}", response_class=HTMLResponse)
+async def conversazione_apri(
+    request: Request,
+    conversazione_id: int,
+    esito: str = None,
+    utente=Depends(utente_del_pannello),
+):
+    from services.db_service import conversazione_con_messaggi
+
+    conversazione = await conversazione_con_messaggi(conversazione_id)
+    if conversazione is None:
+        return RedirectResponse("/admin/conversazioni", 303)
+
+    return templates.TemplateResponse(
+        "conversazione.html",
+        {
+            "request": request,
+            "c": await _conversazione_per_pannello(conversazione, datetime.now()),
+            "esito": esito,
+        },
+    )
+
+
+@router.post("/conversazioni/{conversazione_id}/rispondi")
+async def conversazione_rispondi(
+    conversazione_id: int,
+    testo: str = Form(),
+    utente=Depends(utente_del_pannello),
+):
+    """Scrive al cliente su WhatsApp e tiene traccia di cosa gli è stato detto.
+
+    Il messaggio si registra **solo se è partito davvero**: una riga nel
+    pannello che dice "risposto" quando Meta ha rifiutato è peggio di nessuna
+    riga, perché nessuno lo richiamerà.
+    """
+    from services.db_service import (
+        conversazione_con_messaggi,
+        registra_messaggio_conversazione,
+    )
+    from services.whatsapp_service import send_text_message_con_motivo
+
+    conversazione = await conversazione_con_messaggi(conversazione_id)
+    if conversazione is None:
+        return RedirectResponse("/admin/conversazioni", 303)
+
+    testo = (testo or "").strip()
+    if not testo:
+        return RedirectResponse(f"/admin/conversazioni/{conversazione_id}", 303)
+
+    if conversazione["canale"] != "whatsapp":
+        return RedirectResponse(
+            f"/admin/conversazioni/{conversazione_id}?esito=canale", 303
+        )
+
+    partito, motivo = await send_text_message_con_motivo(
+        conversazione["telefono"], testo
+    )
+    if not partito:
+        logger.error(
+            "Risposta dal pannello non inviata a %s: %s",
+            conversazione["telefono"],
+            motivo,
+        )
+        return RedirectResponse(
+            f"/admin/conversazioni/{conversazione_id}?esito=errore", 303
+        )
+
+    await registra_messaggio_conversazione(conversazione_id, "operatore", testo)
+    return RedirectResponse(f"/admin/conversazioni/{conversazione_id}?esito=ok", 303)
+
+
+@router.post("/conversazioni/{conversazione_id}/chiudi")
+async def conversazione_chiudi(
+    conversazione_id: int,
+    utente=Depends(utente_del_pannello),
+):
+    """Restituisce la conversazione al bot.
+
+    Non manda niente al cliente: un "da adesso ti risponde di nuovo il bot"
+    scritto magari tre ore dopo l'ultimo scambio è un messaggio senza contesto.
+    Al prossimo messaggio il bot risponde e basta.
+    """
+    from services.db_service import chiudi_conversazione_operatore
+
+    await chiudi_conversazione_operatore(conversazione_id)
+    return RedirectResponse("/admin/conversazioni", 303)

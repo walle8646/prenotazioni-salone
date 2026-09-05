@@ -33,12 +33,17 @@ def _spiegazione(risposta: httpx.Response) -> str:
     return " — ".join(p for p in pezzi if p) or risposta.text[:300]
 
 
-async def _invia(payload: dict, descrizione: str) -> bool:
-    """Manda il payload a Meta e dice se è partito davvero.
+async def _invia_con_motivo(payload: dict, descrizione: str) -> tuple[bool, str]:
+    """Manda il payload a Meta e restituisce esito e motivo del rifiuto.
 
     Ignorare la risposta faceva credere consegnato un messaggio che Meta aveva
     rifiutato: il cliente non riceveva nulla e nei log non restava traccia del
     perché. Meta il perché lo scrive, basta leggerlo.
+
+    Il motivo esce da qui e non resta solo nei log perché quando a scrivere è
+    la receptionist dal pannello, la persona che può rimediare sta guardando lo
+    schermo in quel momento: dirle "non inviato" e basta la lascia senza sapere
+    se riprovare o telefonare.
     """
     async with httpx.AsyncClient() as client:
         risposta = await client.post(
@@ -49,29 +54,42 @@ async def _invia(payload: dict, descrizione: str) -> bool:
         )
 
     if risposta.is_success:
-        return True
+        return True, ""
 
+    motivo = _spiegazione(risposta)
     logger.error(
         "WhatsApp ha rifiutato %s verso %s (HTTP %s): %s",
         descrizione,
         payload.get("to"),
         risposta.status_code,
-        _spiegazione(risposta),
+        motivo,
     )
-    return False
+    return False, motivo
+
+
+async def _invia(payload: dict, descrizione: str) -> bool:
+    """Come sopra, per chi del motivo non sa che farsene."""
+    partito, _ = await _invia_con_motivo(payload, descrizione)
+    return partito
+
+
+def _payload_testo(to: str, text: str) -> dict:
+    return {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": "text",
+        "text": {"body": text},
+    }
 
 
 async def send_text_message(to: str, text: str) -> bool:
     """Invia un messaggio di testo via WhatsApp Cloud API."""
-    return await _invia(
-        {
-            "messaging_product": "whatsapp",
-            "to": to,
-            "type": "text",
-            "text": {"body": text},
-        },
-        "un messaggio di testo",
-    )
+    return await _invia(_payload_testo(to, text), "un messaggio di testo")
+
+
+async def send_text_message_con_motivo(to: str, text: str) -> tuple[bool, str]:
+    """Come `send_text_message`, ma dice anche perché Meta ha detto di no."""
+    return await _invia_con_motivo(_payload_testo(to, text), "un messaggio di testo")
 
 
 async def segna_letto_e_sta_scrivendo(message_id: str) -> bool:

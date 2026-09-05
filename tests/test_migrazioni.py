@@ -62,3 +62,60 @@ def test_un_database_gia_annotato_non_viene_toccato():
         righe = conn.execute(text("SELECT version_num FROM alembic_version")).scalars().all()
 
     assert righe == ["0001"], "una revisione precedente non va sovrascritta"
+
+
+def _database_migrato():
+    """Un SQLite in memoria con tutte le migrazioni applicate in ordine.
+
+    Le migrazioni si eseguono a mano invece che con `alembic upgrade`, e non è
+    pigrizia: `alembic/env.py` sovrascrive l'URL con `DATABASE_URL`, quindi un
+    upgrade lanciato da qui andrebbe a toccare il database di produzione.
+    """
+    import importlib.util
+    import pathlib
+
+    from alembic.migration import MigrationContext
+    from alembic.operations import Operations
+    from sqlalchemy import create_engine
+
+    engine = create_engine("sqlite://")
+    conn = engine.connect()
+    ctx = MigrationContext.configure(conn)
+    with Operations.context(ctx):
+        for percorso in sorted(pathlib.Path("alembic/versions").glob("0*.py")):
+            spec = importlib.util.spec_from_file_location(percorso.stem, percorso)
+            migrazione = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(migrazione)
+            migrazione.upgrade()
+    return conn
+
+
+def test_le_migrazioni_creano_le_stesse_colonne_dei_modelli():
+    """Il difetto che questo test previene non rompe una funzione: rompe tutto.
+
+    SQLAlchemy chiede al database tutte le colonne del modello. Se una c'è nel
+    modello e non nella migrazione, in produzione ogni singola query su quella
+    tabella fallisce — anche quelle che con la novità non c'entrano niente — e
+    la suite resta verde, perché i test girano sui finti.
+    """
+    from sqlalchemy import inspect
+
+    from models.database import Base
+    import models.orm  # noqa: F401 - serve a popolare i metadata
+
+    conn = _database_migrato()
+    ispettore = inspect(conn)
+    presenti = set(ispettore.get_table_names())
+
+    mancanti = {}
+    for nome, tabella in Base.metadata.tables.items():
+        if nome not in presenti:
+            mancanti[nome] = ["tabella intera"]
+            continue
+        nel_database = {c["name"] for c in ispettore.get_columns(nome)}
+        assenti = {c.name for c in tabella.columns} - nel_database
+        if assenti:
+            mancanti[nome] = sorted(assenti)
+
+    conn.close()
+    assert mancanti == {}, f"le migrazioni non creano: {mancanti}"
