@@ -1252,8 +1252,9 @@ async def guida(request: Request, utente=Depends(utente_del_pannello)):
     """La guida per chi lavora in salone.
 
     Sta dietro il login e non sul sito pubblico: spiega come si usa il
-    pannello e nomina l'account Google del salone. Quello che non c'è, ed è
-    voluto, è la password di quell'account — una pagina web non è il posto
-    per una password, nemmeno dietro un login.
+    pannello e riporta le credenziali dell'account Google **di prova**. Quelle
+    dell'account definitivo non vanno scritte qui né altrove nel repository,
+    che è pubblico: quando il salone cambierà account, la tabella nella guida
+    va svuotata.
     """
     return templates.TemplateResponse("guida.html", {"request": request})
