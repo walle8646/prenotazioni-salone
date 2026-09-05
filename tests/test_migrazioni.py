@@ -119,3 +119,39 @@ def test_le_migrazioni_creano_le_stesse_colonne_dei_modelli():
 
     conn.close()
     assert mancanti == {}, f"le migrazioni non creano: {mancanti}"
+
+
+def test_applicare_le_migrazioni_non_zittisce_i_log_dell_applicazione():
+    """Il difetto che ha reso cieco il debug di un'intera serata.
+
+    `alembic/env.py` chiama `fileConfig(alembic.ini)`, e quella funzione non
+    aggiunge una configurazione: la sostituisce, disattivando tutti i logger
+    già esistenti e riportando la radice a WARN. Lanciando alembic da riga di
+    comando è innocuo. Ma le migrazioni le applica anche l'applicazione a ogni
+    avvio, e lì i logger già esistenti sono quelli di tutto il progetto: da
+    quel momento in produzione non usciva più una riga, nemmeno gli errori.
+    """
+    import logging
+
+    from alembic import command
+    from alembic.config import Config
+    from sqlalchemy import create_engine
+
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger().setLevel(logging.INFO)
+    log_applicazione = logging.getLogger("services.conversation")
+    log_applicazione.disabled = False
+
+    engine = create_engine("sqlite://")
+    with engine.connect() as connessione:
+        configurazione = Config("alembic.ini")
+        configurazione.attributes["connection"] = connessione
+        command.upgrade(configurazione, "head")
+
+    assert not log_applicazione.disabled, (
+        "le migrazioni hanno disattivato i logger dell'applicazione: "
+        "in produzione il bot diventa muto nei log"
+    )
+    assert logging.getLogger().level <= logging.INFO, (
+        "le migrazioni hanno alzato il livello della radice: gli INFO spariscono"
+    )

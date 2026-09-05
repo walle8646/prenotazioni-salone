@@ -35,6 +35,23 @@ upgrade head` prima di un deploy non rompeva la funzione appena aggiunta, ma
 tutto: SQLAlchemy chiede al database tutte le colonne del modello, e quella
 nuova non c'era ancora.
 
+Due trappole di alembic, entrambe pagate.
+
+**`alembic/env.py` ignora l'URL che gli passi** e usa `DATABASE_URL`. Un
+`alembic upgrade` lanciato dal proprio computer credendo di puntare a un
+database di prova va a toccare quello vero. Per questo i test eseguono le
+migrazioni a mano, con `MigrationContext`, invece di chiamare `command.upgrade`.
+
+**`fileConfig()` non aggiunge una configurazione di logging: la sostituisce.**
+Disattiva tutti i logger già esistenti e riporta la radice a `WARN`. Da riga di
+comando è innocuo, ma le migrazioni girano anche a ogni avvio dell'applicazione,
+e lì "già esistenti" vuol dire ogni logger del progetto: da quel momento in
+produzione non usciva più una riga, **nemmeno gli errori**, e nei log restavano
+solo le righe dell'avvio. Ci abbiamo perso una serata a cercare guasti che i
+log non raccontavano perché non uscivano. Ora `env.py` salta `fileConfig`
+quando la connessione arriva da fuori, cioè quando è l'applicazione a ospitare
+il processo ed è lei a configurare il logging.
+
 `TESTING.md` spiega in dettaglio i modi di provare il bot senza WhatsApp.
 
 ## Come è organizzato

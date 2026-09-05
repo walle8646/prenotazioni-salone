@@ -20,7 +20,20 @@ config = context.config
 # tra le dipendenze.
 config.set_main_option("sqlalchemy.url", settings.async_database_url)
 
-if config.config_file_name is not None:
+# `fileConfig()` non aggiunge una configurazione: la sostituisce. Disattiva
+# tutti i logger già esistenti e riporta la radice a WARN, come dice
+# alembic.ini. Quando alembic lo si lancia da riga di comando va benissimo,
+# perché quei logger sono solo i suoi.
+#
+# Ma le migrazioni le applica anche l'applicazione a ogni avvio, e lì "già
+# esistenti" vuol dire ogni logger del progetto, creato all'import dei moduli.
+# Da quel momento il bot diventa muto nei log — errori compresi — e in
+# produzione restano solo le righe dell'avvio. Ci abbiamo perso una serata a
+# cercare un guasto che i log non raccontavano perché non uscivano più.
+#
+# Quando la connessione arriva da fuori è l'applicazione a ospitare il
+# processo, e il logging lo configura lei.
+if config.config_file_name is not None and config.attributes.get("connection") is None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
