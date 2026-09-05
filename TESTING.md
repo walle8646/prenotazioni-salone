@@ -76,6 +76,44 @@ Le risposte del bot partono verso le API di Meta, quindi non le vedi a schermo:
 si guardano nei log del server. Aggiungi `--dry-run` per stampare il payload
 senza inviarlo.
 
+## 5. Riempire l'agenda di appuntamenti finti
+
+Un'agenda vuota non mette alla prova niente: il bot propone il primo orario
+libero e ha sempre ragione. I difetti si vedono quando le giornate sono piene a
+macchie, un operatore è più richiesto degli altri e certi orari mancano solo
+per alcuni.
+
+```bash
+python tools/dati_di_prova.py                        # mostra il piano, non scrive
+python tools/dati_di_prova.py --conferma             # crea davvero
+python tools/dati_di_prova.py --pulisci --conferma   # toglie tutto
+```
+
+**Va lanciato dalla Shell di Render, non dal proprio computer**: gli
+appuntamenti servono dove il bot li leggerà, e da fuori il database di
+produzione non è raggiungibile.
+
+Scrive **sia nel database sia sui calendari Google**. Solo da una parte non
+servirebbe: la disponibilità il bot la chiede a Google, e righe senza eventi
+lascerebbero l'agenda libera come prima.
+
+I dati finti si riconoscono da due cose, ed è così che `--pulisci` li ritrova
+tutti: il telefono comincia per `39000000`, che non è un numero assegnabile, e
+la descrizione degli eventi contiene `[DATI DI PROVA]`. Le email finiscono in
+`@example.invalid`, dominio che per definizione non esiste: **nemmeno
+sbagliando si scrive a una persona vera**.
+
+Rispetta orari del salone, chiusure, presenze dei singoli e durate del listino,
+e dà a ogni cliente **un solo appuntamento futuro** — come impone il bot:
+averne due farebbe sembrare un difetto il rifiuto che si riceve provando a
+prenotare. Nel passato invece si accumulano, ed è quello che rende
+riconoscibile un cliente abituale.
+
+Con i valori predefiniti (1 settembre - 31 ottobre, densità 0.45) fa circa
+**2.100 appuntamenti su 1.900 clienti**, poco meno della metà dell'agenda.
+`--densita`, `--da` e `--a` cambiano la misura; `--seme` ripete la stessa
+agenda, utile per riprovare una prova andata storta.
+
 ## Listino e operatori
 
 A runtime il listino vive nella tabella `servizi` del database, così il futuro
