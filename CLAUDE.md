@@ -375,9 +375,24 @@ arrivano dove qualcuno le legge. Con Gmail serve una **password per le app**, no
 quella dell'account. Senza configurazione le funzioni escono subito senza
 errori, e un invio fallito non fa mai fallire una prenotazione.
 
-Partono quattro messaggi: conferma, spostamento, annullamento e codice di
-verifica. Le date vanno scritte con `_quando()`, che le rende in italiano: i nomi
+Partono cinque messaggi: conferma, spostamento, annullamento, codice di
+verifica e l'avviso al salone quando un cliente chiede di parlare con una
+persona. Le date vanno scritte con `_quando()`, che le rende in italiano: i nomi
 di giorni e mesi sono nel codice perché nel container non c'è il locale.
+
+**Il piano gratuito di Render blocca il traffico SMTP in uscita** — porte 25,
+465 e 587, per politica loro contro lo spam. Lì `smtplib` non fallisce il
+login: non riesce proprio ad aprire la connessione, e nei log si legge
+`[Errno 101] Network is unreachable`. Sul gratuito quindi **nessuna email è mai
+partita in produzione**: né le conferme, né gli annullamenti, né i codici di
+verifica — e senza codice, dal sito lo storico non si sblocca. Serve un piano a
+pagamento (porta 25 resta chiusa comunque, 465 e 587 no), oppure un servizio
+che spedisca via HTTPS. Si è scelto il piano a pagamento per non perdere il
+mittente: le risposte dei clienti devono arrivare nella casella del salone.
+
+Da qui una regola imparata a caro prezzo: **"funziona in locale" non è "funziona
+in produzione"**, e per l'email la differenza non era una configurazione ma la
+rete della piattaforma.
 
 ## Convenzioni
 
@@ -408,18 +423,23 @@ chiedono, scrivendo davvero sui calendari Google e mandando email che
 arrivano. 314 test.
 
 Provato sul campo: Google Calendar (sei calendari veri, eventi creati, spostati
-e cancellati), l'invio email, il widget del sito, il database e **WhatsApp**,
-che risponde da un telefono vero con testo e bottoni.
+e cancellati), il widget del sito, il database e **WhatsApp**, che risponde da
+un telefono vero con testo e bottoni.
+
+**L'invio email era provato solo in locale.** In produzione non è mai partito
+niente, perché il piano gratuito di Render blocca le porte SMTP: vedi la
+sezione Email. Si passa a un piano a pagamento.
 
 Non ancora provata contro il database vero: la schermata **Conversazioni**. La
 suite gira sui finti e lì non si vede quello che succede solo con Postgres —
 `docker compose up` e un giro a mano prima di fidarsene.
 
-Note sul piano gratuito di Render: il servizio si sospende per inattività, e la
-prima richiesta dopo una pausa aspetta una trentina di secondi. Per lo stesso
-motivo i promemoria a 12 ore non partono in modo affidabile, perché servirebbe un
-processo sempre acceso. E il disco è effimero: le foto salvate da
-`services/storage.py` spariscono a ogni deploy.
+Cosa cambia col piano a pagamento, oltre all'email: il servizio non si sospende
+più per inattività — niente attesa di una trentina di secondi al primo messaggio
+dopo una pausa — e i promemoria a 12 ore diventano possibili, perché serviva un
+processo sempre acceso. Resta invece il disco effimero: le foto salvate da
+`services/storage.py` spariscono a ogni deploy, ed è il motivo per cui quelle
+degli operatori stanno nel database.
 
 ## Cose note ancora da fare
 
