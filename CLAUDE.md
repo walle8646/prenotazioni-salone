@@ -412,6 +412,12 @@ processo sempre acceso. E il disco è effimero: le foto salvate da
   possono usare i **template**. Servono per i promemoria, per gli avvisi di
   assenza e per riscrivere a un cliente dopo che sono passate 24 ore dal suo
   ultimo messaggio — cioè le tre cose che oggi mancano.
+- **Chi è in salone viene avvisato solo per email** quando un cliente chiede di
+  parlare con una persona. Le alternative sono state valutate e scartate per
+  ora: su WhatsApp servirebbero un metodo di pagamento e un template approvato
+  (è una conversazione avviata dall'azienda, e col template il messaggio del
+  cliente non ci sta dentro per intero); Telegram sarebbe gratuito e immediato
+  ma richiede che il personale ce l'abbia; gli SMS costano di più e dicono meno.
 - **Il titolare nell'informativa privacy è solo "Salone Nadia"**
   (`TITOLARE_PRIVACY` in `routers/website.py`): va completato con ragione
   sociale, sede e partita IVA.
