@@ -359,6 +359,18 @@ Le righe di modifica non sono in una tabella: ogni riga è un form a sé, e un
 `<form>` dentro un `<tr>` non è HTML valido — il browser lo sposta fuori dalla
 tabella e i campi smettono di essere inviati. Le colonne le fa una griglia CSS.
 
+**Sotto i 760 pixel le tabelle diventano schede, una per riga.** L'intestazione
+non sta più in cima ma dentro ogni cella, nel `data-label` che il CSS mostra con
+`::before`: sette colonne su un telefono non si leggono, e lo scorrimento
+orizzontale nasconde sempre proprio quella che serve. Chi aggiunge una colonna
+deve aggiungere anche il suo `data-label`, altrimenti su telefono quel valore
+compare senza sapere cos'è. Nella stessa fascia il menù va a capo invece di
+uscire dallo schermo, le righe di modifica si impilano, e i campi passano a 16
+pixel: sotto quella misura iOS ingrandisce la pagina appena si tocca un campo e
+poi la lascia ingrandita. Verificato a 375 e a 320 pixel su tutte e nove le
+schermate, misurando che niente sbordi — a occhio non si vede, e uno screenshot
+può mentire.
+
 ## Listino e operatori
 
 A runtime il listino vive nella tabella `servizi` del database, così il

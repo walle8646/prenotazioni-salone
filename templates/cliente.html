@@ -45,9 +45,9 @@
         <tbody>
             {% for app in cliente.appuntamenti | sort(attribute='data_ora', reverse=True) %}
             <tr>
-                <td>{{ app.data_ora.strftime('%d/%m/%Y %H:%M') }}</td>
-                <td>{{ app.servizi | join(', ') if app.servizi else '-' }}</td>
-                <td><span class="badge badge-{{ app.stato.lower() }}">{{ app.stato }}</span></td>
+                <td data-label="Data">{{ app.data_ora.strftime('%d/%m/%Y %H:%M') }}</td>
+                <td data-label="Servizi">{{ app.servizi | join(', ') if app.servizi else '-' }}</td>
+                <td data-label="Stato"><span class="badge badge-{{ app.stato.lower() }}">{{ app.stato }}</span></td>
             </tr>
             {% endfor %}
         </tbody>

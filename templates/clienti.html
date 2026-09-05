@@ -26,18 +26,18 @@
         <tbody>
             {% for c in clienti %}
             <tr>
-                <td>
+                <td data-label="Cliente">
                     <a href="/admin/cliente/{{ c.id }}">
                         {{ (c.nome or '') ~ ' ' ~ (c.cognome or '') if c.nome or c.cognome else 'Senza nome' }}
                     </a>
                 </td>
                 {# I clienti del sito che non hanno lasciato il numero hanno un
                    segnaposto "web_...": mostrarlo come telefono confonderebbe. #}
-                <td>{{ c.telefono_wa if not c.telefono_wa.startswith('web_') else '-' }}</td>
-                <td>{{ c.email or '-' }}</td>
-                <td>{{ c.canale_origine or '-' }}</td>
-                <td>{{ c.prima_visita.strftime('%d/%m/%Y') if c.prima_visita else '-' }}</td>
-                <td>{{ c.ultima_visita.strftime('%d/%m/%Y') if c.ultima_visita else '-' }}</td>
+                <td data-label="Telefono">{{ c.telefono_wa if not c.telefono_wa.startswith('web_') else '-' }}</td>
+                <td data-label="Email">{{ c.email or '-' }}</td>
+                <td data-label="Da">{{ c.canale_origine or '-' }}</td>
+                <td data-label="Prima visita">{{ c.prima_visita.strftime('%d/%m/%Y') if c.prima_visita else '-' }}</td>
+                <td data-label="Ultima visita">{{ c.ultima_visita.strftime('%d/%m/%Y') if c.ultima_visita else '-' }}</td>
             </tr>
             {% endfor %}
         </tbody>

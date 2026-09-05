@@ -737,9 +737,149 @@ body {
     color: #6a737d;
 }
 
-@media (max-width: 700px) {
+@media (max-width: 760px) {
     .conversazione-riga {
         grid-template-columns: 1fr;
         gap: 0.3rem;
+    }
+}
+
+/* ============================================================== Telefono
+
+   Il pannello lo usa chi sta in salone: una mano sola, schermo stretto, e la
+   fretta di chi ha un cliente sulla poltrona. Qui sotto conta soprattutto che
+   niente esca dallo schermo e che ci si arrivi col pollice. */
+@media (max-width: 760px) {
+    .container {
+        padding: 1rem 0.8rem;
+    }
+
+    /* Il menù va a capo invece di uscire dallo schermo: otto voci su una riga
+       sola, a 375 pixel, sarebbero per metà invisibili — e quelle tagliate
+       sarebbero le ultime, cioè Presenze e Assenze. */
+    .admin-nav {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 0.5rem;
+        padding: 0.8rem 1rem;
+    }
+
+    .nav-brand {
+        font-size: 1rem;
+    }
+
+    .nav-links {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.2rem 1.1rem;
+    }
+
+    .nav-links a {
+        margin-left: 0;
+        padding: 0.3rem 0;
+    }
+
+    /* Le tabelle diventano schede, una per riga. Sette colonne su un telefono
+       non si leggono, e lo scorrimento orizzontale nasconde sempre proprio
+       quella che serve. L'intestazione se la porta ogni cella con sé, nel
+       data-label. */
+    .app-table {
+        background: transparent;
+        box-shadow: none;
+    }
+
+    .app-table thead {
+        display: none;
+    }
+
+    .app-table,
+    .app-table tbody,
+    .app-table tfoot,
+    .app-table tr,
+    .app-table td {
+        display: block;
+        width: 100%;
+    }
+
+    .app-table tr {
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+        margin-bottom: 0.6rem;
+        padding: 0.4rem 0;
+    }
+
+    .app-table td {
+        border-bottom: none;
+        padding: 0.3rem 0.9rem;
+    }
+
+    .app-table td[data-label] {
+        display: flex;
+        gap: 0.8rem;
+        justify-content: space-between;
+        align-items: baseline;
+    }
+
+    .app-table td[data-label]::before {
+        content: attr(data-label);
+        flex: 0 0 6.5rem;
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #7f8c8d;
+    }
+
+    /* Il totale della giornata resta in fondo, ma senza etichetta appesa. */
+    .app-table tfoot td {
+        padding: 0.5rem 0.9rem;
+    }
+
+    /* Le righe di modifica si impilano. L'intestazione sparisce perché le
+       colonne non ci sono più: a dire cos'è ogni campo restano il placeholder
+       e l'aria-label, che ci sono già. */
+    .griglia-intestazione {
+        display: none;
+    }
+
+    .griglia-servizi,
+    .griglia-operatori,
+    .griglia-presenze {
+        grid-template-columns: 1fr;
+    }
+
+    .riga-gestione {
+        flex-wrap: wrap;
+        padding: 0.8rem;
+    }
+
+    .testata-presenze,
+    .date-picker {
+        flex-wrap: wrap;
+    }
+
+    .date-picker input[type="date"] {
+        flex: 1 1 10rem;
+    }
+
+    /* Sotto i 16 pixel iOS ingrandisce la pagina appena si tocca un campo, e
+       poi la lascia ingrandita: si finisce a leggere il pannello di sbieco. */
+    .container input,
+    .container select,
+    .container textarea {
+        font-size: 16px;
+    }
+
+    /* Bersagli per il pollice, non per il mouse. */
+    .btn-small {
+        padding: 0.55rem 0.9rem;
+    }
+
+    .scambio {
+        max-height: 45vh;
+    }
+
+    .messaggio {
+        max-width: 92%;
     }
 }

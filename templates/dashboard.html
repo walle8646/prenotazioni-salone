@@ -56,17 +56,17 @@
         <tbody>
             {% for app in appuntamenti %}
             <tr>
-                <td><strong>{{ app.data_ora.strftime('%H:%M') }}</strong></td>
-                <td>
+                <td data-label="Ora"><strong>{{ app.data_ora.strftime('%H:%M') }}</strong></td>
+                <td data-label="Cliente">
                     <a href="/admin/cliente/{{ app.cliente.id }}">
                         {{ app.cliente.nome or '' }} {{ app.cliente.cognome or '' }}
                     </a>
                     <br><small>{{ app.cliente.telefono_wa }}</small>
                 </td>
-                <td>{{ app.servizi | join(', ') if app.servizi else '-' }}</td>
-                <td>{{ prezzo_di(app) }}</td>
-                <td>{{ app.parrucchiere.nome if app.parrucchiere else '-' }}</td>
-                <td>{{ app.richieste_spec or '-' }}</td>
+                <td data-label="Servizi">{{ app.servizi | join(', ') if app.servizi else '-' }}</td>
+                <td data-label="Prezzo">{{ prezzo_di(app) }}</td>
+                <td data-label="Operatore">{{ app.parrucchiere.nome if app.parrucchiere else '-' }}</td>
+                <td data-label="Note">{{ app.richieste_spec or '-' }}</td>
                 <td>
                     <form method="POST" action="/admin/appuntamenti/{{ app.id }}/annulla"
                           onsubmit="return confirm('Disdico l\'appuntamento delle {{ app.data_ora.strftime('%H:%M') }} di {{ app.cliente.nome or 'questo cliente' }}? Viene tolto anche da Google Calendar.');">

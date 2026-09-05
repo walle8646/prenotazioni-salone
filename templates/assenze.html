@@ -68,10 +68,10 @@
         <tbody>
             {% for a in appuntamenti %}
             <tr>
-                <td><strong>{{ a.ora }}</strong></td>
-                <td>{{ a.cliente_nome or 'Senza nome' }}</td>
-                <td>{{ a.servizi | join(', ') if a.servizi else '-' }}</td>
-                <td>
+                <td data-label="Ora"><strong>{{ a.ora }}</strong></td>
+                <td data-label="Cliente">{{ a.cliente_nome or 'Senza nome' }}</td>
+                <td data-label="Servizi">{{ a.servizi | join(', ') if a.servizi else '-' }}</td>
+                <td data-label="Come lo avvisiamo">
                     {% if a.cliente_email %}
                         Email a {{ a.cliente_email }}
                     {% elif a.cliente_telefono %}
