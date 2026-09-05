@@ -1,8 +1,8 @@
 from fastapi import APIRouter, BackgroundTasks, Request, Query, HTTPException
 from fastapi.responses import PlainTextResponse
 from config import settings
-from services.conversation import handle_incoming_message
-from services.whatsapp_service import segna_letto_e_sta_scrivendo
+from services.conversation import handle_incoming_message, risponde_una_persona
+from services.whatsapp_service import segna_letto, segna_letto_e_sta_scrivendo
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,17 @@ async def _elabora(redis, message_id: str = None, **argomenti) -> None:
         # Prima di tutto il resto: da qui in avanti si aspetta Claude e Google,
         # e il cliente deve vedere subito che il messaggio è arrivato. Se
         # fallisce non importa, è solo un segnale.
-        await segna_letto_e_sta_scrivendo(message_id)
+        #
+        # "Sta scrivendo" però si mostra solo se a scrivere sarà davvero il
+        # bot. Quando la conversazione è in mano a una persona i puntini
+        # resterebbero lì mentre non scrive nessuno, promettendo una risposta
+        # fra pochi secondi che arriverà quando il salone potrà: peggio di
+        # nessun segnale, perché il cliente aspetta guardando lo schermo. Le
+        # spunte blu restano, quelle dicono il vero.
+        if await risponde_una_persona(argomenti.get("phone")):
+            await segna_letto(message_id)
+        else:
+            await segna_letto_e_sta_scrivendo(message_id)
     except Exception:  # noqa: BLE001
         logger.warning("Indicatore di scrittura non inviato", exc_info=True)
 

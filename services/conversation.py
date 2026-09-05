@@ -108,6 +108,36 @@ async def _ricomincia(redis, session_key: str, channel: Channel) -> None:
     await channel.send_text(session_key, MESSAGGIO_RICOMINCIATO)
 
 
+async def risponde_una_persona(phone: str, backends=None) -> bool:
+    """Se su questo numero il bot tace perché la conversazione è di una persona.
+
+    Sola lettura: non registra il messaggio e non chiude niente. La usa il
+    webhook, che deve decidere **prima** di far partire l'elaborazione se
+    mostrare "sta scrivendo": quell'indicatore promette una risposta fra pochi
+    secondi, e quando risponde una persona la promessa non la manteniamo.
+
+    Costa una SELECT in più su una colonna indicizzata, e vale il prezzo:
+    l'alternativa è farla decidere al motore, che però parte troppo tardi —
+    i puntini devono comparire subito o non servono a niente.
+    """
+    from datetime import datetime
+
+    backends = backends if backends is not None else _backends_reali()
+    try:
+        conversazione = await backends.conversazione_operatore_aperta(phone)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Non riesco a sapere chi risponde a %s", phone, exc_info=True
+        )
+        return False
+
+    # Un passaggio dimenticato torna al bot al primo messaggio, quindi lì i
+    # puntini sono di nuovo veri.
+    return bool(conversazione) and not passaggio_dimenticato(
+        conversazione, datetime.now()
+    )
+
+
 async def _in_mano_a_una_persona(phone: str, text: str, backends) -> bool:
     """True se su questo numero deve rispondere una persona e non il bot.
 

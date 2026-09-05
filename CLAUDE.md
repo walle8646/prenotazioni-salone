@@ -197,6 +197,15 @@ Senza, fra Claude e i calendari passano secondi di silenzio, e su Render appena
 risvegliato una trentina: il cliente crede di aver scritto nel vuoto. Se il
 segnale non parte non cambia niente, è cortesia e non funzionamento.
 
+**Ma i puntini si mostrano solo se a scrivere sarà il bot.** Quando la
+conversazione è in mano a una persona resta `segna_letto()`, spunte blu e
+basta: "letto" è vero, "sta scrivendo" prometterebbe una risposta fra pochi
+secondi che arriverà quando il salone potrà. I puntini fermi mentre non scrive
+nessuno sono peggio di nessun segnale — il cliente aspetta guardando lo
+schermo. La domanda la fa il webhook con `risponde_una_persona()`, che è di
+sola lettura e costa una SELECT in più: deve decidere **prima** di far partire
+l'elaborazione, perché un indicatore che compare tardi non serve a niente.
+
 **Su WhatsApp le facce stanno in un'immagine sola, non una per riga.** Non è
 una scorciatoia: le liste di Meta ammettono solo intestazioni di testo e nelle
 righe non entra nessuna immagine, mentre i messaggi a bottoni accettano

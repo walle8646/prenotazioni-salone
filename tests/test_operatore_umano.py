@@ -303,3 +303,49 @@ async def test_dal_sito_non_si_passa_ma_si_risponde(mock_redis, backends):
 
     assert backends.conversazioni_operatore == []
     assert "WhatsApp" in risposta["text"] or "telefonare" in risposta["text"]
+
+
+@pytest.mark.asyncio
+async def test_chi_risponde_lo_si_puo_sapere_senza_toccare_niente(
+    mock_redis, backends, canale
+):
+    """Il webhook lo chiede prima di elaborare, e non deve avere effetti.
+
+    Serve a decidere se mostrare "sta scrivendo": quei puntini promettono una
+    risposta fra pochi secondi, e con la conversazione in mano al salone la
+    promessa non la manteniamo.
+    """
+    from services.conversation import risponde_una_persona
+
+    assert await risponde_una_persona(NUMERO, backends) is False
+
+    await handle_incoming_message(
+        redis=mock_redis, phone=NUMERO, text="voglio parlare con una persona",
+        msg_type="text", channel=canale, backends=backends,
+        claude=ScriptedClaude([]),
+    )
+
+    prima = len(backends.conversazioni_operatore[0]["messaggi"])
+    assert await risponde_una_persona(NUMERO, backends) is True
+    # Sola lettura: chiederlo non registra niente e non chiude niente.
+    assert len(backends.conversazioni_operatore[0]["messaggi"]) == prima
+    assert backends.conversazioni_operatore[0]["stato"] == "attesa"
+
+
+@pytest.mark.asyncio
+async def test_su_un_passaggio_dimenticato_i_puntini_tornano_veri(
+    mock_redis, backends, canale
+):
+    """Lì a rispondere sarà di nuovo il bot, quindi l'indicatore dice il vero."""
+    from services.conversation import risponde_una_persona
+
+    await handle_incoming_message(
+        redis=mock_redis, phone=NUMERO, text="voglio parlare con una persona",
+        msg_type="text", channel=canale, backends=backends,
+        claude=ScriptedClaude([]),
+    )
+    backends.conversazioni_operatore[0]["aperta_il"] = datetime.now() - timedelta(
+        hours=25
+    )
+
+    assert await risponde_una_persona(NUMERO, backends) is False

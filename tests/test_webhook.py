@@ -44,6 +44,8 @@ def client(monkeypatch):
     """App minima col solo webhook, e la conversazione sostituita da una spia."""
     elaborati = []
     segnalati = []
+    solo_lette = []
+    stato = {"risponde_una_persona": False}
 
     async def finto_handle(redis, **argomenti):
         # Simula il tempo vero di un giro con Claude e Google
@@ -54,9 +56,19 @@ def client(monkeypatch):
         segnalati.append(message_id)
         return True
 
+    async def finta_lettura(message_id):
+        solo_lette.append(message_id)
+        return True
+
+    async def finto_chi_risponde(phone, backends=None):
+        return stato["risponde_una_persona"]
+
     monkeypatch.setattr(webhook, "handle_incoming_message", finto_handle)
-    # Senza questo i test chiamerebbero davvero Meta: qui non si tocca la rete.
+    # Senza questi i test chiamerebbero davvero Meta e il database: qui non si
+    # tocca né la rete né Postgres.
     monkeypatch.setattr(webhook, "segna_letto_e_sta_scrivendo", finto_segnale)
+    monkeypatch.setattr(webhook, "segna_letto", finta_lettura)
+    monkeypatch.setattr(webhook, "risponde_una_persona", finto_chi_risponde)
 
     app = FastAPI()
     app.include_router(webhook.router)
@@ -65,6 +77,8 @@ def client(monkeypatch):
     with TestClient(app) as c:
         c.elaborati = elaborati
         c.segnalati = segnalati
+        c.solo_lette = solo_lette
+        c.stato = stato
         yield c
 
 
@@ -273,3 +287,28 @@ def test_un_errore_nella_conversazione_non_arriva_a_meta(client, monkeypatch):
     risposta = client.post("/webhook/whatsapp", json=_payload(message_id="wamid.99"))
 
     assert risposta.status_code == 200
+
+
+def test_se_risponde_una_persona_niente_puntini(client):
+    """I puntini promettono una risposta fra pochi secondi.
+
+    Con la conversazione in mano al salone quella promessa non la manteniamo:
+    l'indicatore resterebbe lì mentre non scrive nessuno, e il cliente aspetta
+    guardando lo schermo. Peggio di nessun segnale.
+    """
+    client.stato["risponde_una_persona"] = True
+
+    client.post("/webhook/whatsapp", json=_payload(message_id="wamid.99"))
+
+    assert client.solo_lette == ["wamid.99"], "le spunte blu devono partire lo stesso"
+    assert client.segnalati == [], "non doveva comparire 'sta scrivendo'"
+
+
+def test_se_risponde_il_bot_i_puntini_ci_sono(client):
+    """Quando la risposta arriva davvero fra pochi secondi, l'indicatore serve."""
+    client.stato["risponde_una_persona"] = False
+
+    client.post("/webhook/whatsapp", json=_payload(message_id="wamid.100"))
+
+    assert client.segnalati == ["wamid.100"]
+    assert client.solo_lette == []

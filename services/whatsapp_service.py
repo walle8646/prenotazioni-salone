@@ -92,6 +92,26 @@ async def send_text_message_con_motivo(to: str, text: str) -> tuple[bool, str]:
     return await _invia_con_motivo(_payload_testo(to, text), "un messaggio di testo")
 
 
+async def segna_letto(message_id: str) -> bool:
+    """Solo le spunte blu, senza "sta scrivendo…".
+
+    Serve quando a rispondere sarà una persona e non il bot: "letto" è vero e
+    utile, "sta scrivendo" prometterebbe una risposta fra pochi secondi che non
+    arriva. I puntini che restano lì mentre non scrive nessuno sono peggio di
+    nessun segnale: il cliente aspetta guardando lo schermo.
+    """
+    if not message_id:
+        return False
+    return await _invia(
+        {
+            "messaging_product": "whatsapp",
+            "status": "read",
+            "message_id": message_id,
+        },
+        "la conferma di lettura",
+    )
+
+
 async def segna_letto_e_sta_scrivendo(message_id: str) -> bool:
     """Spunte blu e "sta scrivendo…" sul messaggio appena arrivato.
 
