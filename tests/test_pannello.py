@@ -219,3 +219,90 @@ async def test_se_l_annullamento_fallisce_il_cliente_non_viene_avvisato(
     assert resoconto["annullati"] == 0
     assert backends.email_assenze == []
     assert "NON annullato" in resoconto["problemi"][0]
+
+
+# ------------------------------------------- aggiornamento della conversazione
+
+
+@pytest.fixture
+def pannello_aperto(monkeypatch):
+    """Il pannello con la sessione già valida e il database sostituito."""
+    from datetime import datetime, timedelta
+
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from routers import admin
+    import services.db_service as db
+
+    adesso = datetime.now()
+    conversazione = {
+        "id": 1,
+        "nome": "Mario Rossi",
+        "telefono": "393331234567",
+        "cliente_id": None,
+        "canale": "whatsapp",
+        "stato": "attesa",
+        "motivo": "vuole parlare con qualcuno",
+        "aperta_il": adesso - timedelta(minutes=30),
+        "ultimo_messaggio_cliente": adesso - timedelta(minutes=2),
+        "presa_il": None,
+        "chiusa_il": None,
+        "messaggi": [
+            {"id": 1, "autore": "cliente", "testo": "ciao", "creato_il": adesso},
+            {"id": 2, "autore": "bot", "testo": "Dimmi pure", "creato_il": adesso},
+            {"id": 3, "autore": "cliente", "testo": "è urgente", "creato_il": adesso},
+        ],
+    }
+
+    async def finta_lettura(conversazione_id):
+        return conversazione if conversazione_id == 1 else None
+
+    monkeypatch.setattr(db, "conversazione_con_messaggi", finta_lettura)
+
+    app = FastAPI()
+    app.include_router(admin.router)
+    app.dependency_overrides[admin.utente_del_pannello] = lambda: "nadia"
+    client = TestClient(app)
+    client.conversazione = conversazione
+    return client
+
+
+def test_si_chiedono_solo_i_messaggi_nuovi(pannello_aperto):
+    """La pagina resta aperta anche un'ora: riscaricare tutto a ogni controllo
+    sarebbe uno spreco che cresce da solo."""
+    dati = pannello_aperto.get("/admin/conversazioni/1/messaggi?dopo=2").json()
+
+    assert [m["id"] for m in dati["messaggi"]] == [3]
+    assert dati["messaggi"][0]["testo"] == "è urgente"
+
+
+def test_senza_novita_non_torna_niente(pannello_aperto):
+    dati = pannello_aperto.get("/admin/conversazioni/1/messaggi?dopo=3").json()
+
+    assert dati["messaggi"] == []
+
+
+def test_dall_inizio_tornano_tutti(pannello_aperto):
+    dati = pannello_aperto.get("/admin/conversazioni/1/messaggi?dopo=0").json()
+
+    assert [m["id"] for m in dati["messaggi"]] == [1, 2, 3]
+
+
+def test_l_aggiornamento_dice_anche_se_la_finestra_e_ancora_aperta(pannello_aperto):
+    """Se scade mentre la receptionist ha la pagina davanti, deve accorgersene
+    prima di scrivere una risposta che verrebbe rifiutata."""
+    from datetime import datetime, timedelta
+
+    dati = pannello_aperto.get("/admin/conversazioni/1/messaggi").json()
+    assert dati["finestra_aperta"] is True
+
+    pannello_aperto.conversazione["ultimo_messaggio_cliente"] = (
+        datetime.now() - timedelta(hours=25)
+    )
+    dati = pannello_aperto.get("/admin/conversazioni/1/messaggi").json()
+    assert dati["finestra_aperta"] is False
+
+
+def test_una_conversazione_inesistente_non_esplode(pannello_aperto):
+    assert pannello_aperto.get("/admin/conversazioni/99/messaggi").status_code == 404

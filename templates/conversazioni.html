@@ -52,3 +52,14 @@
     {% endif %}
 </div>
 {% endblock %}
+
+{% block scripts %}
+<script>
+// Qui la pagina si può ricaricare per intero: non c'è niente da scrivere che
+// si possa perdere. Serve perché una richiesta nuova arriva mentre l'elenco è
+// aperto, e nessuno starebbe lì a premere aggiorna.
+setInterval(function () {
+    if (!document.hidden) location.reload();
+}, 30000);
+</script>
+{% endblock %}

@@ -655,12 +655,17 @@ body {
     color: #721c24;
 }
 
+/* Altezza limitata e scorrimento interno: i messaggi nuovi arrivano da soli
+   mentre la pagina è aperta, e senza questo la casella per rispondere finirebbe
+   sempre più in basso, fuori dallo schermo, proprio mentre serve. */
 .scambio {
     display: flex;
     flex-direction: column;
     gap: 0.6rem;
     margin: 1.2rem 0;
     padding: 1rem;
+    max-height: 60vh;
+    overflow-y: auto;
     background: #f6f8fa;
     border-radius: 6px;
 }

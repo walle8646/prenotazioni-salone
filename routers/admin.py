@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Form, Depends, File, HTTPException, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import selectinload
@@ -998,6 +998,45 @@ async def conversazione_apri(
             "esito": esito,
         },
     )
+
+
+@router.get("/conversazioni/{conversazione_id}/messaggi")
+async def conversazione_messaggi(
+    conversazione_id: int,
+    dopo: int = 0,
+    utente=Depends(utente_del_pannello),
+):
+    """Solo i messaggi arrivati dopo quello indicato.
+
+    La pagina si aggiorna da sola chiamando qui, invece di ricaricarsi: un
+    refresh dell'intera pagina cancellerebbe la risposta che la receptionist
+    sta scrivendo nella casella, ed è l'unico momento in cui è al lavoro.
+
+    Si chiede "cosa è arrivato dopo l'id X" e non tutto lo scambio: la pagina
+    resta aperta anche un'ora, e il controllo si ripete da solo.
+    """
+    from services.db_service import conversazione_con_messaggi
+
+    conversazione = await conversazione_con_messaggi(conversazione_id)
+    if conversazione is None:
+        return JSONResponse({"errore": "conversazione non trovata"}, status_code=404)
+
+    dati = await _conversazione_per_pannello(conversazione, datetime.now())
+    return {
+        "stato": dati["stato"],
+        "finestra_aperta": dati["finestra_aperta"],
+        "finestra_scade_fra": dati["finestra_scade_fra"],
+        "messaggi": [
+            {
+                "id": m["id"],
+                "autore": m["autore"],
+                "testo": m["testo"],
+                "ora": m["creato_il"].strftime("%d/%m %H:%M"),
+            }
+            for m in dati["messaggi"]
+            if m["id"] > dopo
+        ],
+    }
 
 
 @router.post("/conversazioni/{conversazione_id}/rispondi")

@@ -300,7 +300,17 @@ solo per tutta la settimana, non sette query),
 **Presenze**, **Assenze**.
 
 **Conversazioni** mostra chi sta aspettando una risposta da una persona, con
-lo scambio già avuto col bot e una casella per rispondere via WhatsApp. La
+lo scambio già avuto col bot e una casella per rispondere via WhatsApp.
+
+**La conversazione si aggiorna da sola ma non si ricarica.** Un refresh della
+pagina intera cancellerebbe la risposta che la receptionist sta scrivendo,
+proprio nell'unico momento in cui è al lavoro: la pagina chiede ogni otto
+secondi solo i **messaggi arrivati dopo l'ultimo che ha già**
+(`/admin/conversazioni/{id}/messaggi?dopo=`), e li aggiunge in fondo. Si
+inseriscono con `textContent` e non con `innerHTML`, perché quel testo l'ha
+scritto un cliente. L'elenco invece si ricarica per intero ogni trenta
+secondi: lì non c'è niente da perdere. Entrambi si fermano quando la scheda è
+in secondo piano. La
 schermata dichiara **quanto manca alla chiusura della finestra di 24 ore** e
 toglie la casella quando è passata: fuori da quella finestra Meta accetta solo
 template approvati, che non abbiamo, e far scrivere una risposta per poi

@@ -625,8 +625,15 @@ async def conversazione_con_messaggi(conversazione_id: int) -> dict | None:
             .where(MessaggioConversazione.conversazione_id == conversazione_id)
             .order_by(MessaggioConversazione.creato_il, MessaggioConversazione.id)
         )
+        # L'id serve al pannello per chiedere "cosa e' arrivato dopo questo"
+        # senza riscaricare tutto lo scambio a ogni controllo.
         voce["messaggi"] = [
-            {"autore": m.autore, "testo": m.testo, "creato_il": m.creato_il}
+            {
+                "id": m.id,
+                "autore": m.autore,
+                "testo": m.testo,
+                "creato_il": m.creato_il,
+            }
             for m in messaggi.scalars().all()
         ]
         return voce

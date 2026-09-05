@@ -27,9 +27,12 @@
     </div>
     {% endif %}
 
-    <div class="scambio">
+    <div class="scambio" id="scambio"
+         data-conversazione="{{ c.id }}"
+         data-stato="{{ c.stato }}"
+         data-nome="{{ c.nome }}">
         {% for m in c.messaggi %}
-        <div class="messaggio messaggio-{{ m.autore }}">
+        <div class="messaggio messaggio-{{ m.autore }}" data-id="{{ m.id }}">
             <div class="messaggio-autore">
                 {% if m.autore == 'cliente' %}{{ c.nome }}
                 {% elif m.autore == 'bot' %}Bot
@@ -39,7 +42,7 @@
             <div class="messaggio-testo">{{ m.testo }}</div>
         </div>
         {% else %}
-        <p class="empty-state">Nessun messaggio registrato.</p>
+        <p class="empty-state" id="scambio-vuoto">Nessun messaggio registrato.</p>
         {% endfor %}
     </div>
 
@@ -61,13 +64,19 @@
         <button type="submit" class="btn-small btn-neutro">Ridai la conversazione al bot</button>
     </form>
     {% else %}
+    <div class="error" id="finestra-chiusa" hidden>
+        <strong>La finestra di 24 ore si è appena chiusa.</strong>
+        WhatsApp non accetta più testo libero per questo numero: telefona al
+        cliente, oppure aspetta che riscriva lui.
+    </div>
+
     <form class="risposta" method="POST" action="/admin/conversazioni/{{ c.id }}/rispondi">
         <label for="testo">Rispondi come salone</label>
         <textarea id="testo" name="testo" rows="3" required
                   placeholder="Il messaggio arriva su WhatsApp dal numero del salone."></textarea>
         <div class="risposta-azioni">
-            <button type="submit" class="btn-small">Invia</button>
-            <small>Si può scrivere ancora per {{ c.finestra_scade_fra }}.</small>
+            <button type="submit" class="btn-small" id="invia">Invia</button>
+            <small id="scadenza">Si può scrivere ancora per {{ c.finestra_scade_fra }}.</small>
         </div>
     </form>
 
@@ -77,4 +86,106 @@
     </form>
     {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// La pagina si aggiorna da sola, ma NON si ricarica: chi sta rispondendo ha la
+// casella a metà, e un refresh gliela cancellerebbe proprio mentre lavora.
+// Si chiedono solo i messaggi arrivati dopo l'ultimo che abbiamo già.
+(function () {
+    var scambio = document.getElementById("scambio");
+    if (!scambio || scambio.dataset.stato === "chiusa") return;
+
+    var conversazione = scambio.dataset.conversazione;
+    var nomeCliente = scambio.dataset.nome;
+    var OGNI = 8000;
+
+    function ultimoId() {
+        var righe = scambio.querySelectorAll(".messaggio[data-id]");
+        return righe.length ? righe[righe.length - 1].dataset.id : 0;
+    }
+
+    function etichetta(autore) {
+        if (autore === "cliente") return nomeCliente;
+        if (autore === "bot") return "Bot";
+        return "Salone";
+    }
+
+    function aggiungi(m) {
+        var riga = document.createElement("div");
+        riga.className = "messaggio messaggio-" + m.autore;
+        riga.dataset.id = m.id;
+
+        var chi = document.createElement("div");
+        chi.className = "messaggio-autore";
+        // textContent e non innerHTML: quel testo l'ha scritto un cliente, e
+        // finirebbe interpretato come HTML nella pagina di chi lo legge.
+        chi.textContent = etichetta(m.autore) + " ";
+        var quando = document.createElement("small");
+        quando.textContent = m.ora;
+        chi.appendChild(quando);
+
+        var testo = document.createElement("div");
+        testo.className = "messaggio-testo";
+        testo.textContent = m.testo;
+
+        riga.appendChild(chi);
+        riga.appendChild(testo);
+        scambio.appendChild(riga);
+    }
+
+    function chiudiLaFinestra() {
+        var avviso = document.getElementById("finestra-chiusa");
+        var invia = document.getElementById("invia");
+        var scadenza = document.getElementById("scadenza");
+        if (avviso) avviso.hidden = false;
+        // Si disabilita il bottone ma non si tocca la casella: quello che ha
+        // scritto lo puo' ancora copiare e dettare al telefono.
+        if (invia) invia.disabled = true;
+        if (scadenza) scadenza.textContent = "Non si puo' piu' scrivere.";
+    }
+
+    async function controlla() {
+        if (document.hidden) return;
+        try {
+            var risposta = await fetch(
+                "/admin/conversazioni/" + conversazione + "/messaggi?dopo=" + ultimoId(),
+                { headers: { "Accept": "application/json" } }
+            );
+            // Sessione scaduta: la risposta e' la pagina di login, non JSON.
+            if (!risposta.ok) return;
+            var dati = await risposta.json();
+
+            if (dati.messaggi.length) {
+                var vuoto = document.getElementById("scambio-vuoto");
+                if (vuoto) vuoto.remove();
+                dati.messaggi.forEach(aggiungi);
+                scambio.scrollTop = scambio.scrollHeight;
+            }
+
+            var scadenza = document.getElementById("scadenza");
+            var invia = document.getElementById("invia");
+            if (dati.finestra_aperta) {
+                // Il modulo non c'e' quando la finestra era gia' chiusa
+                // all'apertura della pagina: qui non c'e' niente da aggiornare.
+                if (scadenza && invia && !invia.disabled) {
+                    scadenza.textContent = "Si può scrivere ancora per " + dati.finestra_scade_fra + ".";
+                }
+            } else {
+                chiudiLaFinestra();
+            }
+        } catch (e) {
+            // Una rete che va e viene non deve fermare l'aggiornamento: si
+            // riprova al giro dopo.
+        }
+    }
+
+    setInterval(controlla, OGNI);
+    // Tornando sulla scheda si guarda subito, senza aspettare il turno.
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) controlla();
+    });
+})();
+</script>
 {% endblock %}

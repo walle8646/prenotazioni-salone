@@ -361,8 +361,8 @@ class FakeBackends(Backends):
             "presa_il": None,
             "chiusa_il": None,
             "messaggi": [
-                {"autore": autore, "testo": testo, "creato_il": adesso}
-                for autore, testo in (storico or ())
+                {"id": i, "autore": autore, "testo": testo, "creato_il": adesso}
+                for i, (autore, testo) in enumerate(storico or (), start=1)
             ],
         }
         self.conversazioni_operatore.append(conversazione)
@@ -374,7 +374,12 @@ class FakeBackends(Backends):
                 continue
             adesso = datetime.now()
             conversazione["messaggi"].append(
-                {"autore": autore, "testo": testo, "creato_il": adesso}
+                {
+                    "id": len(conversazione["messaggi"]) + 1,
+                    "autore": autore,
+                    "testo": testo,
+                    "creato_il": adesso,
+                }
             )
             if autore == "cliente":
                 conversazione["ultimo_messaggio_cliente"] = adesso
