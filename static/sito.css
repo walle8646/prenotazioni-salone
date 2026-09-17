@@ -5,9 +5,17 @@
     box-sizing: border-box;
 }
 
+/* Il sito è chiaro, e lo dice. Senza uno sfondo dichiarato un browser in
+   modalità scura dipinge la pagina di nero: finché in alto c'era il riquadro
+   blu non si notava, ma il logo è grigio antracite e sul nero sparisce. */
+:root {
+    color-scheme: light;
+}
+
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     color: #2c3e50;
+    background: #ffffff;
     line-height: 1.6;
 }
 
@@ -29,11 +37,21 @@ body {
     align-items: center;
 }
 
+/* Il logo accanto al nome e non al suo posto: ridotto a 44 pixel la
+   scritta dentro la lampadina non si legge più, e il nome deve restare. */
 .logo {
-    font-size: 1.4rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 1.3rem;
     font-weight: bold;
-    color: #c0392b;
+    color: #2e2e30;
     text-decoration: none;
+}
+
+.logo img {
+    height: 44px;
+    width: auto;
 }
 
 .nav-links a {
@@ -44,25 +62,138 @@ body {
 }
 
 .nav-links a:hover {
-    color: #c0392b;
+    color: #1f5b45;
 }
 
-/* Hero */
+/* Hero: il logo su fondo chiaro accanto alla foto, non sopra. Il logo è
+   grigio antracite e su una foto scura sparirebbe; schiarirlo per farlo
+   leggere vorrebbe dire usare un logo che non è il loro. */
 .hero {
-    background: linear-gradient(135deg, #2c3e50, #34495e);
-    color: white;
-    text-align: center;
-    padding: 5rem 2rem;
+    display: grid;
+    grid-template-columns: minmax(220px, 2fr) 3fr;
+    gap: 2.5rem;
+    align-items: center;
+    padding: 2.5rem 2rem;
+}
+
+.hero-testo {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.4rem;
+}
+
+.hero-logo {
+    width: 140px;
+    height: auto;
+    margin-bottom: 0.8rem;
 }
 
 .hero h1 {
-    font-size: 3rem;
-    margin-bottom: 0.5rem;
+    font-size: 2.6rem;
+    line-height: 1.1;
+    color: #2e2e30;
 }
 
 .hero p {
-    font-size: 1.3rem;
-    opacity: 0.85;
+    font-size: 1.2rem;
+    color: #7a6f66;
+}
+
+.hero-foto {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+}
+
+/* Galleria: la foto al lavoro e l'ingresso affiancati alla stessa altezza,
+   la poltrona sotto a tutta larghezza. Con 2 colonne contro 1 l'ingresso,
+   che è verticale, perde solo un decimo in altezza invece di mezza foto. */
+.galleria-griglia {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 0.8rem;
+}
+
+.galleria-griglia figure {
+    margin: 0;
+    overflow: hidden;
+    border-radius: 8px;
+}
+
+.galleria-griglia img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.foto-lavoro {
+    aspect-ratio: 3 / 2;
+}
+
+.foto-poltrona {
+    grid-column: 1 / -1;
+    aspect-ratio: 16 / 6;
+}
+
+/* Lo schienale sta un po' sopra il centro: centrato si tagliava la testiera. */
+.foto-poltrona img {
+    object-position: 50% 40%;
+}
+
+@media (max-width: 760px) {
+    /* Col logo in più, a 375 pixel il nome andava a capo e "Chi siamo" si
+       spezzava su due righe. Tutto su una: c'è posto, bastava non sprecarlo. */
+    .site-header nav {
+        padding: 0.6rem 1rem;
+    }
+
+    .logo {
+        font-size: 1.1rem;
+        white-space: nowrap;
+    }
+
+    .logo img {
+        height: 36px;
+    }
+
+    .nav-links a {
+        margin-left: 1rem;
+        white-space: nowrap;
+    }
+
+    .hero {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+        padding: 1.5rem 1rem;
+        text-align: center;
+    }
+
+    .hero-testo {
+        align-items: center;
+    }
+
+    .hero-logo {
+        width: 100px;
+    }
+
+    .hero h1 {
+        font-size: 2rem;
+    }
+
+    .galleria-griglia {
+        grid-template-columns: 1fr;
+    }
+
+    .foto-ingresso {
+        aspect-ratio: 4 / 5;
+    }
+
+    .foto-poltrona {
+        aspect-ratio: 3 / 2;
+    }
 }
 
 /* Sections */
@@ -75,7 +206,7 @@ section {
 section h2 {
     text-align: center;
     margin-bottom: 2rem;
-    color: #c0392b;
+    color: #1f5b45;
     font-size: 1.8rem;
 }
 
@@ -127,7 +258,7 @@ section h2 {
 
 .servizio-card .prezzo {
     display: block;
-    color: #c0392b;
+    color: #1f5b45;
     font-size: 1.25rem;
     font-weight: 700;
     margin-bottom: 0.25rem;
@@ -182,7 +313,7 @@ section h2 {
 }
 
 .page-content h1 {
-    color: #c0392b;
+    color: #1f5b45;
     margin-bottom: 1.5rem;
 }
 
@@ -195,7 +326,7 @@ section h2 {
 footer {
     text-align: center;
     padding: 2rem;
-    background: #2c3e50;
+    background: #2e2e30;
     color: white;
     margin-top: 2rem;
 }
@@ -212,7 +343,7 @@ footer {
     width: 56px;
     height: 56px;
     border-radius: 50%;
-    background: #c0392b;
+    background: #1f5b45;
     color: white;
     border: none;
     cursor: pointer;
@@ -249,7 +380,7 @@ footer {
 }
 
 .chat-header {
-    background: #c0392b;
+    background: #1f5b45;
     color: white;
     padding: 1rem;
     display: flex;
@@ -313,7 +444,7 @@ footer {
 }
 
 .message.user {
-    background: #c0392b;
+    background: #1f5b45;
     color: white;
     margin-left: auto;
 }
@@ -381,14 +512,14 @@ footer {
 }
 
 #chat-input:focus {
-    border-color: #c0392b;
+    border-color: #1f5b45;
 }
 
 .chat-send {
     width: 36px;
     height: 36px;
     border-radius: 50%;
-    background: #c0392b;
+    background: #1f5b45;
     color: white;
     border: none;
     cursor: pointer;
@@ -398,7 +529,7 @@ footer {
 }
 
 .chat-send:hover {
-    background: #a93226;
+    background: #174535;
 }
 
 /* Chat Option Buttons */
@@ -412,9 +543,9 @@ footer {
 
 .chat-option-btn {
     padding: 0.5rem 0.9rem;
-    border: 2px solid #c0392b;
+    border: 2px solid #1f5b45;
     background: white;
-    color: #c0392b;
+    color: #1f5b45;
     border-radius: 18px;
     cursor: pointer;
     font-size: 0.85rem;
@@ -428,7 +559,7 @@ footer {
 }
 
 .chat-option-btn:hover {
-    background: #c0392b;
+    background: #1f5b45;
     color: white;
 }
 

@@ -68,3 +68,32 @@ def test_pagina_cancellazione_dati_raggiungibile(client):
 def test_le_due_pagine_si_rimandano(client):
     """Chi arriva su una deve poter raggiungere l'altra."""
     assert "/privacy" in client.get("/cancellazione-dati").text
+
+
+def test_le_immagini_del_sito_esistono(client):
+    """Un nome di file sbagliato non rompe niente di visibile nei test: sul
+    sito diventa un riquadro vuoto proprio in cima alla homepage.
+
+    Si controlla ogni immagine citata dalle pagine pubbliche contro i file che
+    ci sono davvero in `static/`.
+    """
+    import re
+    from pathlib import Path
+
+    radice = Path(__file__).resolve().parent.parent
+    pagine = ["/", "/chi-siamo", "/privacy", "/cancellazione-dati"]
+
+    citate = set()
+    for pagina in pagine:
+        citate.update(re.findall(r"/static/(img/[^\"?\s]+)", client.get(pagina).text))
+
+    assert citate, "nessuna immagine trovata: il test non starebbe controllando niente"
+    mancanti = sorted(c for c in citate if not (radice / "static" / c).is_file())
+    assert mancanti == [], f"immagini citate ma assenti: {mancanti}"
+
+
+def test_la_homepage_mostra_logo_e_foto(client):
+    pagina = client.get("/").text
+    assert "/static/img/logo.png" in pagina
+    for foto in ("salone", "al-lavoro", "poltrona", "ingresso"):
+        assert f"/static/img/{foto}-" in pagina, foto
