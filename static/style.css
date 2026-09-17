@@ -883,3 +883,374 @@ body {
         max-width: 92%;
     }
 }
+
+/* ============================================ Giornata come calendario
+
+   Ore in verticale, una colonna per operatore, un blocco alto quanto dura
+   l'appuntamento. Le posizioni arrivano dal server come numeri di mezz'ore
+   (--da, --per): qui si moltiplicano per l'altezza di una riga e basta, così
+   la geometria si decide in un posto solo e si prova senza browser. */
+
+.barra-giornata {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.8rem;
+    margin-bottom: 0.8rem;
+}
+
+.barra-giornata .date-picker {
+    margin-bottom: 0;
+}
+
+.scelta-vista {
+    display: inline-flex;
+    background: #e6ebf0;
+    border-radius: 6px;
+    padding: 3px;
+}
+
+.scelta-vista a {
+    padding: 0.35rem 0.9rem;
+    border-radius: 4px;
+    color: #4a5a6a;
+    text-decoration: none;
+    font-size: 0.9rem;
+}
+
+.scelta-vista a[aria-current="page"] {
+    background: white;
+    color: #2c3e50;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.riepilogo-giornata {
+    color: #5a6b7b;
+    margin-bottom: 1rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.agenda-scorre {
+    overflow-x: auto;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.08);
+}
+
+.agenda {
+    --riga: 46px;
+    --ore: 58px;
+    min-width: calc(var(--ore) + var(--colonne) * 132px);
+}
+
+.agenda-testata,
+.agenda-corpo {
+    display: grid;
+    grid-template-columns: var(--ore) repeat(var(--colonne), minmax(132px, 1fr));
+}
+
+.agenda-testata {
+    border-bottom: 1px solid #dfe5eb;
+}
+
+.agenda-angolo,
+.agenda-ore {
+    /* La colonna delle ore resta ferma scorrendo di lato: senza, da telefono
+       alla terza colonna non si sa più che ora si sta guardando. */
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    background: white;
+}
+
+.agenda-operatore {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.6rem 0.6rem;
+    border-left: 1px solid #eef1f4;
+    min-width: 0;
+}
+
+.agenda-operatore img {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.agenda-nome {
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.agenda-operatore small {
+    margin-left: auto;
+    color: #8a97a4;
+    font-variant-numeric: tabular-nums;
+}
+
+.agenda-corpo {
+    position: relative;
+    height: calc(var(--righe) * var(--riga));
+}
+
+.agenda-ore {
+    height: 100%;
+    border-right: 1px solid #dfe5eb;
+}
+
+.agenda-ore span {
+    position: absolute;
+    top: calc(var(--da) * var(--riga));
+    right: 0.5rem;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    color: #8a97a4;
+    font-variant-numeric: tabular-nums;
+    background: white;
+    padding: 0 2px;
+}
+
+/* La prima etichetta starebbe per metà sopra la griglia. */
+.agenda-ore span:first-child {
+    transform: none;
+}
+
+.agenda-colonna {
+    position: relative;
+    border-left: 1px solid #eef1f4;
+    /* Linea piena a ogni ora, tratteggio leggero alla mezz'ora. */
+    background-image:
+        linear-gradient(to bottom, #e3e8ee 1px, transparent 1px),
+        linear-gradient(to bottom, #f2f4f7 1px, transparent 1px);
+    background-size: 100% calc(var(--riga) * 2), 100% var(--riga);
+}
+
+.agenda-fuori {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(var(--da) * var(--riga));
+    height: calc(var(--per) * var(--riga));
+    background: repeating-linear-gradient(
+        -45deg,
+        rgba(138, 151, 164, 0.10) 0 6px,
+        rgba(138, 151, 164, 0.02) 6px 12px
+    );
+}
+
+.agenda-blocco {
+    position: absolute;
+    top: calc(var(--da) * var(--riga) + 1px);
+    height: calc(var(--per) * var(--riga) - 3px);
+    left: calc(var(--corsia) * 100% / var(--corsie) + 3px);
+    width: calc(100% / var(--corsie) - 6px);
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 3px 6px 3px 8px;
+    overflow: hidden;
+    text-align: left;
+    font: inherit;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    color: #1f2a36;
+    background: var(--sfondo);
+    border: none;
+    border-left: 3px solid var(--bordo);
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.agenda-blocco:hover {
+    filter: brightness(0.97);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+    z-index: 2;
+}
+
+.agenda-blocco:focus-visible {
+    outline: 2px solid #2c3e50;
+    outline-offset: 1px;
+    z-index: 2;
+}
+
+.agenda-blocco span {
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.blocco-ora {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.blocco-cliente {
+    font-weight: 500;
+}
+
+.blocco-servizi {
+    color: #4a5a6a;
+}
+
+/* Mezz'ora: due righe e basta. Ora e nome sulla prima, il servizio sotto.
+   Un nome lungo si accorcia coi puntini invece di andare a capo: andando a
+   capo spingeva il servizio fuori dal blocco, e il servizio è quello che
+   dice quanto dura. Il nome intero è nella finestra che si apre toccando. */
+.blocco-corto {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 0.35rem;
+    align-content: start;
+}
+
+.blocco-corto .blocco-servizi {
+    grid-column: 1 / -1;
+}
+
+.agenda-adesso {
+    position: absolute;
+    left: var(--ore);
+    right: 0;
+    top: calc(var(--da) * var(--riga));
+    height: 2px;
+    background: #e74c3c;
+    z-index: 4;
+    pointer-events: none;
+}
+
+.agenda-adesso::before {
+    content: "";
+    position: absolute;
+    left: -5px;
+    top: -4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #e74c3c;
+}
+
+.agenda-legenda {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.2rem;
+    margin: 0.9rem 0 0;
+    padding: 0;
+    font-size: 0.85rem;
+    color: #5a6b7b;
+}
+
+.agenda-legenda li {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.agenda-legenda span {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--sfondo);
+    border-left: 3px solid var(--bordo);
+}
+
+.agenda-legenda .legenda-fuori {
+    background: repeating-linear-gradient(-45deg, rgba(138, 151, 164, 0.35) 0 3px, transparent 3px 6px);
+    border: 1px solid #d5dce3;
+}
+
+.dettaglio {
+    border: none;
+    border-radius: 10px;
+    padding: 1.3rem 1.4rem 1.2rem;
+    width: min(26rem, calc(100vw - 2rem));
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+    color: #2c3e50;
+}
+
+.dettaglio::backdrop {
+    background: rgba(44, 62, 80, 0.35);
+}
+
+.dettaglio-chiudi {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.6rem;
+}
+
+.dettaglio-chiudi button {
+    border: none;
+    background: none;
+    font-size: 1.5rem;
+    line-height: 1;
+    color: #8a97a4;
+    cursor: pointer;
+    padding: 0.2rem 0.4rem;
+}
+
+.dettaglio-quando {
+    font-size: 0.85rem;
+    color: #8a97a4;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 0.2rem;
+}
+
+.dettaglio h3 {
+    font-size: 1.2rem;
+    margin-bottom: 0.8rem;
+}
+
+.dettaglio h3 a {
+    color: #2c3e50;
+}
+
+.dettaglio dl {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.35rem 1rem;
+    margin-bottom: 1.1rem;
+}
+
+.dettaglio dt {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #8a97a4;
+    padding-top: 0.15rem;
+}
+
+.dettaglio dd {
+    margin: 0;
+}
+
+@media (max-width: 760px) {
+    .agenda {
+        --riga: 42px;
+        --ore: 48px;
+    }
+
+    .scelta-vista {
+        width: 100%;
+    }
+
+    .scelta-vista a {
+        flex: 1;
+        text-align: center;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .agenda-blocco:hover {
+        box-shadow: none;
+    }
+}

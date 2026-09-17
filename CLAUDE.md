@@ -299,6 +299,19 @@ solo per tutta la settimana, non sette query),
 **Listino** e **Operatori** (modifica in linea, una riga per form),
 **Presenze**, **Assenze**.
 
+**Appuntamenti** mostra la giornata come la vista giornaliera di Google
+Calendar: ore in verticale, una colonna per operatore, un blocco alto quanto
+dura l'appuntamento e colorato per servizio, a righe le ore in cui un
+operatore non è in salone. Con settanta appuntamenti un elenco non dice le due
+cose che si cercano — chi è libero adesso e dove c'è un buco — e la griglia sì.
+La geometria sta in `services/agenda.py`, logica pura con i suoi test: un
+blocco disegnato mezz'ora fuori posto non fa fallire niente, ma fa dare il
+posto a un altro. Due scelte: la giornata si **allarga** per mostrare un
+appuntamento fuori orario invece di nasconderlo, perché anomalo è proprio il
+motivo per cui va visto; e due appuntamenti sovrapposti nella stessa colonna
+si **affiancano**, perché uno sopra l'altro il secondo sparirebbe. L'elenco
+di prima resta come seconda vista (`?vista=elenco`).
+
 **Conversazioni** mostra chi sta aspettando una risposta da una persona, con
 lo scambio già avuto col bot e una casella per rispondere via WhatsApp.
 

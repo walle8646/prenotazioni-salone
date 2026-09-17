@@ -136,14 +136,19 @@ def _alias_da_testo(testo: str) -> list[str]:
 
 
 @router.get("/dashboard", response_class=HTMLResponse)
-async def dashboard(request: Request, data: str = None, db=Depends(get_db)):
+async def dashboard(
+    request: Request, data: str = None, vista: str = None, db=Depends(get_db)
+):
     user = verify_session(request)
     if not user:
         return RedirectResponse(url="/admin/login")
 
-    # Data selezionata o oggi
+    # Data selezionata o oggi, nel fuso del salone: su Render il server è in
+    # UTC, e fra mezzanotte e le due il pannello si apriva sul giorno prima.
+    from services.slots import adesso_salone as _adesso
+
     target_date = (
-        datetime.strptime(data, "%Y-%m-%d").date() if data else date.today()
+        datetime.strptime(data, "%Y-%m-%d").date() if data else _adesso().date()
     )
 
     # Query appuntamenti del giorno con relazioni
@@ -176,6 +181,26 @@ async def dashboard(request: Request, data: str = None, db=Depends(get_db)):
         for a in appuntamenti
     )
 
+    from prompts.system_prompt import get_parrucchieri_map_cached
+    from services.agenda import costruisci_agenda, legenda
+    from services.presenze import e_in_salone
+    from services.slots import adesso_salone, orari_salone
+
+    ordine_servizi = [s["nome"] for s in catalogo.elenco_per_sito()]
+    agenda = costruisci_agenda(
+        appuntamenti,
+        giorno=target_date,
+        operatori=list(get_parrucchieri_map_cached()),
+        orari_del_giorno=orari_salone().get(target_date.weekday(), []),
+        e_in_salone=e_in_salone,
+        prezzo_di=prezzo_di,
+        ordine_servizi=ordine_servizi,
+        # L'ora del salone e non del server: su Render è UTC, e la linea
+        # dell'ora corrente starebbe due ore indietro.
+        adesso=adesso_salone().replace(tzinfo=None),
+    )
+    servizi_del_giorno = {s for a in appuntamenti for s in (a.servizi or [])[:1]}
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -189,6 +214,11 @@ async def dashboard(request: Request, data: str = None, db=Depends(get_db)):
             "settimana_dopo": (target_date + timedelta(days=7)).isoformat(),
             "intestazione_settimana": _intestazione_settimana(target_date),
             "titolo_giornata": _in_italiano(target_date),
+            # Il calendario è la vista normale; l'elenco resta per chi deve
+            # scorrere tutti i nomi in fila, per esempio per telefonare.
+            "vista": "elenco" if vista == "elenco" else "calendario",
+            "agenda": agenda,
+            "legenda": legenda(ordine_servizi, servizi_del_giorno),
         },
     )
 

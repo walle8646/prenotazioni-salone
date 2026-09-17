@@ -35,11 +35,120 @@
         </div>
     </div>
 
-    <form class="date-picker" method="GET" action="/admin/dashboard">
-        <input type="date" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
-        <button type="submit" class="btn-small">Vai a un'altra data</button>
-    </form>
+    <div class="barra-giornata">
+        <form class="date-picker" method="GET" action="/admin/dashboard">
+            <input type="date" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
+            {% if vista == 'elenco' %}<input type="hidden" name="vista" value="elenco">{% endif %}
+            <button type="submit" class="btn-small">Vai a un'altra data</button>
+        </form>
 
+        <nav class="scelta-vista" aria-label="Come mostrare la giornata">
+            <a href="/admin/dashboard?data={{ data_selezionata.strftime('%Y-%m-%d') }}"
+               {% if vista == 'calendario' %}aria-current="page"{% endif %}>Calendario</a>
+            <a href="/admin/dashboard?data={{ data_selezionata.strftime('%Y-%m-%d') }}&amp;vista=elenco"
+               {% if vista == 'elenco' %}aria-current="page"{% endif %}>Elenco</a>
+        </nav>
+    </div>
+
+    {% if appuntamenti %}
+    <p class="riepilogo-giornata">
+        <strong>{{ appuntamenti | length }}</strong> appuntament{{ 'o' if appuntamenti | length == 1 else 'i' }}
+        · incasso previsto <strong>{{ incasso_previsto }}</strong>
+    </p>
+    {% endif %}
+
+    {% if vista == 'calendario' %}
+    {% if agenda.chiuso %}
+    <p class="empty-state">Il salone è chiuso e non ci sono appuntamenti.</p>
+    {% else %}
+    {# Ore in verticale, una colonna per operatore, un blocco alto quanto dura
+       l'appuntamento: come la vista giornaliera di Google Calendar. Le zone a
+       righe sono le ore in cui quell'operatore non è in salone. #}
+    <div class="agenda-scorre">
+        <div class="agenda" style="--righe: {{ agenda.righe }}; --colonne: {{ agenda.colonne | length }};">
+            <div class="agenda-testata">
+                <div class="agenda-angolo"></div>
+                {% for c in agenda.colonne %}
+                <div class="agenda-operatore">
+                    {% if c.foto %}
+                    <img src="/operatori/{{ c.nome | urlencode }}/foto" alt="" width="28" height="28">
+                    {% endif %}
+                    <span class="agenda-nome">{{ c.nome }}</span>
+                    <small>{{ c.quanti }}</small>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="agenda-corpo">
+                <div class="agenda-ore" aria-hidden="true">
+                    {% for o in agenda.ore %}
+                    <span style="--da: {{ o.riga }};">{{ o.testo }}</span>
+                    {% endfor %}
+                </div>
+
+                {% for c in agenda.colonne %}
+                <div class="agenda-colonna">
+                    {% for z in c.fuori %}
+                    <div class="agenda-fuori" style="--da: {{ z.da }}; --per: {{ z.per }};"></div>
+                    {% endfor %}
+
+                    {% for b in c.blocchi %}
+                    <button type="button" class="agenda-blocco{{ ' blocco-corto' if b.per < 1.5 }}"
+                            style="--da: {{ b.da }}; --per: {{ b.per }}; --corsia: {{ b.corsia }}; --corsie: {{ b.corsie }}; --sfondo: {{ b.sfondo }}; --bordo: {{ b.bordo }};"
+                            data-id="{{ b.id }}"
+                            data-quando="{{ b.ora }}–{{ b.fine }}"
+                            data-cliente="{{ b.cliente }}"
+                            data-cliente-id="{{ b.cliente_id or '' }}"
+                            data-telefono="{{ b.telefono }}"
+                            data-servizi="{{ b.servizi }}"
+                            data-prezzo="{{ b.prezzo }}"
+                            data-operatore="{{ b.operatore }}"
+                            data-note="{{ b.note }}">
+                        <span class="blocco-ora">{{ b.ora }}</span>
+                        <span class="blocco-cliente">{{ b.cliente }}</span>
+                        <span class="blocco-servizi">{{ b.servizi }}</span>
+                    </button>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                {% if agenda.adesso is not none %}
+                <div class="agenda-adesso" style="--da: {{ agenda.adesso }};" title="Adesso"></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {% if legenda %}
+    <ul class="agenda-legenda">
+        {% for l in legenda %}
+        <li><span style="--sfondo: {{ l.sfondo }}; --bordo: {{ l.bordo }};"></span>{{ l.nome }}</li>
+        {% endfor %}
+        <li><span class="legenda-fuori"></span>Non in salone</li>
+    </ul>
+    {% endif %}
+
+    <dialog id="dettaglio" class="dettaglio">
+        <form method="dialog" class="dettaglio-chiudi">
+            <button type="submit" aria-label="Chiudi">×</button>
+        </form>
+        <p class="dettaglio-quando" data-campo="quando"></p>
+        <h3><a data-campo="cliente" href="#"></a></h3>
+        <dl>
+            <dt>Telefono</dt><dd data-campo="telefono"></dd>
+            <dt>Servizi</dt><dd data-campo="servizi"></dd>
+            <dt>Prezzo</dt><dd data-campo="prezzo"></dd>
+            <dt>Operatore</dt><dd data-campo="operatore"></dd>
+            <dt>Note</dt><dd data-campo="note"></dd>
+        </dl>
+        <form method="POST" id="dettaglio-disdici">
+            <input type="hidden" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
+            <button type="submit" class="btn-small btn-neutro">Disdici</button>
+        </form>
+    </dialog>
+    {% endif %}
+
+    {% else %}
     {% if appuntamenti %}
     <table class="app-table">
         <thead>
@@ -88,5 +197,64 @@
     {% else %}
     <p class="empty-state">Nessun appuntamento per questa data.</p>
     {% endif %}
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Un blocco del calendario ha spazio per ora e nome, non per tutto: il resto
+// sta in una finestra che si apre toccandolo, insieme al bottone Disdici.
+(function () {
+    var finestra = document.getElementById("dettaglio");
+    if (!finestra) return;
+
+    function campo(nome) {
+        return finestra.querySelector('[data-campo="' + nome + '"]');
+    }
+
+    document.querySelectorAll(".agenda-blocco").forEach(function (blocco) {
+        blocco.addEventListener("click", function () {
+            var d = blocco.dataset;
+            // textContent e non innerHTML: nomi e note li ha scritti un cliente.
+            campo("quando").textContent = d.quando;
+            campo("cliente").textContent = d.cliente;
+            campo("cliente").href = d.clienteId ? "/admin/cliente/" + d.clienteId : "#";
+            campo("telefono").textContent = d.telefono || "—";
+            campo("servizi").textContent = d.servizi;
+            campo("prezzo").textContent = d.prezzo;
+            campo("operatore").textContent = d.operatore;
+            campo("note").textContent = d.note || "—";
+
+            var disdici = document.getElementById("dettaglio-disdici");
+            disdici.action = "/admin/appuntamenti/" + d.id + "/annulla";
+            disdici.onsubmit = function () {
+                return confirm(
+                    "Disdico l'appuntamento delle " + d.quando.split("–")[0] +
+                    " di " + d.cliente + "? Viene tolto anche da Google Calendar."
+                );
+            };
+
+            finestra.showModal();
+        });
+    });
+
+    // Toccando fuori dalla finestra si chiude, come ci si aspetta.
+    finestra.addEventListener("click", function (evento) {
+        if (evento.target === finestra) finestra.close();
+    });
+
+    // La linea dell'ora corrente scende da sola: la pagina resta aperta tutta
+    // la mattina, e una linea ferma alle nove direbbe il falso alle undici.
+    var linea = document.querySelector(".agenda-adesso");
+    if (linea) {
+        var partenza = Date.now();
+        var da = parseFloat(linea.style.getPropertyValue("--da"));
+        setInterval(function () {
+            var trascorse = (Date.now() - partenza) / 60000 / 30;
+            linea.style.setProperty("--da", da + trascorse);
+        }, 60000);
+    }
+})();
+</script>
 {% endblock %}
