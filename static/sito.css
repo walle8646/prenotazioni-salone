@@ -305,6 +305,77 @@ section h2 {
     text-align: center;
 }
 
+.contatti-azioni {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.8rem;
+    margin-top: 1.5rem;
+}
+
+/* Due bottoni della stessa misura: nessuno dei due è "quello secondario". */
+.contatto {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.6rem;
+    min-width: 15rem;
+    padding: 0.85rem 1.4rem;
+    border-radius: 999px;
+    border: 2px solid transparent;
+    font: inherit;
+    font-size: 1.05rem;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s;
+}
+
+.contatto:focus-visible {
+    outline: 3px solid #1f5b45;
+    outline-offset: 3px;
+}
+
+.contatto-chat {
+    background: #1f5b45;
+    color: #ffffff;
+}
+
+.contatto-chat:hover {
+    background: #174535;
+}
+
+/* Il verde di WhatsApp è quello che la gente riconosce: non si cambia. */
+.contatto-whatsapp {
+    background: #ffffff;
+    color: #128c4a;
+    border-color: #25d366;
+}
+
+.contatto-whatsapp:hover {
+    background: #25d366;
+    color: #ffffff;
+}
+
+.contatti-numero {
+    margin-top: 0.9rem;
+    color: #7f8c8d;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 480px) {
+    .contatto {
+        width: 100%;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .contatto {
+        transition: none;
+    }
+}
+
 /* Page content */
 .page-content {
     max-width: 700px;

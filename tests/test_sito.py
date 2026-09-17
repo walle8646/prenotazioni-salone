@@ -97,3 +97,29 @@ def test_la_homepage_mostra_logo_e_foto(client):
     assert "/static/img/logo.png" in pagina
     for foto in ("salone", "al-lavoro", "poltrona", "ingresso"):
         assert f"/static/img/{foto}-" in pagina, foto
+
+
+def test_il_link_whatsapp_apre_il_numero_del_salone(client, monkeypatch):
+    """Il numero viene dalla configurazione, già pulito per wa.me.
+
+    wa.me vuole solo cifre: con il più o gli spazi il link apre WhatsApp su
+    una chat vuota senza destinatario, e il cliente non capisce perché.
+    """
+    from config import settings
+
+    monkeypatch.setattr(settings, "salone_telefono", "+39 351 639 5494")
+    pagina = client.get("/").text
+
+    assert "https://wa.me/393516395494?text=" in pagina
+    assert "+39 351 639 5494" in pagina
+
+
+def test_senza_numero_il_link_whatsapp_non_compare(client, monkeypatch):
+    """Un link che non porta da nessuna parte è peggio di nessun link."""
+    from config import settings
+
+    monkeypatch.setattr(settings, "salone_telefono", "")
+    pagina = client.get("/").text
+
+    assert "wa.me" not in pagina
+    assert "data-apri-chat" in pagina, "la chat resta, non dipende dal numero"

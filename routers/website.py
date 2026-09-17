@@ -42,6 +42,40 @@ def _operatori_in_servizio() -> list[str]:
     return list(get_parrucchieri_map_cached()) or list(OPERATORI)
 
 
+# Il messaggio con cui si apre la chat su WhatsApp. Già scritto, al cliente
+# basta premere invio: il bot parte dalla prenotazione invece che da un
+# "ciao" a cui deve chiedere cosa serve.
+TESTO_WHATSAPP = "Ciao, vorrei prenotare un appuntamento"
+
+
+def _contatto_whatsapp() -> dict | None:
+    """Il link che apre WhatsApp sul numero del salone, e il numero leggibile.
+
+    Il numero arriva da `SALONE_TELEFONO`, lo stesso che usano le email e le
+    pagine sulla privacy: scritto nel template, al primo cambio di numero il
+    sito manderebbe i clienti a scrivere a un telefono che nessuno legge.
+    Senza numero configurato non si mostra niente: un link rotto è peggio di
+    nessun link.
+    """
+    from urllib.parse import quote
+
+    from config import settings
+
+    cifre = "".join(c for c in (settings.salone_telefono or "") if c.isdigit())
+    if len(cifre) < 8:
+        return None
+
+    if cifre.startswith("39") and len(cifre) == 12:
+        leggibile = f"+39 {cifre[2:5]} {cifre[5:8]} {cifre[8:]}"
+    else:
+        leggibile = f"+{cifre}"
+
+    return {
+        "link": f"https://wa.me/{cifre}?text={quote(TESTO_WHATSAPP)}",
+        "numero": leggibile,
+    }
+
+
 @router.get("/", response_class=HTMLResponse)
 async def homepage(request: Request):
     """Homepage pubblica del salone."""
@@ -49,6 +83,7 @@ async def homepage(request: Request):
         "index.html",
         {
             "request": request,
+            "whatsapp": _contatto_whatsapp(),
             "orari": _orari_del_salone(),
             # Listino e durate arrivano dal catalogo: una sola fonte di verità
             # condivisa con il bot, così sito e chat non possono divergere.

@@ -28,6 +28,19 @@
         panel.classList.add('hidden');
     });
 
+    // I bottoni nella pagina aprono lo stesso widget, non ne creano un altro.
+    // Se è già aperto non lo si chiude: chi preme "Prenota in chat" vuole la
+    // chat davanti, e un bottone che la fa sparire sembrerebbe rotto.
+    document.querySelectorAll('[data-apri-chat]').forEach((bottone) => {
+        bottone.addEventListener('click', () => {
+            if (!isOpen) {
+                toggle.click();
+            } else {
+                input.focus();
+            }
+        });
+    });
+
     // Identificativo della conversazione. Lo tiene il browser, non il server:
     // altrimenti ogni caduta di connessione — un riavvio, la rete, il computer
     // che si sospende — apriva una sessione nuova, e il bot ricominciava da
