@@ -56,6 +56,28 @@
         }
     }
 
+    // Chi arriva dal link ricevuto su WhatsApp porta la sessione
+    // nell'indirizzo: la si adotta e la si toglie subito dalla barra, perché
+    // quell'indirizzo finirebbe nella cronologia e in un eventuale rinvio.
+    function sessioneDalLink() {
+        const parametri = new URLSearchParams(window.location.search);
+        const arrivata = parametri.get('sessione');
+        const apri = parametri.get('chat');
+        if (arrivata && FORMATO_SESSIONE.test(arrivata)) {
+            ricordaSessione(arrivata);
+        }
+        if (arrivata || apri) {
+            parametri.delete('sessione');
+            parametri.delete('chat');
+            const resto = parametri.toString();
+            history.replaceState(null, '', window.location.pathname + (resto ? '?' + resto : ''));
+            return true;
+        }
+        return false;
+    }
+
+    const FORMATO_SESSIONE = /^web_[0-9a-f]{12}$/;
+
     function ricordaSessione(id) {
         try {
             localStorage.setItem(CHIAVE_SESSIONE, id);
@@ -70,6 +92,11 @@
         } catch (e) {
             /* niente da dimenticare */
         }
+    }
+
+    // Si apre da sola: chi ha toccato il link vuole la chat, non la homepage.
+    if (sessioneDalLink()) {
+        toggle.click();
     }
 
     // WebSocket connection

@@ -2,7 +2,7 @@ import hashlib
 import logging
 
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from services import catalogo
@@ -183,6 +183,42 @@ async def _immagine_operatore(nome: str) -> tuple[bytes, str]:
         logger.warning("Foto di %s non leggibile dal database: %s", nome, errore)
 
     return avatar_svg(nome).encode("utf-8"), "image/svg+xml"
+
+
+@router.get("/chat/{gettone}")
+async def entra_in_chat(gettone: str, request: Request):
+    """Apre la chat del sito già riconoscendo chi arriva da WhatsApp.
+
+    Il gettone è la prova d'identità: l'ha ricevuto su WhatsApp il titolare di
+    quel numero, e vale una volta sola. Da qui in poi la sessione del sito sa
+    chi sta scrivendo esattamente come dopo il codice via email.
+
+    Un gettone scaduto o già usato non è un errore da spiegare: si apre la
+    chat normale, dove il bot chiede chi è. Una pagina di errore lascerebbe il
+    cliente fermo, e l'unica cosa che ha fatto è stato aspettare troppo.
+    """
+    import uuid
+
+    from services.link_chat import consuma_gettone
+    from services.session_manager import new_session, save_session
+
+    redis = request.app.state.redis
+    telefono = await consuma_gettone(redis, gettone)
+    if not telefono:
+        logger.info("Gettone della chat scaduto o già usato")
+        return RedirectResponse("/?chat=1", status_code=303)
+
+    # Lo stesso formato che il WebSocket accetta: web_ più dodici esadecimali.
+    sessione = f"web_{uuid.uuid4().hex[:12]}"
+    dati = new_session()
+    # Non "email_verificata": qui la prova è il numero, e chiamarla col nome
+    # sbagliato farebbe credere a un indirizzo che non abbiamo.
+    dati["telefono_verificato"] = telefono
+    dati["dati_temp"]["telefono"] = telefono
+    await save_session(redis, sessione, dati)
+
+    logger.info("Chat aperta da link per un numero verificato")
+    return RedirectResponse(f"/?sessione={sessione}", status_code=303)
 
 
 @router.get("/chi-siamo", response_class=HTMLResponse)

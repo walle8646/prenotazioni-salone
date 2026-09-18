@@ -63,7 +63,7 @@ chiedendo "il primo posto libero" il modello interroga più giorni di fila).
 
 Le azioni sono `CHECK_DISPONIBILITA`, `CREA_APPUNTAMENTO`, `SPOSTA_APPUNTAMENTO`,
 `CANCELLA_APPUNTAMENTO`, `STORICO_APPUNTAMENTI`, `INVIA_CODICE_VERIFICA`,
-`VERIFICA_CODICE` e `PASSA_A_OPERATORE`.
+`VERIFICA_CODICE`, `PASSA_A_OPERATORE` e `CONTINUA_SUL_SITO`.
 
 Il motore non conosce né il canale né i servizi esterni: riceve tre cose
 sostituibili.
@@ -125,6 +125,22 @@ peggiore di dirglielo. Quanto si racconta dipende da chi scrive: su WhatsApp
 data e operatore, dal sito non verificato solo che un appuntamento esiste —
 altrimenti basterebbe scrivere l'email di un conoscente per sapere quando va
 dal barbiere.
+
+**Il link che porta dalla chat WhatsApp a quella del sito contiene un
+gettone, non il numero** (`services/link_chat.py`, azione
+`CONTINUA_SUL_SITO`). Col numero nell'indirizzo chiunque avesse quel link
+*sarebbe* quel cliente: ne vedrebbe gli appuntamenti e potrebbe disdirli. E i
+link si inoltrano, restano nella cronologia e nelle anteprime. Il gettone è
+casuale (`secrets`), **usa e getta** — bruciato prima di restituire il numero,
+così l'anteprima del messaggio non ruba il turno al cliente — e scade in un
+quarto d'ora. Lo consegna WhatsApp al numero del mittente, già verificato dal
+gestore: è la stessa prova d'identità del codice via email, con un passaggio in
+meno. Il gettone **non arriva mai da un parametro del modello**: vale sempre e
+solo il numero della conversazione, quindi un link per il numero di un altro
+non è nemmeno esprimibile. Da lì la sessione del sito ha
+`telefono_verificato`, che `_identita_provata()` tratta come l'email
+confermata. Esiste per il costo: dal 1° ottobre 2026 ogni risposta del bot su
+WhatsApp si paga a messaggio, la chat del sito no.
 
 **Disdette e spostamenti valgono solo sui propri appuntamenti.** Gli id sono
 progressivi: senza il controllo basterebbe dire "cancella il numero 3".

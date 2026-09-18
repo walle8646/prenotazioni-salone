@@ -174,6 +174,42 @@ async def _in_mano_a_una_persona(phone: str, text: str, backends) -> bool:
     return True
 
 
+MESSAGGIO_CONTINUA_SUL_SITO = (
+    "Ti mando il link per continuare dal sito: si apre già con la nostra "
+    "conversazione e ti riconosce, non devi scrivere niente. Vale un quarto "
+    "d'ora.\n{link}"
+)
+
+
+async def _continua_sul_sito(
+    session_key: str, session: dict, channel: Channel, redis
+) -> None:
+    """Manda al cliente il link che apre la chat del sito, già riconosciuto.
+
+    Il link vale **solo** per il numero a cui viene mandato, che è quello da
+    cui arriva la conversazione: il gettone non viene mai da un parametro del
+    modello, così non è nemmeno esprimibile la richiesta di un link per il
+    numero di un altro.
+
+    Sul sito non ha senso — ci si è già — e se il gettone non si può creare la
+    conversazione prosegue dov'è: più cara, non rotta.
+    """
+    if _dal_sito(session_key) or channel.name == "web":
+        return
+
+    from services.link_chat import crea_gettone, indirizzo
+
+    gettone = await crea_gettone(redis, session_key)
+    link = indirizzo(gettone) if gettone else None
+    if not link:
+        logger.info("Link per il sito non disponibile: si continua su WhatsApp")
+        return
+
+    testo = MESSAGGIO_CONTINUA_SUL_SITO.format(link=link)
+    session["history"].append({"role": "assistant", "content": testo})
+    await channel.send_text(session_key, testo)
+
+
 async def _chiudi_passaggio_se_aperto(phone: str, backends) -> None:
     """Restituisce la conversazione al bot, se era in mano a qualcuno."""
     try:
@@ -433,7 +469,7 @@ async def deliver(channel: Channel, to: str, response: str) -> None:
         await channel.send_text(to, response)
 
 
-async def _run_turn(session_key, session, channel, backends, claude) -> None:
+async def _run_turn(session_key, session, channel, backends, claude, redis=None) -> None:
     """Esegue un turno di conversazione: chiama Claude ed esegue le sue azioni."""
     risposta_inviata = False
 
@@ -461,6 +497,11 @@ async def _run_turn(session_key, session, channel, backends, claude) -> None:
         # turno invece di produrre un risultato da rimandare al modello. Ed è il
         # codice a scrivere la frase, non Claude — chi sta chiedendo aiuto deve
         # sentirsi dire sempre la stessa cosa, non una variazione sul tema.
+        if action.get("action") == "CONTINUA_SUL_SITO":
+            await _continua_sul_sito(session_key, session, channel, redis)
+            risposta_inviata = True
+            break
+
         if action.get("action") == "PASSA_A_OPERATORE":
             await _passa_a_operatore(
                 session_key, session, channel, backends, motivo=action.get("motivo")
@@ -547,7 +588,7 @@ async def handle_incoming_message(
         return
 
     try:
-        await _run_turn(phone, session, channel, backends, claude)
+        await _run_turn(phone, session, channel, backends, claude, redis)
     finally:
         # La sessione va salvata anche se qualcosa è andato storto a metà turno,
         # altrimenti il cliente perde il contesto della conversazione.
@@ -646,7 +687,7 @@ async def handle_incoming_message_web(
         return channel.payload()
 
     try:
-        await _run_turn(session_id, session, channel, backends, claude)
+        await _run_turn(session_id, session, channel, backends, claude, redis)
     finally:
         await save_session(redis, session_id, session)
 
@@ -954,7 +995,7 @@ async def _appuntamento_futuro_di_chi_prenota(
     descrivere l'appuntamento, altrimenti basterebbe scrivere l'indirizzo email
     di un conoscente per sapere quando va dal barbiere.
     """
-    identificato = not _dal_sito(phone) or bool(session.get("email_verificata"))
+    identificato = _identita_provata(phone, session)
 
     trovato = await _appuntamenti_del_richiedente(phone, session, backends)
     if trovato is None and _dal_sito(phone):
@@ -1159,6 +1200,18 @@ def _dal_sito(phone: str | None) -> bool:
     return not phone or phone.startswith("web_")
 
 
+def _identita_provata(phone: str | None, session: dict) -> bool:
+    """Se sappiamo davvero chi sta scrivendo.
+
+    Tre prove, tutte esterne al modello: il numero del mittente su WhatsApp,
+    l'email confermata col codice, oppure il numero di chi è arrivato dal link
+    ricevuto su WhatsApp — che WhatsApp ha consegnato solo a quel numero.
+    """
+    return not _dal_sito(phone) or bool(
+        session.get("email_verificata") or session.get("telefono_verificato")
+    )
+
+
 async def _appuntamenti_del_richiedente(phone: str, session: dict, backends):
     """Appuntamenti di chi sta scrivendo, qualunque sia il canale.
 
@@ -1168,6 +1221,11 @@ async def _appuntamenti_del_richiedente(phone: str, session: dict, backends):
     """
     if not _dal_sito(phone):
         return await backends.get_appuntamenti_per_telefono(phone)
+    # Chi è arrivato dal link ha già provato il proprio numero: si cerca con
+    # quello, che è la chiave dell'anagrafica anche su WhatsApp.
+    verificato = session.get("telefono_verificato")
+    if verificato:
+        return await backends.get_appuntamenti_per_telefono(verificato)
     email = session.get("email_verificata")
     if not email:
         return None
@@ -1198,10 +1256,10 @@ async def _riconosci_cliente(phone: str, session: dict, backends) -> None:
     chiamarlo: quando non lo faceva, ricominciava a chiedere il nome a chi
     viene da tre anni.
 
-    Dal sito non succede niente, ed è giusto così:
-    `_appuntamenti_del_richiedente` risponde solo dopo il codice via email, e
-    finché non è verificato non sappiamo chi sta scrivendo — il numero di
-    sessione del browser non è una prova di identità.
+    Dal sito succede solo quando l'identità è provata: dopo il codice via
+    email, o per chi è entrato con il link ricevuto su WhatsApp. Finché non lo
+    è, `_appuntamenti_del_richiedente` non risponde — il numero di sessione
+    del browser non prova niente.
     """
     if session.get("dati_temp", {}).get("nome"):
         return
@@ -1339,7 +1397,7 @@ async def _storico_appuntamenti(phone: str, session: dict, backends) -> dict:
     la riservatezza non dipende da una regola nel prompt che qualcuno potrebbe
     aggirare chiedendo "e gli appuntamenti di Mario Rossi?".
     """
-    if _dal_sito(phone) and not session.get("email_verificata"):
+    if not _identita_provata(phone, session):
         return {
             "errore": (
                 "Dalla chat del sito non sappiamo chi sta scrivendo. Chiedi al "
