@@ -97,6 +97,10 @@
     var scambio = document.getElementById("scambio");
     if (!scambio || scambio.dataset.stato === "chiusa") return;
 
+    // Si parte dall'ultimo messaggio, come in qualsiasi chat: aprendola per
+    // rispondere, quello che serve leggere è in fondo, non in cima.
+    scambio.scrollTop = scambio.scrollHeight;
+
     var conversazione = scambio.dataset.conversazione;
     var nomeCliente = scambio.dataset.nome;
     var OGNI = 8000;

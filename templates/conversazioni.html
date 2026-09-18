@@ -10,6 +10,15 @@
         chi la prende in mano: chiudendola il bot riparte.
     </p>
 
+    {# Il bottone dice sempre lo stato vero: il permesso lo dà il telefono,
+       non questa pagina, e chi l'ha negato non lo riattiva da qui. #}
+    <div class="notifiche">
+        <button type="button" id="attiva-notifiche" class="btn-small" hidden>
+            Avvisami sul telefono
+        </button>
+        <span class="nota" id="stato-notifiche"></span>
+    </div>
+
     <p class="nota">
         {% if tutte %}
         Stai vedendo anche quelle chiuse — <a href="/admin/conversazioni">mostra solo le aperte</a>.
@@ -54,6 +63,7 @@
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/notifiche.js?v={{ v }}"></script>
 <script>
 // Qui la pagina si può ricaricare per intero: non c'è niente da scrivere che
 // si possa perdere. Serve perché una richiesta nuova arriva mentre l'elenco è

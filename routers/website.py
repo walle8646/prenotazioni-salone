@@ -2,7 +2,7 @@ import hashlib
 import logging
 
 from fastapi import APIRouter, Request, Response
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from services import catalogo
@@ -183,6 +183,59 @@ async def _immagine_operatore(nome: str) -> tuple[bytes, str]:
         logger.warning("Foto di %s non leggibile dal database: %s", nome, errore)
 
     return avatar_svg(nome).encode("utf-8"), "image/svg+xml"
+
+
+@router.get("/manifest.webmanifest", include_in_schema=False)
+async def manifest():
+    """Cosa diventa il pannello quando lo si aggiunge alla schermata Home.
+
+    `start_url` è Conversazioni e non la dashboard: chi installa questa
+    applicazione lo fa per rispondere a chi aspetta, e deve trovarsi davanti
+    quella schermata senza cercarla.
+    """
+    return JSONResponse(
+        {
+            "name": "Salone Nadia — Conversazioni",
+            "short_name": "Salone Nadia",
+            "description": "Rispondi ai clienti che chiedono di parlare con una persona.",
+            "start_url": "/admin/conversazioni",
+            "scope": "/admin/",
+            "display": "standalone",
+            "background_color": "#f5f7fa",
+            "theme_color": "#2c3e50",
+            "lang": "it",
+            "icons": [
+                {"src": "/static/img/app-192.png", "sizes": "192x192", "type": "image/png"},
+                {"src": "/static/img/app-512.png", "sizes": "512x512", "type": "image/png"},
+                {
+                    "src": "/static/img/app-maskable.png",
+                    "sizes": "512x512",
+                    "type": "image/png",
+                    "purpose": "maskable",
+                },
+            ],
+        },
+        media_type="application/manifest+json",
+    )
+
+
+@router.get("/sw.js", include_in_schema=False)
+async def service_worker():
+    """Servito dalla radice, non da /static/.
+
+    Un service worker comanda solo sul percorso da cui è stato scaricato: da
+    `/static/sw.js` non vedrebbe `/admin`, cioè proprio le pagine per cui
+    esiste.
+    """
+    from fastapi.responses import FileResponse
+
+    return FileResponse(
+        "static/sw.js",
+        media_type="application/javascript",
+        # Zero cache: un service worker vecchio resta al comando per ore, e
+        # sarebbe quello che non sa ancora mostrare le notifiche.
+        headers={"Cache-Control": "no-cache"},
+    )
 
 
 @router.get("/chat/{gettone}")

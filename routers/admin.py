@@ -1288,3 +1288,35 @@ async def guida(request: Request, utente=Depends(utente_del_pannello)):
     va svuotata.
     """
     return templates.TemplateResponse("guida.html", {"request": request})
+
+
+# ---------------------------------------------------------- notifiche push
+
+
+@router.get("/push/chiave")
+async def push_chiave(utente=Depends(utente_del_pannello)):
+    """La chiave pubblica con cui il browser si iscrive.
+
+    Pubblica per definizione — il telefono la manda al servizio push — ma
+    dietro il login lo stesso: chi non entra nel pannello non ha motivo di
+    iscriversi alle sue notifiche.
+    """
+    from services.push import chiave_pubblica, configurato
+
+    return {"chiave": chiave_pubblica() if configurato() else ""}
+
+
+@router.post("/push/iscrizione")
+async def push_iscrizione(request: Request, utente=Depends(utente_del_pannello)):
+    """Registra questo telefono fra quelli da avvisare."""
+    from services.db_service import salva_iscrizione_push
+
+    dati = await request.json()
+    endpoint = (dati or {}).get("endpoint")
+    chiavi = (dati or {}).get("keys") or {}
+    if not endpoint or not chiavi.get("p256dh") or not chiavi.get("auth"):
+        return JSONResponse({"errore": "iscrizione incompleta"}, status_code=400)
+
+    await salva_iscrizione_push(endpoint, chiavi["p256dh"], chiavi["auth"])
+    logger.info("Un dispositivo in più riceverà le notifiche del salone")
+    return {"ok": True}

@@ -771,7 +771,19 @@ body {
     .nav-links {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.2rem 1.1rem;
+        gap: 0.1rem 0.9rem;
+        font-size: 0.92rem;
+    }
+
+    /* Tre righe di menù su una schermata dove si risponde a un cliente sono
+       tre righe di messaggi in meno: qui il menù serve, ma non al centro. */
+    .admin-nav {
+        gap: 0.2rem;
+        padding: 0.6rem 1rem;
+    }
+
+    .nav-brand {
+        font-size: 0.95rem;
     }
 
     .nav-links a {
@@ -1252,5 +1264,86 @@ body {
 @media (prefers-reduced-motion: reduce) {
     .agenda-blocco:hover {
         box-shadow: none;
+    }
+}
+
+
+/* ====================================== Conversazioni dal telefono
+
+   Questa schermata si usa in piedi, con una mano, mentre un cliente aspetta.
+   Installata dalla schermata Home non ha barra del browser, quindi lo spazio
+   verticale è tutto suo: lo scambio si prende quello che avanza e la casella
+   per rispondere resta sempre in fondo, dove il pollice la trova. */
+
+.notifiche {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+}
+
+.notifiche .nota {
+    margin: 0;
+}
+
+@media (max-width: 760px) {
+    /* Lo scambio occupa quello che resta fra intestazione e casella, invece
+       di una frazione fissa dello schermo: su un telefono basso 45vh sono
+       tre messaggi, su uno alto avanzava spazio sprecato. */
+    .scambio {
+        max-height: none;
+        flex: 1;
+        min-height: 8rem;
+    }
+
+    .gestione:has(.risposta) {
+        display: flex;
+        flex-direction: column;
+        /* Meno l'altezza del menù, che va a capo su due righe. */
+        min-height: calc(100dvh - 8rem);
+    }
+
+    .risposta {
+        position: sticky;
+        bottom: 0;
+        background: #f5f7fa;
+        padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom));
+        margin: 0 0 0.6rem;
+        box-shadow: 0 -8px 12px -8px rgba(0, 0, 0, 0.18);
+    }
+
+    .risposta label {
+        /* L'etichetta la dice già il posto in cui si trova. */
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+    }
+
+    .risposta textarea {
+        min-height: 3rem;
+    }
+
+    .risposta-azioni {
+        justify-content: space-between;
+    }
+
+    /* Bersagli per il pollice sulle righe dell'elenco. */
+    .conversazione-riga {
+        padding: 1rem;
+    }
+
+    .messaggio {
+        max-width: 95%;
+    }
+}
+
+/* Installata, la barra del menù è l'unica cosa in cima: un po' d'aria sotto
+   la tacca, o il nome del salone ci finisce dentro. */
+@media (display-mode: standalone) {
+    .admin-nav {
+        padding-top: calc(0.8rem + env(safe-area-inset-top));
     }
 }

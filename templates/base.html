@@ -2,7 +2,15 @@
 <html lang="it">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {# viewport-fit=cover: installata a pieno schermo, senza questo la barra
+       in fondo finisce sotto la tacca dell'iPhone. #}
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#2c3e50">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Salone Nadia">
+    <link rel="apple-touch-icon" href="/static/img/app-192.png">
     <title>{% block title %}Salone Nadia - Admin{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>

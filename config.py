@@ -62,6 +62,15 @@ class Settings(BaseSettings):
     # è troppo tardi. Vuoto: il bot dice genericamente di telefonare.
     salone_telefono: str = ""
 
+    # Notifiche push al telefono di chi lavora in salone. Le chiavi si
+    # generano una volta sola con `python tools/chiavi_push.py`: la privata
+    # firma le notifiche, la pubblica la conosce il browser. Senza, la
+    # funzione non si offre nemmeno invece di offrirsi e non funzionare.
+    vapid_public_key: str = ""
+    vapid_private_key: str = ""
+    # Serve ai servizi push per sapere chi contattare se qualcosa va storto.
+    vapid_subject: str = ""
+
     # Indirizzo pubblico dell'applicazione, es. https://salone-nadia.onrender.com
     # Serve a WhatsApp: le immagini Meta se le viene a prendere da sé, quindi
     # non basta un percorso, ci vuole un indirizzo raggiungibile da fuori.

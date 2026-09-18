@@ -754,3 +754,51 @@ async def togli_chiusura(chiusura_id: int) -> None:
             delete(ChiusuraSalone).where(ChiusuraSalone.id == chiusura_id)
         )
         await db.commit()
+
+
+# ------------------------------------------------------------ notifiche push
+
+
+async def salva_iscrizione_push(endpoint: str, p256dh: str, auth: str) -> None:
+    """Registra un telefono, o aggiorna le chiavi se si ripresenta.
+
+    Lo stesso dispositivo torna con lo stesso endpoint dopo un reinstallo, ma
+    con chiavi nuove: inserire una riga in più vorrebbe dire mandargli ogni
+    notifica due volte, e con le chiavi vecchie non riuscirebbe ad aprirla.
+    """
+    from models.orm import IscrizionePush
+
+    async with async_session() as db:
+        esistente = await db.execute(
+            select(IscrizionePush).where(IscrizionePush.endpoint == endpoint)
+        )
+        riga = esistente.scalar_one_or_none()
+        if riga is not None:
+            riga.p256dh = p256dh
+            riga.auth = auth
+        else:
+            db.add(
+                IscrizionePush(endpoint=endpoint, p256dh=p256dh, auth=auth)
+            )
+        await db.commit()
+
+
+async def iscrizioni_push() -> list[dict]:
+    from models.orm import IscrizionePush
+
+    async with async_session() as db:
+        righe = await db.execute(select(IscrizionePush))
+        return [
+            {"endpoint": r.endpoint, "p256dh": r.p256dh, "auth": r.auth}
+            for r in righe.scalars().all()
+        ]
+
+
+async def togli_iscrizione_push(endpoint: str) -> None:
+    from models.orm import IscrizionePush
+
+    async with async_session() as db:
+        await db.execute(
+            delete(IscrizionePush).where(IscrizionePush.endpoint == endpoint)
+        )
+        await db.commit()

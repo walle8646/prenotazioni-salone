@@ -347,6 +347,26 @@ rifiutarla dopo l'invio è il modo peggiore di dirlo. Chiudere la conversazione
 la restituisce al bot e non manda niente al cliente — un "da adesso ti risponde
 il bot" scritto tre ore dopo è un messaggio senza contesto.
 
+**Il pannello si installa sul telefono e suona.** Manifest e service worker
+stanno alla **radice** (`/manifest.webmanifest`, `/sw.js`) e non sotto
+`/static/`: un service worker comanda solo sul percorso da cui è stato
+scaricato, e da `/static/` non vedrebbe `/admin` — cioè proprio le pagine per
+cui esiste. `start_url` è **Conversazioni**, perché chi installa questa
+applicazione lo fa per rispondere a chi aspetta.
+
+Le notifiche (`services/push.py`, tabella `iscrizioni_push`) partono quando un
+cliente chiede una persona e a ogni suo messaggio successivo: l'email c'era
+già, ma la posta si guarda la sera. Servono `VAPID_PUBLIC_KEY` e
+`VAPID_PRIVATE_KEY`, generate una volta con `python tools/chiavi_push.py`;
+**cambiarle disiscrive tutti i telefoni**. Tre cose non sono semplificabili.
+Un invio fallito **non esce mai** da `avvisa()`: chi la chiama sta passando una
+conversazione a una persona, e quella deve riuscire comunque — c'è un test che
+fa esplodere la notifica apposta. Un'iscrizione rifiutata con 404 o 410 si
+**cancella**: è un telefono che non c'è più, e tenerla vorrebbe dire ritentare
+per sempre. E su **iOS le notifiche arrivano solo all'applicazione aggiunta
+alla schermata Home**: dal browser il permesso non si può nemmeno chiedere,
+quindi il bottone lo dice invece di non fare niente.
+
 **Presenze** (`services/presenze.py`) dice quando ciascuno è in salone, con
 fasce settimanali: la disponibilità toglie prima chi quel giorno non c'è, poi
 quello che Google segna occupato — il calendario dice se è impegnato, non se

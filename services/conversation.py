@@ -171,6 +171,19 @@ async def _in_mano_a_una_persona(phone: str, text: str, backends) -> bool:
     await backends.registra_messaggio_conversazione(
         conversazione["id"], "cliente", text or "[messaggio senza testo]"
     )
+
+    # Anche i messaggi successivi: il cliente che aggiunge "è urgente" mentre
+    # aspetta non deve restare in fondo a un elenco che nessuno sta guardando.
+    try:
+        from services.push import avvisa
+
+        await avvisa(
+            titolo=conversazione.get("nome_visualizzato") or phone,
+            testo=text or "Ha mandato un messaggio.",
+            url=f"/admin/conversazioni/{conversazione['id']}",
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Notifica del messaggio non inviata", exc_info=True)
     return True
 
 
@@ -280,6 +293,21 @@ async def _passa_a_operatore(
         )
     except Exception:  # noqa: BLE001
         logger.warning("Avviso di passaggio non inviato", exc_info=True)
+
+    # L'email si guarda la sera, la notifica arriva mentre il cliente sta
+    # ancora scrivendo. Va per conto suo: se non parte, il passaggio è
+    # avvenuto lo stesso e la conversazione è nel pannello.
+    try:
+        from services.push import avvisa
+
+        chi = conversazione.get("nome_visualizzato") or session_key
+        await avvisa(
+            titolo=f"{chi} vuole parlare con una persona",
+            testo=(motivo or "Ha chiesto di parlare con qualcuno del salone."),
+            url=f"/admin/conversazioni/{conversazione['id']}",
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Notifica di passaggio non inviata", exc_info=True)
 
 
 async def _claude_reale(system_prompt: str, history: list[dict]) -> str:

@@ -214,3 +214,26 @@ class ChiusuraSalone(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     data = Column(Date, nullable=False, unique=True, index=True)
     motivo = Column(String(120))
+
+
+class IscrizionePush(Base):
+    """Un telefono che ha chiesto di ricevere le notifiche del salone.
+
+    L'`endpoint` è l'indirizzo che il servizio push del browser ci dà per
+    raggiungere quel dispositivo: è unico, e riscrivere la stessa riga invece
+    di aggiungerne una seconda evita di mandare la stessa notifica due volte
+    allo stesso telefono dopo un reinstallo.
+
+    Non c'è nessun dato di chi la riceve: un'iscrizione dice come raggiungere
+    un dispositivo, non chi lo tiene in tasca.
+    """
+
+    __tablename__ = "iscrizioni_push"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    endpoint = Column(Text, nullable=False, unique=True)
+    # Le due chiavi con cui il browser decifra la notifica: senza, il servizio
+    # push consegnerebbe una busta che il telefono non sa aprire.
+    p256dh = Column(String(255), nullable=False)
+    auth = Column(String(255), nullable=False)
+    creato_il = Column(DateTime, nullable=False, default=datetime.now)
