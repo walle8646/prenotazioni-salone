@@ -6,10 +6,16 @@ elenco, perché la receptionist si fida di quello che vede e dà il posto a un
 altro. Per questo la geometria si prova qui, con appuntamenti finti.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from types import SimpleNamespace as N
 
-from services.agenda import SENZA_OPERATORE, costruisci_agenda, legenda, tinta_del_servizio
+from services.agenda import (
+    SENZA_OPERATORE,
+    costruisci_agenda,
+    costruisci_settimana,
+    legenda,
+    tinta_del_servizio,
+)
 
 GIORNO = date(2026, 9, 17)
 OPERATORI = ["Simone Big", "Francesco", "Andrea"]
@@ -224,3 +230,112 @@ def test_in_un_altro_giorno_valgono_tutte_le_ore():
     agenda = _agenda([], liberi_google=liberi, adesso=datetime(2026, 9, 16, 11, 0))
 
     assert len(_colonna(agenda, "Francesco")["liberi"]) == 2
+
+
+# ------------------------------------------- la settimana di un operatore
+#
+# Stessa griglia, altro significato delle colonne: non sei persone in un
+# giorno, ma un giorno per colonna e una persona sola. Serve a rispondere a
+# "quando me lo dai con Andrea?" senza aprire sette schermate. Qui si sbaglia
+# nello stesso modo dell'altra vista — un blocco mezz'ora fuori posto — con in
+# più un errore nuovo e peggiore: metterlo nel giorno sbagliato.
+
+SETTE = [GIORNO + timedelta(days=i) for i in range(7)]
+APERTI = {g: ([] if g.weekday() in (6, 0) else [ORARI[0]]) for g in SETTE}
+
+
+def _app_del(giorno, ora="10:00", durata=30, id_=1, cliente="Mario Rossi"):
+    ore, minuti = map(int, ora.split(":"))
+    nome, cognome = cliente.split(" ", 1)
+    return N(
+        id=id_,
+        data_ora=datetime.combine(giorno, datetime.min.time()).replace(hour=ore, minute=minuti),
+        durata_min=durata,
+        servizi=["Taglio"],
+        cliente=N(id=10 + id_, nome=nome, cognome=cognome, telefono_wa="393331234567"),
+        parrucchiere=N(nome="Francesco"),
+        richieste_spec=None,
+    )
+
+
+def _settimana(appuntamenti=(), liberi=None, adesso=None, orari=None, e_in_salone=_sempre_in_salone):
+    return costruisci_settimana(
+        list(appuntamenti),
+        giorni=SETTE,
+        operatore="Francesco",
+        orari_per_giorno=orari if orari is not None else APERTI,
+        e_in_salone=e_in_salone,
+        prezzo_di=lambda a: "13,50 €",
+        ordine_servizi=ORDINE,
+        adesso=adesso,
+        liberi=liberi,
+    )
+
+
+def test_una_colonna_per_giorno_nell_ordine_della_settimana():
+    agenda = _settimana()
+    assert len(agenda["colonne"]) == 7
+    assert agenda["colonne"][0]["nome"] == "Gio 17"
+    assert [c["iso"] for c in agenda["colonne"]][-1] == SETTE[-1].isoformat()
+
+
+def test_un_appuntamento_sta_nel_suo_giorno_e_alla_sua_ora():
+    """L'errore nuovo di questa vista: il blocco nel giorno sbagliato."""
+    agenda = _settimana([_app_del(SETTE[2], "10:30")])
+
+    quanti = [c["quanti"] for c in agenda["colonne"]]
+    assert quanti == [0, 0, 1, 0, 0, 0, 0]
+    blocco = agenda["colonne"][2]["blocchi"][0]
+    assert blocco["da"] == 3, "10:30 è la terza mezz'ora dopo le 9"
+
+
+def test_i_posti_liberi_sono_quelli_del_giorno_giusto():
+    liberi = {SETTE[1]: {f"{SETTE[1]}T11:00"}, SETTE[3]: {f"{SETTE[3]}T09:00"}}
+    colonne = _settimana(liberi=liberi)["colonne"]
+
+    assert [len(c["liberi"]) for c in colonne] == [0, 1, 0, 1, 0, 0, 0]
+    assert colonne[1]["liberi"][0]["ora"] == "11:00"
+
+
+def test_un_giorno_di_chiusura_e_tutto_a_righe():
+    """Il salone chiuso viene prima delle fasce di chi ci lavora: senza, la
+    domenica sembrerebbe una giornata normale e vuota."""
+    domenica = next(c for c, g in zip(_settimana()["colonne"], SETTE) if g.weekday() == 6)
+
+    assert domenica["aperto"] is False
+    assert domenica["fuori"] == [{"da": 0, "per": 20}]
+
+
+def test_le_ore_vanno_dall_apertura_alla_chiusura_della_settimana():
+    agenda = _settimana()
+    assert agenda["righe"] == 20
+    assert agenda["ore"][0]["testo"] == "09:00"
+    assert agenda["ore"][-1]["testo"] == "19:00"
+
+
+def test_un_appuntamento_fuori_orario_allarga_tutta_la_settimana():
+    agenda = _settimana([_app_del(SETTE[2], "08:30")])
+    assert agenda["inizio"] == 8 * 60
+
+
+def test_senza_niente_da_mostrare_non_c_e_griglia():
+    assert _settimana(orari={g: [] for g in SETTE})["chiuso"] is True
+
+
+def test_oggi_si_riconosce_dalla_sua_colonna():
+    """La linea dell'ora corrente qui attraverserebbe sette giorni, e in sei
+    non vorrebbe dire niente: al suo posto si marca la colonna."""
+    agenda = _settimana(adesso=datetime.combine(SETTE[2], datetime.min.time()).replace(hour=11))
+
+    assert agenda["adesso"] is None
+    assert [c["oggi"] for c in agenda["colonne"]] == [False, False, True, False, False, False, False]
+
+
+def test_le_ore_gia_passate_di_oggi_non_si_offrono():
+    liberi = {SETTE[2]: {f"{SETTE[2]}T09:00", f"{SETTE[2]}T15:00"}}
+    agenda = _settimana(
+        liberi=liberi,
+        adesso=datetime.combine(SETTE[2], datetime.min.time()).replace(hour=11),
+    )
+
+    assert [p["ora"] for p in agenda["colonne"][2]["liberi"]] == ["15:00"]

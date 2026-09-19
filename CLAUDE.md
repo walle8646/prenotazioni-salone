@@ -352,6 +352,28 @@ verde che si sta cercando. La griglia la costruisce una funzione sola
 poi dicono due cose diverse sullo stesso orario — e quella su cui si prenota è
 sempre l'altra.
 
+**Le chips in cima cambiano il significato delle colonne.** Con "Tutti" si
+guarda una giornata, una colonna per operatore. Scegliendo una persona si
+guarda la sua **settimana**: sette giorni, una colonna per giorno, e le frecce
+spostano di sette in sette. Risponde alla domanda che la giornata non sa
+reggere — "quando me lo dai con Andrea?" — che altrimenti vuol dire aprire
+sette schermate per scoprire che il primo posto è giovedì. L'operatore scelto
+**resta** cambiando settimana (`filtro` in `_striscia()`): perderlo a ogni
+freccia renderebbe le chips inservibili proprio mentre si cerca un posto per
+quella persona.
+
+La geometria è `costruisci_settimana()`, e restituisce **la stessa forma** di
+`costruisci_agenda()` perché il template disegni la griglia una volta sola:
+due markup per la stessa cosa divergono, e uno dei due finisce per mostrare i
+blocchi mezz'ora fuori posto. Tre scelte che hanno i loro test. Niente linea
+dell'ora corrente: attraverserebbe sette giorni e in sei non vorrebbe dire
+niente, quindi oggi si riconosce dalla sua colonna. Un giorno di chiusura è
+tutto a righe anche se l'operatore avrebbe le sue fasce — il salone chiuso
+viene prima di chi ci lavora. E la casella verde porta l'operatore scelto,
+non l'intestazione della colonna, che lì è una data: senza, si prenoterebbe
+con "Mer 23". Le sette domande a Google partono **insieme** (`asyncio.gather`)
+e su un calendario solo: sette chiamate, non quarantadue.
+
 I posti liberi arrivano da **Google e non dal database**, e non perché i due
 siano disallineati: per tutto quello che passa dal bot o dal pannello si
 scrive sempre su entrambi. È il contrario a non valere. Quello che il salone

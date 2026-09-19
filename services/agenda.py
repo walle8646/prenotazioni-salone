@@ -139,6 +139,43 @@ def _posti_liberi(
     return posti
 
 
+def _blocco(app, inizio: int, fine: int, ordine_servizi: list[str], prezzo_di) -> dict:
+    """Un appuntamento come lo disegna la griglia, in un posto solo.
+
+    Lo usano sia la giornata sia la settimana: descritto due volte, prima o poi
+    una delle due smette di nascondere il numero di sessione del sito o di
+    dire il prezzo giusto.
+    """
+    cliente = app.cliente
+    nome_cliente = " ".join(
+        p
+        for p in ((cliente.nome if cliente else None), (cliente.cognome if cliente else None))
+        if p
+    ) or "Cliente senza nome"
+    telefono = (cliente.telefono_wa if cliente else "") or ""
+    servizi = list(app.servizi or [])
+    sfondo, bordo = tinta_del_servizio(servizi[0] if servizi else None, ordine_servizi)
+
+    return {
+        "id": app.id,
+        "_inizio": inizio,
+        "_fine": fine,
+        "ora": _ora(inizio),
+        "fine": _ora(fine),
+        "cliente": nome_cliente,
+        "cliente_id": cliente.id if cliente else None,
+        # Chi arriva dal sito ha come "telefono" l'identificativo della
+        # sessione: mostrarlo farebbe credere a un numero da chiamare.
+        "telefono": "" if telefono.startswith("web_") else telefono,
+        "servizi": ", ".join(servizi) or "-",
+        "prezzo": prezzo_di(app),
+        "operatore": app.parrucchiere.nome if app.parrucchiere else SENZA_OPERATORE,
+        "note": app.richieste_spec or "",
+        "sfondo": sfondo,
+        "bordo": bordo,
+    }
+
+
 def costruisci_agenda(
     appuntamenti: list,
     giorno: date,
@@ -172,33 +209,8 @@ def costruisci_agenda(
         fini.append(fine)
 
         nome = app.parrucchiere.nome if app.parrucchiere else SENZA_OPERATORE
-        cliente = app.cliente
-        nome_cliente = " ".join(
-            p for p in ((cliente.nome if cliente else None), (cliente.cognome if cliente else None)) if p
-        ) or "Cliente senza nome"
-        telefono = (cliente.telefono_wa if cliente else "") or ""
-        servizi = list(app.servizi or [])
-        sfondo, bordo = tinta_del_servizio(servizi[0] if servizi else None, ordine_servizi)
-
         blocchi_per_nome.setdefault(nome, []).append(
-            {
-                "id": app.id,
-                "_inizio": inizio,
-                "_fine": fine,
-                "ora": _ora(inizio),
-                "fine": _ora(fine),
-                "cliente": nome_cliente,
-                "cliente_id": cliente.id if cliente else None,
-                # Chi arriva dal sito ha come "telefono" l'identificativo della
-                # sessione: mostrarlo farebbe credere a un numero da chiamare.
-                "telefono": "" if telefono.startswith("web_") else telefono,
-                "servizi": ", ".join(servizi) or "-",
-                "prezzo": prezzo_di(app),
-                "operatore": nome,
-                "note": app.richieste_spec or "",
-                "sfondo": sfondo,
-                "bordo": bordo,
-            }
+            _blocco(app, inizio, fine, ordine_servizi, prezzo_di)
         )
 
     if not inizi:
@@ -272,6 +284,115 @@ def costruisci_agenda(
         "righe": righe,
         "inizio": inizio_giorno,
         "adesso": linea_adesso,
+    }
+
+
+# I nomi dei giorni stanno nel codice perché nel container non c'è il locale
+# italiano: senza, le colonne della settimana si intitolerebbero "Tue", "Wed".
+GIORNI_CORTI = ["Lun", "Mar", "Mer", "Gio", "Ven", "Sab", "Dom"]
+
+
+def costruisci_settimana(
+    appuntamenti: list,
+    giorni: list[date],
+    operatore: str,
+    orari_per_giorno: dict,
+    e_in_salone,
+    prezzo_di,
+    ordine_servizi: list[str],
+    adesso: datetime | None = None,
+    liberi: dict | None = None,
+) -> dict:
+    """La stessa griglia, ma con un giorno per colonna e un operatore solo.
+
+    Serve a una domanda che la giornata non sa rispondere: "quando posso dare
+    un appuntamento con Andrea?". Chiedendolo un giorno per volta si aprono
+    sette schermate per scoprire che il primo posto è giovedì; qui si vede in
+    una.
+
+    Restituisce la stessa forma di `costruisci_agenda()` — colonne, ore,
+    righe — così il template disegna la griglia una volta sola: due markup per
+    la stessa cosa divergono, e uno dei due finisce per mostrare i blocchi
+    mezz'ora fuori posto.
+    """
+    liberi = liberi or {}
+    inizi: list[int] = []
+    fini: list[int] = []
+    for giorno in giorni:
+        for apre, chiude in orari_per_giorno.get(giorno, []):
+            inizi.append(_minuti(apre))
+            fini.append(_minuti(chiude))
+
+    blocchi_per_giorno: dict[date, list[dict]] = {}
+    for app in appuntamenti:
+        quando = app.data_ora
+        inizio = quando.hour * 60 + quando.minute
+        fine = inizio + (app.durata_min or PASSO_MIN)
+        inizi.append(inizio)
+        fini.append(fine)
+        blocchi_per_giorno.setdefault(quando.date(), []).append(
+            _blocco(app, inizio, fine, ordine_servizi, prezzo_di)
+        )
+
+    if not inizi:
+        return {"chiuso": True, "colonne": [], "ore": [], "righe": 0, "adesso": None}
+
+    inizio_giorno = (min(inizi) // 60) * 60
+    fine_giorno = -(-max(fini) // 60) * 60
+    righe = (fine_giorno - inizio_giorno) // PASSO_MIN
+
+    colonne = []
+    for giorno in giorni:
+        aperto = bool(orari_per_giorno.get(giorno))
+        blocchi = blocchi_per_giorno.get(giorno, [])
+        # Un giorno di chiusura è tutto a righe, anche se l'operatore avrebbe
+        # le sue fasce: il salone chiuso viene prima di chi ci lavora.
+        zone = (
+            _zone_fuori_salone(operatore, giorno, inizio_giorno, fine_giorno, e_in_salone)
+            if aperto
+            else [{"da": 0, "per": righe}]
+        )
+        posti = _posti_liberi(
+            operatore,
+            giorno,
+            inizio_giorno,
+            fine_giorno,
+            {operatore: liberi.get(giorno, set())},
+            adesso,
+        )
+        corsie = _corsie(blocchi)
+        for blocco in blocchi:
+            blocco["da"] = (blocco["_inizio"] - inizio_giorno) / PASSO_MIN
+            blocco["per"] = (blocco["_fine"] - blocco["_inizio"]) / PASSO_MIN
+            blocco["corsie"] = corsie
+        colonne.append(
+            {
+                "nome": f"{GIORNI_CORTI[giorno.weekday()]} {giorno.day}",
+                "foto": False,
+                "iso": giorno.isoformat(),
+                "aperto": aperto,
+                "oggi": adesso is not None and adesso.date() == giorno,
+                "quanti": len(blocchi),
+                "blocchi": sorted(blocchi, key=lambda b: b["_inizio"]),
+                "fuori": zone,
+                "liberi": posti,
+            }
+        )
+
+    ore = [
+        {"riga": (minuto - inizio_giorno) / PASSO_MIN, "testo": _ora(minuto)}
+        for minuto in range(inizio_giorno, fine_giorno + 1, 60)
+    ]
+
+    # Niente linea dell'ora corrente: qui attraverserebbe sette giorni, e in sei
+    # di quelli non vuol dire niente. Oggi si riconosce dalla sua colonna.
+    return {
+        "chiuso": False,
+        "colonne": colonne,
+        "ore": ore,
+        "righe": righe,
+        "inizio": inizio_giorno,
+        "adesso": None,
     }
 
 

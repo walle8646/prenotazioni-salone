@@ -172,6 +172,7 @@ async def dashboard(
 async def prenota(
     request: Request,
     data: str = None,
+    operatore: str = None,
     creato: int = 0,
     errore: str = None,
     db=Depends(get_db),
@@ -196,18 +197,40 @@ async def prenota(
     target_date = (
         datetime.strptime(data, "%Y-%m-%d").date() if data else adesso_salone().date()
     )
+    from prompts.system_prompt import get_parrucchieri_map_cached
+
     adesso = adesso_salone().replace(tzinfo=None)
-    liberi, nota_liberi = await _dove_c_e_posto(target_date, adesso)
+    operatori = list(get_parrucchieri_map_cached())
+    # Un nome storpiato nell'indirizzo non deve svuotare la schermata: si
+    # ricade su tutti, che è quello che la pagina faceva prima delle chips.
+    scelto = operatore if operatore in operatori else None
+
+    if scelto:
+        giorni = [target_date + timedelta(days=i) for i in range(7)]
+        liberi, nota_liberi = await _posti_della_settimana(scelto, giorni, adesso)
+        vista = await _settimana_di(db, scelto, giorni, adesso, liberi)
+    else:
+        liberi, nota_liberi = await _dove_c_e_posto(target_date, adesso)
+        vista = await _giornata(db, target_date, adesso, liberi=liberi)
 
     return templates.TemplateResponse(
         "prenota.html",
         {
             "request": request,
             "data_selezionata": target_date,
-            **await _giornata(db, target_date, adesso, liberi=liberi),
-            **_striscia(target_date, await _settimana(db, target_date), "/admin/prenota"),
+            **vista,
+            **_striscia(
+                target_date,
+                # Con un operatore scelto la striscia non si mostra — i sette
+                # giorni sono già le colonne — e il suo conteggio non si chiede.
+                [] if scelto else await _settimana(db, target_date),
+                "/admin/prenota",
+                filtro=f"&operatore={quote(scelto)}" if scelto else "",
+            ),
             "titolo_giornata": _in_italiano(target_date),
             "nota_liberi": nota_liberi,
+            "operatori": operatori,
+            "operatore_scelto": scelto,
             "servizi_listino": catalogo.elenco_per_sito(),
             "creato": bool(creato),
             "errore": errore,
@@ -215,7 +238,7 @@ async def prenota(
     )
 
 
-def _striscia(giorno: date, settimana: list[dict], dove: str) -> dict:
+def _striscia(giorno: date, settimana: list[dict], dove: str, filtro: str = "") -> dict:
     """I sette giorni in cima, con l'indirizzo su cui puntano.
 
     L'indirizzo arriva da fuori perché la stessa striscia sta su due schermate:
@@ -228,7 +251,102 @@ def _striscia(giorno: date, settimana: list[dict], dove: str) -> dict:
         "settimana_dopo": (giorno + timedelta(days=7)).isoformat(),
         "intestazione_settimana": _intestazione_settimana(giorno),
         "dove": dove,
+        # Cambiando giorno non si deve perdere l'operatore che si stava
+        # guardando: tornare a "tutti" a ogni freccia renderebbe le chips
+        # inservibili proprio mentre si cerca un posto per quella persona.
+        "filtro": filtro,
     }
+
+
+async def _settimana_di(
+    db, operatore: str, giorni: list[date], adesso: datetime, liberi: dict
+) -> dict:
+    """I sette giorni di un operatore solo, una colonna per giorno.
+
+    Risponde alla domanda che la giornata non sa rispondere: "quando posso
+    darlo con Andrea?". Un giorno per volta vorrebbe dire aprire sette
+    schermate per scoprire che il primo posto è giovedì.
+    """
+    from services.agenda import costruisci_settimana, legenda
+    from services.presenze import e_in_salone
+    from services.slots import orari_salone
+
+    result = await db.execute(
+        select(Appuntamento)
+        .join(Appuntamento.parrucchiere)
+        .options(
+            selectinload(Appuntamento.cliente),
+            selectinload(Appuntamento.parrucchiere),
+        )
+        .where(
+            Appuntamento.data_ora >= datetime.combine(giorni[0], datetime.min.time()),
+            Appuntamento.data_ora < datetime.combine(giorni[-1], datetime.max.time()),
+            Appuntamento.stato == "Confermato",
+            Parrucchiere.nome == operatore,
+        )
+        .order_by(Appuntamento.data_ora)
+    )
+    appuntamenti = result.scalars().all()
+
+    def prezzo_di(app) -> str:
+        valore = (
+            float(app.prezzo)
+            if app.prezzo is not None
+            else catalogo.prezzo_totale(app.servizi)
+        )
+        return f"{valore:.2f}".replace(".", ",") + " €" if valore else "-"
+
+    incasso = sum(
+        float(a.prezzo) if a.prezzo is not None else catalogo.prezzo_totale(a.servizi)
+        for a in appuntamenti
+    )
+    ordine_servizi = [s["nome"] for s in catalogo.elenco_per_sito()]
+    orari = orari_salone()
+
+    return {
+        "appuntamenti": appuntamenti,
+        "prezzo_di": prezzo_di,
+        "incasso_previsto": f"{incasso:.2f}".replace(".", ",") + " €",
+        "agenda": costruisci_settimana(
+            appuntamenti,
+            giorni=giorni,
+            operatore=operatore,
+            orari_per_giorno={g: orari.get(g.weekday(), []) for g in giorni},
+            e_in_salone=e_in_salone,
+            prezzo_di=prezzo_di,
+            ordine_servizi=ordine_servizi,
+            adesso=adesso,
+            liberi=liberi,
+        ),
+        "legenda": legenda(
+            ordine_servizi, {s for a in appuntamenti for s in (a.servizi or [])[:1]}
+        ),
+    }
+
+
+async def _posti_della_settimana(
+    operatore: str, giorni: list[date], adesso: datetime
+) -> tuple[dict, str | None]:
+    """Gli orari liberi di un operatore giorno per giorno.
+
+    Le sette domande a Google partono insieme: in fila sarebbero sette attese
+    sommate, e questa schermata si apre col cliente in linea.
+    """
+    import asyncio
+
+    esiti = await asyncio.gather(
+        *[_liberi_da_google(g, adesso, operatore) for g in giorni]
+    )
+    liberi = {g: (trovati.get(operatore) or set()) for g, (trovati, _) in zip(giorni, esiti)}
+    motivi = {motivo for _, motivo in esiti}
+
+    # Un guasto batte tutto il resto: caselle non segnate lette come poltrone
+    # occupate sono il modo di mandare via un cliente che il posto ce l'aveva.
+    if "guasto" in motivi:
+        return liberi, _SPIEGAZIONI["guasto"]
+    if not any(liberi.values()):
+        return liberi, f"Nessuna mezz'ora libera con {operatore} in questa settimana."
+    return liberi, None
 
 
 async def _giornata(db, giorno: date, adesso: datetime, liberi=None) -> dict:
@@ -1422,8 +1540,18 @@ async def push_iscrizione(request: Request, utente=Depends(utente_del_pannello))
 # ------------------------------------------------- prenotazione dal pannello
 
 
+_SPIEGAZIONI = {
+    "passato": "Giornata già passata: i posti liberi si segnano da adesso in avanti.",
+    "guasto": (
+        "Non riesco a leggere i calendari di Google: i posti liberi non sono "
+        "segnati. Le caselle vuote qui sotto potrebbero essere libere lo stesso."
+    ),
+    "pieno": "Nessuna mezz'ora libera in questa giornata.",
+}
+
+
 async def _dove_c_e_posto(
-    giorno: date, adesso: datetime
+    giorno: date, adesso: datetime, operatore: str | None = None
 ) -> tuple[dict[str, set[str]], str | None]:
     """Gli orari liberi di ogni operatore secondo Google, e perché mancano.
 
@@ -1446,40 +1574,54 @@ async def _dove_c_e_posto(
     I giorni passati non si interrogano: nessuno ci prenota, e sarebbero sei
     chiamate a Google per disegnare del verde inutile.
     """
+    liberi, motivo = await _liberi_da_google(giorno, adesso, operatore)
+    return liberi, _SPIEGAZIONI.get(motivo)
+
+
+async def _liberi_da_google(
+    giorno: date, adesso: datetime, operatore: str | None = None
+) -> tuple[dict[str, set[str]], str | None]:
+    """Gli orari liberi e il **motivo** se non ce ne sono, non ancora la frase.
+
+    La settimana ne mette insieme sette e deve poterli confrontare: "passato"
+    per i giorni già andati è normale e non si racconta, "guasto" va detto
+    anche se un giorno solo su sette non si è potuto leggere.
+    """
     from services.slots import orari_salone
 
     orari = orari_salone().get(giorno.weekday(), [])
     if not orari:
-        return {}, None  # chiuso: lo dice già la griglia, non serve ripeterlo
+        return {}, "chiuso"  # lo dice già la griglia, non serve ripeterlo
 
     finita = giorno < adesso.date() or (
         giorno == adesso.date() and adesso.strftime("%H:%M") >= max(f for _, f in orari)
     )
     if finita:
-        return {}, "Giornata già passata: i posti liberi si segnano da adesso in avanti."
+        return {}, "passato"
 
     try:
+        from prompts.system_prompt import get_cal_id_for_parrucchiere
         from services.backends import RealBackends
         from services.presenze import solo_chi_e_in_salone
 
-        slot = await RealBackends().check_availability(giorno.isoformat(), None, 30)
+        # Con un operatore scelto si interroga un calendario solo invece di
+        # sei: sette giorni per sei calendari sarebbero quarantadue domande.
+        cal_id = get_cal_id_for_parrucchiere(operatore) if operatore else None
+        if operatore and not cal_id:
+            return {}, "guasto"
+        slot = await RealBackends().check_availability(giorno.isoformat(), cal_id, 30)
         # Google dice se l'operatore è occupato, non se quel giorno lavora: lo
         # stesso filtro che sta fra la ricerca e il bot, o il verde comparirebbe
         # sopra le righe di chi non è in salone.
         slot = solo_chi_e_in_salone(slot)
     except Exception:  # noqa: BLE001
         logger.warning("Disponibilità non leggibile per %s", giorno, exc_info=True)
-        return {}, (
-            "Non riesco a leggere i calendari di Google: i posti liberi non sono "
-            "segnati. Le caselle vuote qui sotto potrebbero essere libere lo stesso."
-        )
+        return {}, "guasto"
 
     liberi: dict[str, set[str]] = {}
     for s in slot:
         liberi.setdefault(s["parrucchiere"], set()).add(s["slot"])
-    if not liberi:
-        return {}, "Nessuna mezz'ora libera in questa giornata."
-    return liberi, None
+    return liberi, None if liberi else "pieno"
 
 
 @router.get("/clienti/cerca")

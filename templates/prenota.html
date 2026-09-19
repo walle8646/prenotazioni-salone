@@ -6,21 +6,38 @@
    al telefono. Gli appuntamenti già presi si vedono, ma spenti: qui non
    servono a leggere la giornata, servono a sapere dove non c'è posto. #}
 <div class="dashboard">
-    <h2>Prenota — {{ titolo_giornata }}</h2>
+    <h2>Prenota —
+        {%- if operatore_scelto %} {{ operatore_scelto }}, {{ intestazione_settimana }}
+        {%- else %} {{ titolo_giornata }}{% endif %}</h2>
 
-    <div class="calendario">
+    {# Chi cerca posto per una persona sola non vuole sei colonne: ne vuole
+       sette, una per giorno. La scelta sta in cima perché e' la prima cosa che
+       si sa al telefono — "vorrei da Andrea" — e cambia tutta la schermata. #}
+    <nav class="chips" aria-label="Per chi stai prenotando">
+        <a class="chip{{ ' chip-scelta' if not operatore_scelto }}"
+           href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}">Tutti</a>
+        {% for o in operatori %}
+        <a class="chip{{ ' chip-scelta' if operatore_scelto == o }}"
+           href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}&amp;operatore={{ o | urlencode }}">
+            <img src="/operatori/{{ o | urlencode }}/foto" alt="" width="22" height="22">
+            {{ o }}
+        </a>
+        {% endfor %}
+    </nav>
+
+    <div class="calendario"{% if operatore_scelto %} hidden{% endif %}>
         <div class="calendario-testata">
-            <a class="calendario-freccia" href="{{ dove }}?data={{ settimana_prima }}"
+            <a class="calendario-freccia" href="{{ dove }}?data={{ settimana_prima }}{{ filtro }}"
                title="Sette giorni indietro" aria-label="Sette giorni indietro">‹</a>
             <span class="calendario-mese">{{ intestazione_settimana }}</span>
-            <a class="calendario-freccia" href="{{ dove }}?data={{ settimana_dopo }}"
+            <a class="calendario-freccia" href="{{ dove }}?data={{ settimana_dopo }}{{ filtro }}"
                title="Sette giorni avanti" aria-label="Sette giorni avanti">›</a>
         </div>
 
         <div class="settimana">
             {% for g in settimana %}
             <a class="giorno{{ ' giorno-scelto' if g.scelto }}{{ ' giorno-chiuso' if not g.aperto }}{{ ' giorno-oggi' if g.oggi }}"
-               href="{{ dove }}?data={{ g.iso }}">
+               href="{{ dove }}?data={{ g.iso }}{{ filtro }}">
                 <span class="giorno-nome">{{ g.nome }}</span>
                 <span class="giorno-numero">{{ g.numero }}</span>
                 <span class="giorno-quanti">
@@ -42,6 +59,13 @@
             <input type="date" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
             <button type="submit" class="btn-small">Vai a un'altra data</button>
         </form>
+
+        {% if operatore_scelto %}
+        <nav class="scelta-vista" aria-label="Cambia settimana">
+            <a href="{{ dove }}?data={{ settimana_prima }}{{ filtro }}">‹ Settimana prima</a>
+            <a href="{{ dove }}?data={{ settimana_dopo }}{{ filtro }}">Settimana dopo ›</a>
+        </nav>
+        {% endif %}
 
         <a class="btn-small btn-neutro"
            href="/admin/dashboard?data={{ data_selezionata.strftime('%Y-%m-%d') }}">Vedi la giornata</a>
@@ -74,12 +98,18 @@
             <div class="agenda-testata">
                 <div class="agenda-angolo"></div>
                 {% for c in agenda.colonne %}
-                <div class="agenda-operatore">
+                <div class="agenda-operatore{{ ' colonna-oggi' if c.oggi }}">
                     {% if c.foto %}
                     <img src="/operatori/{{ c.nome | urlencode }}/foto" alt="" width="28" height="28">
                     {% endif %}
                     <span class="agenda-nome">{{ c.nome }}</span>
-                    <small>{{ c.liberi | length }} liberi</small>
+                    <small>
+                        {%- if c.aperto is defined and not c.aperto -%}
+                            chiuso
+                        {%- else -%}
+                            {{ c.liberi | length }} liberi
+                        {%- endif -%}
+                    </small>
                 </div>
                 {% endfor %}
             </div>
@@ -97,11 +127,15 @@
                     <div class="agenda-fuori" style="--da: {{ z.da }}; --per: {{ z.per }};"></div>
                     {% endfor %}
 
+                    {# Con una settimana davanti l'intestazione è un giorno, non
+                       una persona: chi riceve resta quello scelto in cima. #}
+                    {% set chi = operatore_scelto or c.nome %}
                     {% for l in c.liberi %}
                     <button type="button" class="agenda-libero"
                             style="--da: {{ l.da }};"
-                            data-slot="{{ l.slot }}" data-operatore="{{ c.nome }}"
-                            title="Prenota alle {{ l.ora }} con {{ c.nome }}">
+                            data-slot="{{ l.slot }}" data-operatore="{{ chi }}"
+                            data-etichetta="{% if operatore_scelto %}{{ c.nome }} · {% endif %}{{ l.ora }} con {{ chi }}"
+                            title="Prenota alle {{ l.ora }} con {{ chi }}">
                         <span>{{ l.ora }}</span>
                     </button>
                     {% endfor %}
@@ -305,7 +339,7 @@
             document.getElementById("nuovo-slot").value = slot;
             document.getElementById("nuovo-operatore").value = posto.dataset.operatore;
             modulo.querySelector('[data-campo="quando"]').textContent =
-                slot.slice(11) + " con " + posto.dataset.operatore;
+                posto.dataset.etichetta;
             mostra("cerca");
             modulo.showModal();
             campoCerca.focus();
