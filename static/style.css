@@ -1769,18 +1769,14 @@ body {
     align-items: center;
     justify-content: center;
     padding: 0;
-    border: 1px dashed #a9d5bd;
+    border: 1px dashed #7fc4a5;
     border-radius: 4px;
-    background: #f0f9f4;
-    color: #2d7a55;
+    background: #e6f6ed;
+    color: #226b48;
     font: inherit;
     font-size: 0.72rem;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
-}
-
-.agenda-libero span {
-    opacity: 0;
 }
 
 .agenda-libero:hover,
@@ -1789,17 +1785,36 @@ body {
     border-style: solid;
 }
 
-.agenda-libero:hover span,
-.agenda-libero:focus-visible span {
-    opacity: 1;
+/* Gli impegni sulla schermata Prenota: si vedono, ma spenti. Servono a
+   sapere dove non c'e' posto, non a leggere la giornata, e a pieno colore
+   coprirebbero proprio il verde che si sta cercando. */
+.agenda-occupato {
+    opacity: 0.62;
+    cursor: default;
 }
 
-/* Sul telefono non esiste il passaggio del dito prima del tocco: l'ora si
-   legge sempre, altrimenti sono solo rettangoli verdi tutti uguali. */
-@media (hover: none) {
-    .agenda-libero span {
-        opacity: 1;
-    }
+.agenda-occupato:hover {
+    filter: none;
+    box-shadow: none;
+}
+
+.nota-liberi {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0 0 0.6rem;
+    color: #5b6b7a;
+    font-size: 0.85rem;
+}
+
+.nota-verde {
+    display: inline-block;
+    flex: none;
+    width: 1.2rem;
+    height: 0.9rem;
+    border: 1px dashed #7fc4a5;
+    border-radius: 3px;
+    background: #e6f6ed;
 }
 
 .avviso-buono,

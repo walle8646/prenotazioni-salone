@@ -321,7 +321,7 @@ compaiono sei bottoni identici.
 
 Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata,
 con la striscia dei sette giorni da cui si salta a un'altra data: un conteggio
-solo per tutta la settimana, non sette query),
+solo per tutta la settimana, non sette query), **Prenota**,
 **Conversazioni**, **Clienti** (elenco con ricerca e scheda singola),
 **Listino** e **Operatori** (modifica in linea, una riga per form),
 **Presenze**, **Assenze**.
@@ -339,17 +339,40 @@ motivo per cui va visto; e due appuntamenti sovrapposti nella stessa colonna
 si **affiancano**, perché uno sopra l'altro il secondo sparirebbe. L'elenco
 di prima resta come seconda vista (`?vista=elenco`).
 
-**Si prenota anche a mano, dal calendario.** Le mezz'ore libere di ogni
-operatore sono celle verdi cliccabili: toccarne una apre il modulo già
-compilato con **quando e con chi**, che al telefono sono i due dati appena
-detti e i più facili da ricopiare male. Il verde è il punto della schermata —
-chi prenota cerca dove c'è posto, non chi è occupato.
+**Prenota è una schermata a sé**, non un pezzo di Appuntamenti, perché
+risponde a un'altra domanda: lì si guarda la giornata che c'è, qui si cerca
+dove infilare chi ha telefonato. Sono anche due momenti diversi — la giornata
+si apre la mattina e resta aperta, la prenotazione si fa col cliente in linea.
+Le mezz'ore libere sono celle verdi: toccarne una apre il modulo già compilato
+con **quando e con chi**, i due dati appena detti al telefono e i più facili
+da ricopiare male. Gli appuntamenti già presi si vedono, ma spenti e non
+cliccabili: dicono dove **non** c'è posto, e a pieno colore coprirebbero il
+verde che si sta cercando. La griglia la costruisce una funzione sola
+(`_giornata()`), perché due schermate che la disegnano per conto loro prima o
+poi dicono due cose diverse sullo stesso orario — e quella su cui si prenota è
+sempre l'altra.
 
-Quei posti liberi arrivano da **Google e non dal database**: un impegno
-segnato a mano sul calendario — una pausa, una visita — occupa la poltrona
-come un appuntamento, e il database non lo sa. Se Google non risponde non si
-segna niente: nessun posto è meglio di posti sbagliati, perché su quelli
-qualcuno prenoterebbe davvero. I giorni passati non si interrogano.
+I posti liberi arrivano da **Google e non dal database**, e non perché i due
+siano disallineati: per tutto quello che passa dal bot o dal pannello si
+scrive sempre su entrambi. È il contrario a non valere. Quello che il salone
+segna a mano sul calendario dal telefono — una pausa, una commissione, un
+cliente arrivato senza appuntamento — occupa la poltrona, e il database non ne
+sa niente. Google è anche la fonte che il bot consulta e che `_slot_ancora_libero()`
+ricontrolla al momento di confermare: leggendo il database si offrirebbero
+orari che il controllo finale rifiuta, dopo aver fatto compilare tutto il
+modulo. Il filtro delle presenze si applica anche qui (`solo_chi_e_in_salone`),
+o il verde comparirebbe sopra le righe di chi quel giorno non c'è: **il
+calendario dice se è occupato, non se lavora.** Separare le due schermate ha
+anche fatto sparire sei chiamate a Google da Appuntamenti, che si tiene aperta
+per ore.
+
+**Quando di verde non ce n'è, la pagina dice perché.** Giornata finita,
+calendari illeggibili e giornata piena si somigliano solo a guardarli, e chi
+guarda conclude sempre il terzo: `_dove_c_e_posto()` restituisce anche la
+frase da mostrare. Quello grave è il secondo — un guasto letto come "siamo
+pieni" fa mandare via un cliente che il posto ce l'aveva. Per lo stesso motivo
+l'ora dentro la cella verde **si legge sempre**: nascosta fino al passaggio
+del mouse, una giornata piena di posti liberi sembrava una giornata vuota.
 
 La creazione passa dalle **stesse funzioni del bot** (`find_or_create_client`,
 `create_event`, `create_appointment`, la conferma per email): due strade per

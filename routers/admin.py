@@ -138,12 +138,7 @@ def _alias_da_testo(testo: str) -> list[str]:
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(
-    request: Request,
-    data: str = None,
-    vista: str = None,
-    creato: int = 0,
-    errore: str = None,
-    db=Depends(get_db),
+    request: Request, data: str = None, vista: str = None, db=Depends(get_db)
 ):
     user = verify_session(request)
     if not user:
@@ -151,13 +146,103 @@ async def dashboard(
 
     # Data selezionata o oggi, nel fuso del salone: su Render il server è in
     # UTC, e fra mezzanotte e le due il pannello si apriva sul giorno prima.
-    from services.slots import adesso_salone as _adesso
+    from services.slots import adesso_salone
 
     target_date = (
-        datetime.strptime(data, "%Y-%m-%d").date() if data else _adesso().date()
+        datetime.strptime(data, "%Y-%m-%d").date() if data else adesso_salone().date()
+    )
+    adesso = adesso_salone().replace(tzinfo=None)
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {
+            "request": request,
+            "data_selezionata": target_date,
+            **await _giornata(db, target_date, adesso),
+            **_striscia(target_date, await _settimana(db, target_date), "/admin/dashboard"),
+            "titolo_giornata": _in_italiano(target_date),
+            # Il calendario è la vista normale; l'elenco resta per chi deve
+            # scorrere tutti i nomi in fila, per esempio per telefonare.
+            "vista": "elenco" if vista == "elenco" else "calendario",
+        },
     )
 
-    # Query appuntamenti del giorno con relazioni
+
+@router.get("/prenota", response_class=HTMLResponse)
+async def prenota(
+    request: Request,
+    data: str = None,
+    creato: int = 0,
+    errore: str = None,
+    db=Depends(get_db),
+):
+    """La schermata per prendere una prenotazione al telefono o allo sportello.
+
+    Sta separata da **Appuntamenti** perché serve a una domanda diversa: lì si
+    guarda la giornata che c'è, qui si cerca dove infilare qualcuno. Sono anche
+    due momenti diversi — la giornata si apre al mattino e resta lì, la
+    prenotazione si fa col cliente che aspetta in linea.
+
+    La separazione ha un secondo effetto, pratico: solo questa pagina
+    interroga Google, sei calendari per volta. Appuntamenti, che si tiene
+    aperta per ore e si ricarica in continuazione, non paga più quell'attesa.
+    """
+    user = verify_session(request)
+    if not user:
+        return RedirectResponse(url="/admin/login")
+
+    from services.slots import adesso_salone
+
+    target_date = (
+        datetime.strptime(data, "%Y-%m-%d").date() if data else adesso_salone().date()
+    )
+    adesso = adesso_salone().replace(tzinfo=None)
+    liberi, nota_liberi = await _dove_c_e_posto(target_date, adesso)
+
+    return templates.TemplateResponse(
+        "prenota.html",
+        {
+            "request": request,
+            "data_selezionata": target_date,
+            **await _giornata(db, target_date, adesso, liberi=liberi),
+            **_striscia(target_date, await _settimana(db, target_date), "/admin/prenota"),
+            "titolo_giornata": _in_italiano(target_date),
+            "nota_liberi": nota_liberi,
+            "servizi_listino": catalogo.elenco_per_sito(),
+            "creato": bool(creato),
+            "errore": errore,
+        },
+    )
+
+
+def _striscia(giorno: date, settimana: list[dict], dove: str) -> dict:
+    """I sette giorni in cima, con l'indirizzo su cui puntano.
+
+    L'indirizzo arriva da fuori perché la stessa striscia sta su due schermate:
+    cliccare un giorno deve restare dov'è, non riportare ogni volta agli
+    appuntamenti.
+    """
+    return {
+        "settimana": settimana,
+        "settimana_prima": (giorno - timedelta(days=7)).isoformat(),
+        "settimana_dopo": (giorno + timedelta(days=7)).isoformat(),
+        "intestazione_settimana": _intestazione_settimana(giorno),
+        "dove": dove,
+    }
+
+
+async def _giornata(db, giorno: date, adesso: datetime, liberi=None) -> dict:
+    """Gli appuntamenti di una giornata e la griglia che li disegna.
+
+    In una funzione sola perché la mostrano due schermate: una griglia
+    costruita in due posti è una griglia che prima o poi dice due cose diverse
+    sullo stesso orario, e quella su cui si prenota è sempre l'altra.
+    """
+    from prompts.system_prompt import get_parrucchieri_map_cached
+    from services.agenda import costruisci_agenda, legenda
+    from services.presenze import e_in_salone
+    from services.slots import orari_salone
+
     result = await db.execute(
         select(Appuntamento)
         .options(
@@ -165,8 +250,8 @@ async def dashboard(
             selectinload(Appuntamento.parrucchiere),
         )
         .where(
-            Appuntamento.data_ora >= datetime.combine(target_date, datetime.min.time()),
-            Appuntamento.data_ora < datetime.combine(target_date, datetime.max.time()),
+            Appuntamento.data_ora >= datetime.combine(giorno, datetime.min.time()),
+            Appuntamento.data_ora < datetime.combine(giorno, datetime.max.time()),
             Appuntamento.stato == "Confermato",
         )
         .order_by(Appuntamento.data_ora)
@@ -187,51 +272,29 @@ async def dashboard(
         for a in appuntamenti
     )
 
-    from prompts.system_prompt import get_parrucchieri_map_cached
-    from services.agenda import costruisci_agenda, legenda
-    from services.presenze import e_in_salone
-    from services.slots import adesso_salone, orari_salone
-
     ordine_servizi = [s["nome"] for s in catalogo.elenco_per_sito()]
-    adesso = adesso_salone().replace(tzinfo=None)
     agenda = costruisci_agenda(
         appuntamenti,
-        giorno=target_date,
+        giorno=giorno,
         operatori=list(get_parrucchieri_map_cached()),
-        orari_del_giorno=orari_salone().get(target_date.weekday(), []),
+        orari_del_giorno=orari_salone().get(giorno.weekday(), []),
         e_in_salone=e_in_salone,
         prezzo_di=prezzo_di,
         ordine_servizi=ordine_servizi,
         # L'ora del salone e non del server: su Render è UTC, e la linea
         # dell'ora corrente starebbe due ore indietro.
         adesso=adesso,
-        liberi=await _dove_c_e_posto(target_date, adesso),
+        liberi=liberi,
     )
     servizi_del_giorno = {s for a in appuntamenti for s in (a.servizi or [])[:1]}
 
-    return templates.TemplateResponse(
-        "dashboard.html",
-        {
-            "request": request,
-            "appuntamenti": appuntamenti,
-            "data_selezionata": target_date,
-            "prezzo_di": prezzo_di,
-            "incasso_previsto": f"{incasso_previsto:.2f}".replace(".", ",") + " €",
-            "settimana": await _settimana(db, target_date),
-            "settimana_prima": (target_date - timedelta(days=7)).isoformat(),
-            "settimana_dopo": (target_date + timedelta(days=7)).isoformat(),
-            "intestazione_settimana": _intestazione_settimana(target_date),
-            "titolo_giornata": _in_italiano(target_date),
-            # Il calendario è la vista normale; l'elenco resta per chi deve
-            # scorrere tutti i nomi in fila, per esempio per telefonare.
-            "vista": "elenco" if vista == "elenco" else "calendario",
-            "agenda": agenda,
-            "legenda": legenda(ordine_servizi, servizi_del_giorno),
-            "servizi_listino": catalogo.elenco_per_sito(),
-            "creato": bool(creato),
-            "errore": errore,
-        },
-    )
+    return {
+        "appuntamenti": appuntamenti,
+        "prezzo_di": prezzo_di,
+        "incasso_previsto": f"{incasso_previsto:.2f}".replace(".", ",") + " €",
+        "agenda": agenda,
+        "legenda": legenda(ordine_servizi, servizi_del_giorno),
+    }
 
 
 # I nomi stanno nel codice perché nel container non c'è il locale italiano.
@@ -1359,34 +1422,64 @@ async def push_iscrizione(request: Request, utente=Depends(utente_del_pannello))
 # ------------------------------------------------- prenotazione dal pannello
 
 
-async def _dove_c_e_posto(giorno: date, adesso: datetime) -> dict[str, set[str]]:
-    """Gli orari liberi di ogni operatore, secondo Google.
+async def _dove_c_e_posto(
+    giorno: date, adesso: datetime
+) -> tuple[dict[str, set[str]], str | None]:
+    """Gli orari liberi di ogni operatore secondo Google, e perché mancano.
 
-    Non dal database: un impegno segnato a mano sul calendario — una pausa, una
-    visita, un cliente arrivato senza appuntamento — occupa la poltrona
-    esattamente come una prenotazione, e il database non lo sa. Prenotare
-    sopra quello sarebbe il difetto peggiore di questa schermata.
+    **Non dal database, benché i due siano allineati.** Lo sono per tutto
+    quello che passa di qui: il bot e questa schermata scrivono sempre su
+    tutti e due. Ma il contrario non vale — quello che il salone segna a mano
+    sul calendario dal telefono, una pausa, una commissione, un cliente
+    arrivato senza appuntamento, occupa la poltrona e il database non ne sa
+    niente. È anche la fonte che il bot consulta e che ricontrolla al momento
+    di confermare: leggendo il database si offrirebbero orari che poi il
+    controllo finale rifiuta, dopo aver fatto compilare tutto il modulo.
+
+    La seconda cosa che torna è una frase da mostrare quando di verde non ce
+    n'è. Senza, l'assenza di posti liberi ha lo stesso aspetto in tre casi che
+    non si somigliano per niente — la giornata è finita, i calendari non si
+    leggono, è tutto pieno — e chi guarda conclude sempre il terzo. Quello
+    grave è il secondo: un guasto che si legge come "siamo pieni" fa dire di
+    no a un cliente che invece un posto ce l'aveva.
 
     I giorni passati non si interrogano: nessuno ci prenota, e sarebbero sei
-    chiamate a Google per disegnare del verde inutile. Se Google non risponde
-    si torna vuoto e la griglia mostra solo gli impegni: nessun posto segnato
-    è meglio di posti sbagliati.
+    chiamate a Google per disegnare del verde inutile.
     """
-    if giorno < adesso.date():
-        return {}
+    from services.slots import orari_salone
+
+    orari = orari_salone().get(giorno.weekday(), [])
+    if not orari:
+        return {}, None  # chiuso: lo dice già la griglia, non serve ripeterlo
+
+    finita = giorno < adesso.date() or (
+        giorno == adesso.date() and adesso.strftime("%H:%M") >= max(f for _, f in orari)
+    )
+    if finita:
+        return {}, "Giornata già passata: i posti liberi si segnano da adesso in avanti."
 
     try:
         from services.backends import RealBackends
+        from services.presenze import solo_chi_e_in_salone
 
         slot = await RealBackends().check_availability(giorno.isoformat(), None, 30)
+        # Google dice se l'operatore è occupato, non se quel giorno lavora: lo
+        # stesso filtro che sta fra la ricerca e il bot, o il verde comparirebbe
+        # sopra le righe di chi non è in salone.
+        slot = solo_chi_e_in_salone(slot)
     except Exception:  # noqa: BLE001
         logger.warning("Disponibilità non leggibile per %s", giorno, exc_info=True)
-        return {}
+        return {}, (
+            "Non riesco a leggere i calendari di Google: i posti liberi non sono "
+            "segnati. Le caselle vuote qui sotto potrebbero essere libere lo stesso."
+        )
 
     liberi: dict[str, set[str]] = {}
     for s in slot:
         liberi.setdefault(s["parrucchiere"], set()).add(s["slot"])
-    return liberi
+    if not liberi:
+        return {}, "Nessuna mezz'ora libera in questa giornata."
+    return liberi, None
 
 
 @router.get("/clienti/cerca")
@@ -1466,7 +1559,7 @@ async def appuntamento_a_mano(
     giorno = slot[:10] if slot else date.today().isoformat()
 
     def torna(errore: str | None = None):
-        indirizzo = f"/admin/dashboard?data={giorno}"
+        indirizzo = f"/admin/prenota?data={giorno}"
         return RedirectResponse(
             indirizzo + (f"&errore={quote(errore)}" if errore else "&creato=1"), 303
         )

@@ -6,6 +6,8 @@ le email senza che nessuno se ne accorga. Questi test guardano che la strada
 sia davvero quella, e che i due rifiuti che contano restino in piedi.
 """
 
+from datetime import date, datetime, timedelta
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -145,3 +147,118 @@ def test_il_pannello_puo_dare_un_secondo_appuntamento_allo_stesso_cliente(pannel
 
     assert "creato=1" in risposta.headers["location"]
     assert len(pannello.fatto["appuntamenti"]) == 2
+
+
+# ------------------------------------------------- dove c'è posto, e perché no
+#
+# Il verde è il punto di questa schermata. Quando non c'è, la pagina deve dire
+# quale dei tre motivi è: giornata finita, calendari illeggibili, tutto pieno.
+# Si somigliano solo a guardarli, e chi guarda conclude sempre "siamo pieni" —
+# che nel caso del guasto vuol dire mandare via un cliente che aveva posto.
+
+APERTO = ("09:00", "19:00")
+
+
+@pytest.fixture
+def salone(monkeypatch):
+    """Salone aperto tutti i giorni, tutti in servizio, Google che risponde."""
+    risposta = {"slot": [], "esplode": False}
+
+    async def finta_disponibilita(self, date_str, cal_id, durata):
+        if risposta["esplode"]:
+            raise RuntimeError("Google irraggiungibile")
+        return risposta["slot"]
+
+    from services.backends import RealBackends
+
+    monkeypatch.setattr("services.slots.orari_salone", lambda: {g: [APERTO] for g in range(7)})
+    monkeypatch.setattr("services.presenze.e_in_salone", lambda nome, quando: True)
+    monkeypatch.setattr(RealBackends, "check_availability", finta_disponibilita)
+    return risposta
+
+
+def _domani():
+    """Mai una data fissa: una del passato non ha più slot liberi."""
+    return date.today() + timedelta(days=1)
+
+
+def _adesso_alle(giorno, ora="10:00"):
+    ore, minuti = map(int, ora.split(":"))
+    return datetime.combine(giorno, datetime.min.time()).replace(hour=ore, minute=minuti)
+
+
+@pytest.mark.asyncio
+async def test_i_liberi_arrivano_raggruppati_per_operatore(salone):
+    giorno = _domani()
+    salone["slot"] = [
+        {"slot": f"{giorno}T10:00", "parrucchiere": "Andrea"},
+        {"slot": f"{giorno}T10:30", "parrucchiere": "Andrea"},
+        {"slot": f"{giorno}T10:00", "parrucchiere": "Giava"},
+    ]
+
+    liberi, nota = await admin._dove_c_e_posto(giorno, _adesso_alle(_domani() - timedelta(days=1)))
+
+    assert liberi == {
+        "Andrea": {f"{giorno}T10:00", f"{giorno}T10:30"},
+        "Giava": {f"{giorno}T10:00"},
+    }
+    assert nota is None, "con del verde da mostrare non serve spiegare niente"
+
+
+@pytest.mark.asyncio
+async def test_chi_oggi_non_lavora_non_ha_posti_liberi(salone, monkeypatch):
+    """Google dice se l'operatore è occupato, non se quel giorno è in salone:
+    senza questo filtro il verde compare sopra le righe di chi non c'è."""
+    giorno = _domani()
+    salone["slot"] = [
+        {"slot": f"{giorno}T10:00", "parrucchiere": "Andrea"},
+        {"slot": f"{giorno}T10:00", "parrucchiere": "Bario"},
+    ]
+    monkeypatch.setattr(
+        "services.presenze.e_in_salone", lambda nome, quando: nome != "Bario"
+    )
+
+    liberi, _ = await admin._dove_c_e_posto(giorno, _adesso_alle(_domani() - timedelta(days=1)))
+
+    assert list(liberi) == ["Andrea"]
+
+
+@pytest.mark.asyncio
+async def test_se_google_non_risponde_lo_dice(salone):
+    """Il caso grave: caselle non segnate lette come poltrone occupate."""
+    salone["esplode"] = True
+    giorno = _domani()
+
+    liberi, nota = await admin._dove_c_e_posto(giorno, _adesso_alle(giorno - timedelta(days=1)))
+
+    assert liberi == {}
+    assert "Google" in nota
+
+
+@pytest.mark.asyncio
+async def test_una_giornata_finita_non_si_chiede_nemmeno(salone):
+    giorno = date.today()
+    salone["slot"] = [{"slot": f"{giorno}T10:00", "parrucchiere": "Andrea"}]
+
+    liberi, nota = await admin._dove_c_e_posto(giorno, _adesso_alle(giorno, "19:30"))
+
+    assert liberi == {}
+    assert "passata" in nota
+
+
+@pytest.mark.asyncio
+async def test_a_salone_chiuso_non_si_spiega_niente(salone, monkeypatch):
+    """Che sia chiuso lo dice già la griglia: ripeterlo è rumore."""
+    monkeypatch.setattr("services.slots.orari_salone", lambda: {})
+
+    assert await admin._dove_c_e_posto(_domani(), _adesso_alle(date.today())) == ({}, None)
+
+
+@pytest.mark.asyncio
+async def test_una_giornata_piena_lo_dice_con_parole_sue(salone):
+    giorno = _domani()
+
+    liberi, nota = await admin._dove_c_e_posto(giorno, _adesso_alle(giorno - timedelta(days=1)))
+
+    assert liberi == {}
+    assert "Nessuna mezz'ora libera" in nota
