@@ -142,6 +142,17 @@ non è nemmeno esprimibile. Da lì la sessione del sito ha
 confermata. Esiste per il costo: dal 1° ottobre 2026 ogni risposta del bot su
 WhatsApp si paga a messaggio, la chat del sito no.
 
+**Alla conferma si ricontrolla che l'orario sia libero**
+(`_slot_ancora_libero()`, dentro `CREA_APPUNTAMENTO`). Visto in produzione: il
+modello ha elencato fra i "liberi" un operatore che a quell'ora era occupato,
+e senza questo controllo sarebbero finiti due clienti sulla stessa poltrona —
+**Google accetta le sovrapposizioni in silenzio**, e il secondo se ne accorge
+arrivando in salone. Vale comunque la pena anche senza errori del modello: fra
+la proposta e la conferma passano minuti, e in quei minuti può prenotare
+qualcun altro. Se il controllo non si può fare — Google irraggiungibile — si
+prenota lo stesso: rifiutare tutto perché una verifica in più non riesce
+sarebbe peggio del rischio che copre.
+
 **Disdette e spostamenti valgono solo sui propri appuntamenti.** Gli id sono
 progressivi: senza il controllo basterebbe dire "cancella il numero 3".
 

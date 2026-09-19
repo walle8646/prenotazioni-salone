@@ -9,7 +9,7 @@ import pytest
 from services.conversation import handle_incoming_message, handle_incoming_message_web
 from services.fakes import ScriptedClaude
 
-from .conftest import prossimo_giorno_aperto
+from .conftest import OPERATORE_TEST, prossimo_giorno_aperto
 
 # Calcolato, non fisso: la disponibilità scarta gli slot già passati, quindi
 # una data scritta a mano prima o poi manda in rosso mezza suite.
@@ -345,3 +345,65 @@ async def test_cliente_web_riconosciuto_dalla_email(backends):
     assert secondo["is_new"] is False
     assert secondo["id"] == primo["id"]
     assert len(backends.clienti) == 1
+
+
+# --------------------------------------- lo slot si ricontrolla alla conferma
+#
+# Visto in produzione: il modello ha elencato fra i "liberi" un operatore che
+# a quell'ora era occupato. Senza questo controllo sarebbero finiti due
+# clienti sulla stessa poltrona — Google accetta le sovrapposizioni in
+# silenzio, e il secondo se ne accorge arrivando in salone.
+
+
+@pytest.mark.asyncio
+async def test_non_si_prenota_un_orario_gia_occupato(backends, cal_id_operatore):
+    from services.conversation import execute_action
+
+    giorno = prossimo_giorno_aperto()
+    slot = f"{giorno}T10:00"
+    backends.occupa(cal_id_operatore, slot, 30)
+
+    sessione = {"dati_temp": {}, "history": []}
+    risultato = await execute_action(
+        {
+            "action": "CREA_APPUNTAMENTO",
+            "slot": slot,
+            "parrucchiere": OPERATORE_TEST,
+            "servizi": ["Taglio"],
+            "nome": "Mario",
+            "cognome": "Rossi",
+        },
+        "393331234567",
+        sessione,
+        backends,
+    )
+
+    assert "errore" in risultato
+    assert not backends.eventi, "non doveva scrivere niente sul calendario"
+    assert not backends.appuntamenti
+
+
+@pytest.mark.asyncio
+async def test_un_orario_libero_si_prenota_lo_stesso(backends, cal_id_operatore):
+    """Il controllo in più non deve impedire le prenotazioni normali."""
+    from services.conversation import execute_action
+
+    giorno = prossimo_giorno_aperto()
+    sessione = {"dati_temp": {}, "history": []}
+
+    risultato = await execute_action(
+        {
+            "action": "CREA_APPUNTAMENTO",
+            "slot": f"{giorno}T10:00",
+            "parrucchiere": OPERATORE_TEST,
+            "servizi": ["Taglio"],
+            "nome": "Mario",
+            "cognome": "Rossi",
+        },
+        "393331234567",
+        sessione,
+        backends,
+    )
+
+    assert "errore" not in risultato, risultato
+    assert len(backends.eventi) == 1

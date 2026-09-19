@@ -1071,6 +1071,22 @@ async def _appuntamento_futuro_di_chi_prenota(
     }
 
 
+async def _slot_ancora_libero(slot: str, cal_id: str, durata: int, backends) -> bool:
+    """Se quell'ora è davvero libera su quel calendario, adesso.
+
+    Se la verifica non si può fare — Google irraggiungibile — si risponde di
+    sì: rifiutare ogni prenotazione perché il controllo in più non riesce
+    sarebbe peggio del rischio che copre, e il difetto che stiamo evitando è
+    raro.
+    """
+    try:
+        liberi = await backends.check_availability(slot[:10], cal_id, durata)
+    except Exception:  # noqa: BLE001
+        logger.warning("Ricontrollo dello slot non riuscito per %s", slot, exc_info=True)
+        return True
+    return any(s.get("slot") == slot for s in liberi)
+
+
 async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) -> dict:
     from services import catalogo
 
@@ -1130,6 +1146,22 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
         raise OperatoreSconosciuto(
             "Manca l'operatore: non so su quale calendario scrivere l'appuntamento."
         )
+
+    # Che quell'ora sia ancora libera lo si verifica adesso, non solo quando
+    # il cliente l'ha scelta. Visto succedere: il modello ha elencato fra i
+    # "liberi" un operatore che a quell'ora era occupato, e senza questo
+    # controllo sarebbero finiti due clienti sulla stessa poltrona — il
+    # calendario di Google accetta le sovrapposizioni senza dire niente.
+    # Fra la proposta e la conferma passano minuti, e in quei minuti può
+    # prenotare qualcun altro: vale comunque la pena di richiederlo.
+    if not await _slot_ancora_libero(action["slot"], cal_id, durata, backends):
+        return {
+            "errore": (
+                "Quell'orario non è più libero con l'operatore scelto. Rifai "
+                "CHECK_DISPONIBILITA per quel giorno e proponi al cliente gli "
+                "orari che tornano, scusandoti per il disguido."
+            )
+        }
 
     event_id = await backends.create_event(
         slot=action["slot"],
