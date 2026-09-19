@@ -614,7 +614,11 @@ dura 30 minuti perché è una voce di listino a sé. Si sommano solo due servizi
 lunghi diversi.
 
 Operatori (`services/operatori.py`): Simone Big, Simone Jr, Francesco, Andrea,
-Giava, Bario. Ognuno ha un calendario Google dedicato, creato l'8 agosto 2026 e
+Giava, Bario. **Nadia non è fra loro e non è una dimenticanza**: sta alla cassa
+e gestisce gli appuntamenti, non riceve clienti. Aggiungerla vorrebbe dire
+farla comparire fra le scelte del bot e nelle colonne dell'agenda, cioè offrire
+ai clienti un appuntamento con chi non taglia i capelli. Il pannello è suo, il
+calendario no. Ognuno ha un calendario Google dedicato, creato l'8 agosto 2026 e
 di proprietà dell'account `parrucchiere.bot.test@gmail.com`, con il service
 account come `writer`. L'associazione nome → id sta in `GCAL_PARRUCCHIERE_IDS`,
 **oggetto JSON, non lista**: con la lista i nomi non sono noti, la mappa resta
