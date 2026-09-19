@@ -30,6 +30,12 @@
        portare da qualche parte, ma non dove conveniva andare. Per trovare il
        primo giorno scarico si tiravano a indovinare date una per volta, mentre
        qui la distribuzione si vede prima di scegliere. #}
+    <details class="mesi-scatola" id="mesi" open>
+        {# Sul telefono quattro mesi impilati sono novecento pixel prima di
+           arrivare alla griglia: lì partono chiusi, e li apre chi li cerca.
+           Sul monitor stanno in riga e restano aperti — sono lì apposta per
+           essere confrontati a colpo d'occhio. #}
+        <summary>Calendario dei prossimi quattro mesi</summary>
     <div class="mesi">
         {% for m in mesi %}
         <div class="mese">
@@ -62,6 +68,14 @@
         </div>
         {% endfor %}
     </div>
+    </details>
+
+    <script>
+        // Prima che si veda: aperto e poi richiuso farebbe saltare la pagina.
+        if (window.innerWidth <= 760) {
+            document.getElementById("mesi").open = false;
+        }
+    </script>
 
     <div class="barra-giornata">
         {% if operatore_scelto %}

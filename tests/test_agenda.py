@@ -363,6 +363,16 @@ def test_dopo_dicembre_viene_gennaio_dell_anno_dopo():
     assert [m["nome"] for m in mesi] == ["Dicembre 2026", "Gennaio 2027"]
 
 
+def test_quattro_mesi_attraversano_il_capodanno_senza_perdersi():
+    """In pannello ne stanno quattro: se il conto dell'anno fosse sbagliato,
+    a novembre si prenoterebbe nei mesi dell'anno appena passato."""
+    mesi = costruisci_mesi(date(2026, 11, 1), {}, _aperto_feriale, quanti=4)
+
+    assert [m["nome"] for m in mesi] == [
+        "Novembre 2026", "Dicembre 2026", "Gennaio 2027", "Febbraio 2027",
+    ]
+
+
 def test_il_mese_comincia_nella_colonna_del_suo_giorno():
     """Il 1° settembre 2026 è un martedì: prima di lui una casella vuota."""
     settembre = costruisci_mesi(date(2026, 9, 10), {}, _aperto_feriale)[0]

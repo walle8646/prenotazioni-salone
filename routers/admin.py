@@ -224,7 +224,7 @@ async def prenota(
             "request": request,
             "data_selezionata": target_date,
             **contenuto,
-            "mesi": await _due_mesi(db, target_date, adesso, scelto),
+            "mesi": await _mesi_davanti(db, target_date, adesso, scelto),
             "dove": "/admin/prenota",
             "filtro": f"&operatore={quote(scelto)}" if scelto else "",
             "settimana_prima": (target_date - timedelta(days=7)).isoformat(),
@@ -262,19 +262,30 @@ def _striscia(giorno: date, settimana: list[dict], dove: str, filtro: str = "") 
     }
 
 
-async def _due_mesi(db, giorno: date, adesso: datetime, operatore: str | None = None) -> list:
-    """Il mese di quel giorno e il successivo, con quanto è pieno ogni giorno.
+# Il mese in corso e i tre dopo. Quattro perché è quanto avanti si prenota
+# davvero un parrucchiere; fissi perché servono a confrontare, e una cosa che
+# si sposta sotto il dito ogni volta che si sceglie una data non si confronta.
+MESI_DAVANTI = 4
 
-    Due e non uno perché a fine mese metà della finestra utile sarebbe già
-    fuori; due e non tre perché un taglio a novanta giorni non lo prenota
-    nessuno, e tre calendari su un telefono non ci stanno.
+
+async def _mesi_davanti(
+    db, giorno: date, adesso: datetime, operatore: str | None = None
+) -> list:
+    """I quattro mesi da quello in corso, con quanto è pieno ogni giorno.
+
+    Partono **sempre da oggi** e non dal giorno che si sta guardando: sono lì
+    per farsi confrontare a colpo d'occhio, e un calendario che scorre di un
+    mese ogni volta che si tocca una data costringe a ritrovarsi prima di
+    poterlo leggere. Il giorno scelto si accende dov'è, se cade dentro la
+    finestra.
     """
     from services.agenda import costruisci_mesi
     from services.slots import chiusure, orari_salone
 
-    primo = giorno.replace(day=1)
-    secondo = date(primo.year + primo.month // 12, primo.month % 12 + 1, 1)
-    oltre = date(secondo.year + secondo.month // 12, secondo.month % 12 + 1, 1)
+    primo = adesso.date().replace(day=1)
+    oltre = primo
+    for _ in range(MESI_DAVANTI):
+        oltre = date(oltre.year + oltre.month // 12, oltre.month % 12 + 1, 1)
 
     orari = orari_salone()
     ferie = chiusure()
@@ -288,6 +299,7 @@ async def _due_mesi(db, giorno: date, adesso: datetime, operatore: str | None = 
         aperto_il,
         oggi=adesso.date(),
         scelto=giorno,
+        quanti=MESI_DAVANTI,
     )
 
 
