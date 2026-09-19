@@ -142,3 +142,45 @@ def test_il_weekend_lungo_non_si_spezza_in_due():
     from services.slots import orari_a_coppie
 
     assert orari_a_coppie()["domenica-lunedì"] == "Chiuso"
+
+
+# ------------------------------------------- credenziali che non si leggono
+#
+# Una chiave malformata ha fatto fallire ogni disponibilità per ore, e il
+# cliente leggeva solo "problema tecnico momentaneo". Il controllo all'avvio
+# esiste perché un guasto così gridi invece di sussurrare.
+
+
+def test_senza_credenziali_lo_si_sa_subito(monkeypatch):
+    from config import settings
+    from services.calendar_service import credenziali_utilizzabili
+
+    monkeypatch.setattr(settings, "google_credentials_json", "")
+    utilizzabili, perche = credenziali_utilizzabili()
+
+    assert utilizzabili is False
+    assert "GOOGLE_CREDENTIALS_JSON" in perche
+
+
+def test_una_chiave_illeggibile_viene_riconosciuta(monkeypatch, tmp_path):
+    """Il motivo va riportato per intero: è l'unica cosa che dice cosa fare."""
+    import json
+
+    from config import settings
+    from services.calendar_service import credenziali_utilizzabili
+
+    finta = tmp_path / "credenziali.json"
+    finta.write_text(json.dumps({
+        "type": "service_account",
+        "project_id": "prova",
+        "private_key_id": "x",
+        "private_key": "-----BEGIN PRIVATE KEY-----\nnonSonoUnaChiave\n-----END PRIVATE KEY-----\n",
+        "client_email": "prova@example.invalid",
+        "token_uri": "https://oauth2.googleapis.com/token",
+    }), encoding="utf-8")
+
+    monkeypatch.setattr(settings, "google_credentials_json", str(finta))
+    utilizzabili, perche = credenziali_utilizzabili()
+
+    assert utilizzabili is False
+    assert perche, "senza motivo il messaggio nei log non aiuta nessuno"

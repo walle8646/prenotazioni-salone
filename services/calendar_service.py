@@ -213,3 +213,29 @@ async def delete_event(event_id: str, calendar_id: str):
             raise
 
     await asyncio.to_thread(_delete)
+
+
+def credenziali_utilizzabili() -> tuple[bool, str]:
+    """Se le credenziali Google si leggono davvero. Da chiamare all'avvio.
+
+    Esiste per un guasto già successo. La chiave del service account era
+    malformata — valori derivati sbagliati — ma `google-auth` usava il lettore
+    in puro Python, che li ricalcola da sé e stampa solo un avviso: per
+    settimane ha funzionato tutto. Poi una dipendenza nuova si è portata
+    dietro `cryptography`, che è severa e la rifiuta, e da quel momento **ogni**
+    CHECK_DISPONIBILITA è fallito. Il cliente leggeva "problema tecnico
+    momentaneo" e il bot chiedeva aiuto a una persona, senza che nei log
+    comparisse la causa se non a chi andava a cercarla.
+
+    Un guasto così deve gridare all'avvio, non sussurrare a ogni prenotazione.
+    """
+    from config import settings
+
+    if not settings.google_credentials_json:
+        return False, "GOOGLE_CREDENTIALS_JSON non è configurata"
+
+    try:
+        _get_service()
+    except Exception as errore:  # noqa: BLE001
+        return False, f"{type(errore).__name__}: {errore}"
+    return True, ""

@@ -620,6 +620,20 @@ messaggio rifiutato risultava consegnato e nei log restava un 400 senza motivo.
 I codici visti: `131030` numero non fra i destinatari consentiti, `131005` token
 sbagliato o senza permessi.
 
+**Le credenziali Google si provano all'avvio** (`credenziali_utilizzabili()`,
+chiamata da `main.py`). Esiste per un guasto già successo, e la catena vale la
+pena di essere ricordata. La chiave del service account era **malformata** —
+valori derivati (dp, dq, qinv) sbagliati — ma `google-auth` senza
+`cryptography` installata usa il lettore in puro Python, che li **ricalcola da
+sé** e stampa solo un avviso: per settimane ha funzionato tutto. Poi
+`pywebpush`, aggiunto per le notifiche, si è portato dietro `cryptography`, che
+è severa e la rifiuta con `Invalid private key`: da quel momento **ogni**
+CHECK_DISPONIBILITA è fallito, il cliente leggeva "problema tecnico
+momentaneo" e il bot passava a una persona. Due lezioni: una dipendenza nuova
+può cambiare il comportamento di una vecchia senza che nessuna riga di codice
+nostro cambi, e un guasto che blocca tutto deve **gridare all'avvio** invece di
+sussurrare a ogni prenotazione.
+
 ## Sicurezza
 
 `.env` non va mai committato e non deve finire nei log. Le credenziali del

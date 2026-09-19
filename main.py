@@ -38,6 +38,19 @@ async def lifespan(app: FastAPI):
     from prompts.system_prompt import PARRUCCHIERI_MAP, set_parrucchieri_cache
 
     verifica_configurazione()
+
+    # Le credenziali Google si provano adesso, non alla prima prenotazione: se
+    # non si leggono, ogni disponibilità fallisce e il cliente riceve un
+    # "problema tecnico" che non dice niente a nessuno.
+    from services.calendar_service import credenziali_utilizzabili
+
+    leggibili, perche = credenziali_utilizzabili()
+    if not leggibili:
+        logging.getLogger(__name__).error(
+            "CALENDARI GOOGLE NON UTILIZZABILI: %s. Il bot non potrà proporre "
+            "né prendere appuntamenti finché non è risolto.",
+            perche,
+        )
     if not settings.admin_password or not settings.secret_key_configurata:
         logging.getLogger(__name__).warning(
             "Pannello amministrativo non accessibile: ADMIN_PASSWORD o SECRET_KEY "
