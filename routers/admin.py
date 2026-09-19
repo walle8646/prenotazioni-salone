@@ -1545,12 +1545,17 @@ async def appuntamento_a_mano(
     from prompts.system_prompt import get_cal_id_for_parrucchiere
     from services.backends import RealBackends
     from services.conversation import _slot_ancora_libero
-    from services.db_service import create_appointment, find_or_create_client
+    from services.db_service import (
+        cliente_per_id,
+        create_appointment,
+        find_or_create_client,
+    )
 
     modulo = await request.form()
     slot = (modulo.get("slot") or "").strip()
     operatore = (modulo.get("operatore") or "").strip()
     servizio = (modulo.get("servizio") or "").strip()
+    scelto = (modulo.get("cliente_id") or "").strip()
     nome = (modulo.get("nome") or "").strip()
     cognome = (modulo.get("cognome") or "").strip()
     telefono = "".join(c for c in (modulo.get("telefono") or "") if c.isdigit())
@@ -1564,8 +1569,8 @@ async def appuntamento_a_mano(
             indirizzo + (f"&errore={quote(errore)}" if errore else "&creato=1"), 303
         )
 
-    if not slot or not operatore or not servizio or not nome:
-        return torna("Servono almeno orario, operatore, servizio e nome.")
+    if not slot or not operatore or not servizio or not (nome or scelto):
+        return torna("Servono almeno orario, operatore, servizio e cliente.")
 
     cal_id = get_cal_id_for_parrucchiere(operatore)
     if not cal_id:
@@ -1581,13 +1586,31 @@ async def appuntamento_a_mano(
         return torna("Quell'orario non è più libero: ricarica e riprova.")
 
     try:
-        cliente = await find_or_create_client(
-            phone=telefono or f"salone:{slot}:{nome}{cognome}",
-            nome=nome,
-            cognome=cognome,
-            email=email or None,
-            canale="salone",
-        )
+        # Se la persona è stata scelta dall'elenco vale il suo id, non il
+        # numero: chi è arrivato dal sito ha per telefono un identificativo di
+        # sessione, e cercarlo di nuovo per numero gli aprirebbe una seconda
+        # scheda proprio mentre lo si stava riconoscendo.
+        if scelto.isdigit():
+            cliente = await cliente_per_id(int(scelto))
+            if cliente is None:
+                # Meglio rimandare a cercarlo che prenotare per una scheda
+                # vuota: senza nome, in agenda comparirebbe un appuntamento
+                # che non si sa di chi è.
+                return torna("Quel cliente non è più in anagrafica: cercalo di nuovo.")
+            nome = cliente["nome"] or nome
+            cognome = cliente["cognome"] or cognome
+            email = cliente["email"] or email
+            telefono = "" if (cliente["telefono"] or "").startswith("web_") else (
+                cliente["telefono"] or ""
+            )
+        else:
+            cliente = await find_or_create_client(
+                phone=telefono or f"salone:{slot}:{nome}{cognome}",
+                nome=nome,
+                cognome=cognome,
+                email=email or None,
+                canale="salone",
+            )
         event_id = await backends.create_event(
             slot=slot,
             parrucchiere_cal_id=cal_id,

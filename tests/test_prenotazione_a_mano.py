@@ -21,7 +21,25 @@ SLOT = f"{GIORNO}T10:00"
 @pytest.fixture
 def pannello(monkeypatch):
     """Il pannello con la sessione valida e i servizi esterni sostituiti."""
-    fatto = {"eventi": [], "appuntamenti": [], "clienti": [], "email": [], "libero": True}
+    fatto = {
+        "eventi": [], "appuntamenti": [], "clienti": [], "email": [],
+        "libero": True,
+        # Chi è già in anagrafica, per id. None = sparito da sotto le mani.
+        "anagrafica": {
+            7: {
+                "id": 7, "nome": "Roberto", "cognome": "Santoro",
+                "email": "roberto@example.invalid", "telefono": "393491021925",
+            },
+            8: {
+                "id": 8, "nome": "Chiara", "cognome": "Neri",
+                "email": "chiara@example.invalid", "telefono": "web_4f1c9a",
+            },
+        },
+    }
+
+    async def finto_per_id(cliente_id):
+        fatto["letti"] = fatto.get("letti", []) + [cliente_id]
+        return fatto["anagrafica"].get(cliente_id)
 
     async def finto_slot_libero(slot, cal_id, durata, backends):
         return fatto["libero"]
@@ -50,6 +68,7 @@ def pannello(monkeypatch):
 
     monkeypatch.setattr("services.conversation._slot_ancora_libero", finto_slot_libero)
     monkeypatch.setattr("services.db_service.find_or_create_client", finto_cliente)
+    monkeypatch.setattr("services.db_service.cliente_per_id", finto_per_id)
     monkeypatch.setattr("services.db_service.create_appointment", finto_appuntamento)
     monkeypatch.setattr(RealBackends, "create_event", finto_evento)
     monkeypatch.setattr(RealBackends, "send_confirmation_email", finta_email)
@@ -72,6 +91,7 @@ def _prenota(pannello, **cambiamenti):
         "telefono": "+39 349 102 1925",
         "email": "",
         "note": "",
+        "cliente_id": "",
     }
     modulo.update(cambiamenti)
     return pannello.post("/admin/appuntamenti", data=modulo)
@@ -147,6 +167,58 @@ def test_il_pannello_puo_dare_un_secondo_appuntamento_allo_stesso_cliente(pannel
 
     assert "creato=1" in risposta.headers["location"]
     assert len(pannello.fatto["appuntamenti"]) == 2
+
+
+# ------------------------------------------- il cliente scelto dall'elenco
+#
+# Prenotando al telefono la persona quasi sempre c'è già. Ritrovarla per numero
+# la perderebbe proprio nei casi che contano — chi è arrivato dal sito ha per
+# telefono un identificativo di sessione, chi non l'ha lasciato non ne ha
+# nessuno — e nascerebbe una seconda scheda per la stessa persona: storico
+# spezzato, e il bot che non la riconosce più.
+
+
+def test_chi_si_sceglie_dall_elenco_si_prende_per_id(pannello):
+    risposta = _prenota(pannello, cliente_id="7", nome="", cognome="", telefono="")
+
+    assert "creato=1" in risposta.headers["location"]
+    assert pannello.fatto["letti"] == [7]
+    assert pannello.fatto["clienti"] == [], "non deve nascere nessuna scheda nuova"
+    assert pannello.fatto["appuntamenti"][0]["client_id"] == 7
+
+
+def test_del_cliente_scelto_si_riprendono_i_dati(pannello):
+    """Il modulo manda solo l'id: nome ed email per l'evento e per la conferma
+    arrivano dall'anagrafica, non da quello che è rimasto scritto nei campi."""
+    _prenota(pannello, cliente_id="7", nome="", cognome="", telefono="")
+
+    assert "Roberto Santoro" in pannello.fatto["eventi"][0]["cliente"]
+    assert pannello.fatto["email"][0]["to"] == "roberto@example.invalid"
+
+
+def test_il_numero_di_sessione_del_sito_non_finisce_sull_evento(pannello):
+    """`web_4f1c9a` non è un telefono: scritto sull'appuntamento, chi legge
+    crede di avere un numero da chiamare."""
+    _prenota(pannello, cliente_id="8", nome="", cognome="", telefono="")
+
+    assert "web_" not in pannello.fatto["eventi"][0]["descrizione"]
+
+
+def test_un_cliente_sparito_non_diventa_un_appuntamento_senza_nome(pannello):
+    """Fra quando l'elenco l'ha mostrato e quando si conferma può essere stato
+    cancellato: prenotare lo stesso lascerebbe in agenda una riga di nessuno."""
+    risposta = _prenota(pannello, cliente_id="999", nome="", cognome="", telefono="")
+
+    assert "errore=" in risposta.headers["location"]
+    assert pannello.fatto["appuntamenti"] == []
+    assert pannello.fatto["eventi"] == []
+
+
+def test_senza_ne_id_ne_nome_non_si_prenota(pannello):
+    risposta = _prenota(pannello, cliente_id="", nome="")
+
+    assert "errore=" in risposta.headers["location"]
+    assert pannello.fatto["eventi"] == []
 
 
 # ------------------------------------------------- dove c'è posto, e perché no

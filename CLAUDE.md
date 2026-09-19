@@ -380,9 +380,34 @@ creare la stessa cosa divergono al primo cambiamento, e una delle due smette
 di mandare le email senza che nessuno se ne accorga. Restano validi il
 ricontrollo dello slot e la durata decisa dal listino. **Cade invece la regola
 dell'unico appuntamento per cliente**: esiste perché il modello sbagliava da
-solo, mentre chi prenota a mano ha la persona al telefono. Scrivendo il nome
-si cercano i clienti già in anagrafica: due schede per la stessa persona
-vogliono dire uno storico spezzato e il bot che non la riconosce più.
+solo, mentre chi prenota a mano ha la persona al telefono.
+
+**Il modulo comincia dalla ricerca, non da campi vuoti**, perché chi telefona
+quasi sempre è già stato qui: due schede per la stessa persona vogliono dire
+uno storico spezzato e il bot che non la riconosce più quando scrive su
+WhatsApp. Il cliente nuovo sta dietro un bottone — è il caso meno frequente,
+non quello che conta meno. Le due strade non sono mai aperte insieme: i campi
+di quella chiusa restano `disabled`, così non vengono nemmeno inviati e il
+server non deve indovinare quale delle due valeva.
+
+**Chi si sceglie dall'elenco viaggia come id, non come numero**
+(`cliente_per_id()`). Ritrovarlo per telefono lo perderebbe proprio nei casi
+che contano: chi è arrivato dal sito ha per telefono un identificativo di
+sessione, e chi non l'ha mai lasciato non ne ha nessuno — in tutti e due i
+casi `find_or_create_client` aprirebbe una seconda scheda proprio mentre lo si
+stava riconoscendo. Nome ed email per l'evento e per la conferma si
+riprendono dall'anagrafica, non da quello che è rimasto scritto nei campi. Un
+id che nel frattempo non esiste più **ferma** la prenotazione: una riga in
+agenda senza nome è peggio di un rifiuto.
+
+Due trappole del popup, tutte e due pagate guardandolo storto in produzione.
+**Una finestra modale la centra il browser con `margin: auto`**, e il reset in
+cima al foglio di stile (`* { margin: 0 }`) glielo toglie: restava incollata
+in alto a sinistra e alta quanto lo schermo. E **la larghezza naturale di un
+`<select>` è quella della sua voce più lunga** — "Taglio + Shampoo +
+Trattamento barba con oli e panno bagnato": dentro una griglia bastava quella
+a spingere tutto il modulo fuori dalla finestra, con i campi tagliati a metà.
+Da qui `min-width: 0` sugli elementi del modulo.
 
 **Conversazioni** mostra chi sta aspettando una risposta da una persona, con
 lo scambio già avuto col bot e una casella per rispondere via WhatsApp.

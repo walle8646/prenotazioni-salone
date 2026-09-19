@@ -212,6 +212,25 @@ async def find_or_create_client(
         return _cliente_dict(client, is_new=True)
 
 
+async def cliente_per_id(cliente_id: int) -> dict | None:
+    """Il cliente scelto dall'elenco, preso per id e non per telefono.
+
+    Prenotando dal pannello si sceglie una persona che è già in anagrafica:
+    ritrovarla per numero la perderebbe proprio nei casi che contano — chi è
+    arrivato dal sito ha come "telefono" un identificativo di sessione, e chi
+    non ne ha lasciato nessuno non ne ha proprio. In tutti e due i casi
+    nascerebbe una seconda scheda per la stessa persona.
+    """
+    async with async_session() as db:
+        result = await db.execute(select(Cliente).where(Cliente.id == cliente_id))
+        client = result.scalar_one_or_none()
+        if client is None:
+            return None
+        client.ultima_visita = datetime.now().date()
+        await db.commit()
+        return _cliente_dict(client, is_new=False)
+
+
 def _cliente_dict(client: Cliente, is_new: bool) -> dict:
     return {
         "id": client.id,

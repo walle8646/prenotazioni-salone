@@ -138,25 +138,54 @@
             <input type="hidden" name="slot" id="nuovo-slot">
             <input type="hidden" name="operatore" id="nuovo-operatore">
 
-            {# Si parte dal nome: chi prenota al telefono ha in mano quello,
-               non un identificativo. Se il cliente c'è già, scegliendolo
-               dall'elenco si riempiono da sé telefono ed email, e lo storico
-               resta uno solo invece di spezzarsi in due schede. #}
-            <label for="nuovo-nome">Nome</label>
-            <input type="text" name="nome" id="nuovo-nome" required autocomplete="off"
-                   placeholder="Comincia a scrivere: se è già cliente compare">
-            <ul class="suggerimenti" id="suggerimenti" hidden></ul>
+            {# Si comincia sempre cercando: la maggior parte di chi telefona è
+               già stata qui, e riscriverla a mano vuol dire una seconda scheda
+               per la stessa persona — storico spezzato, e il bot che non la
+               riconosce più quando scrive su WhatsApp. Il cliente nuovo sta
+               dietro un bottone perché è il caso meno frequente, non perché
+               conti meno. #}
+            <div class="passo" id="passo-cerca">
+                <label for="cerca-cliente">Cliente</label>
+                <input type="search" id="cerca-cliente" autocomplete="off"
+                       placeholder="Cerca per nome, cognome o telefono">
+                <ul class="suggerimenti" id="suggerimenti" hidden></ul>
+                <p class="passo-altro">
+                    Non lo trovi?
+                    <button type="button" class="btn-link" id="apri-nuovo">È un cliente nuovo</button>
+                </p>
+            </div>
 
-            <label for="nuovo-cognome">Cognome</label>
-            <input type="text" name="cognome" id="nuovo-cognome" autocomplete="off">
+            {# Chi è stato scelto viaggia come id: il numero di telefono non
+               basta a ritrovarlo, e per chi arriva dal sito non è nemmeno un
+               numero. #}
+            <div class="passo cliente-scelto" id="passo-scelto" hidden>
+                <input type="hidden" name="cliente_id" id="nuovo-cliente-id">
+                <div>
+                    <strong data-campo="scelto-nome"></strong>
+                    <small data-campo="scelto-recapito"></small>
+                </div>
+                <button type="button" class="btn-link" id="cambia-cliente">Cambia</button>
+            </div>
 
-            <label for="nuovo-telefono">Telefono</label>
-            <input type="tel" name="telefono" id="nuovo-telefono" autocomplete="off"
-                   placeholder="Serve per avvisarlo se qualcosa cambia">
+            <div class="passo" id="passo-nuovo" hidden>
+                <label for="nuovo-nome">Nome</label>
+                <input type="text" name="nome" id="nuovo-nome" autocomplete="off" disabled>
 
-            <label for="nuovo-email">Email</label>
-            <input type="email" name="email" id="nuovo-email" autocomplete="off"
-                   placeholder="Se la lascia, riceve la conferma">
+                <label for="nuovo-cognome">Cognome</label>
+                <input type="text" name="cognome" id="nuovo-cognome" autocomplete="off" disabled>
+
+                <label for="nuovo-telefono">Telefono</label>
+                <input type="tel" name="telefono" id="nuovo-telefono" autocomplete="off" disabled
+                       placeholder="Serve per avvisarlo se qualcosa cambia">
+
+                <label for="nuovo-email">Email</label>
+                <input type="email" name="email" id="nuovo-email" autocomplete="off" disabled
+                       placeholder="Se la lascia, riceve la conferma">
+
+                <p class="passo-altro">
+                    <button type="button" class="btn-link" id="torna-cerca">Cerco fra i clienti</button>
+                </p>
+            </div>
 
             <label for="nuovo-servizio">Servizio</label>
             <select name="servizio" id="nuovo-servizio" required>
@@ -170,7 +199,7 @@
                    placeholder="Corto ai lati, come l'ultima volta…">
 
             <div class="modulo-azioni">
-                <button type="submit" class="btn-small">Prenota</button>
+                <button type="submit" class="btn-small" id="nuovo-prenota" disabled>Prenota</button>
             </div>
         </form>
     </dialog>
@@ -187,40 +216,58 @@
     var modulo = document.getElementById("nuovo");
     if (!modulo) return;
 
-    document.querySelectorAll(".agenda-libero").forEach(function (posto) {
-        posto.addEventListener("click", function () {
-            var slot = posto.dataset.slot;
-            document.getElementById("nuovo-slot").value = slot;
-            document.getElementById("nuovo-operatore").value = posto.dataset.operatore;
-            modulo.querySelector('[data-campo="quando"]').textContent =
-                slot.slice(11) + " con " + posto.dataset.operatore;
-            modulo.showModal();
-            document.getElementById("nuovo-nome").focus();
-        });
-    });
-
-    modulo.addEventListener("click", function (evento) {
-        if (evento.target === modulo) modulo.close();
-    });
-
-    // Chi è già cliente si sceglie dall'elenco: due schede per la stessa
-    // persona vogliono dire uno storico spezzato, e il bot che non la
-    // riconosce più quando scrive su WhatsApp.
-    var nome = document.getElementById("nuovo-nome");
+    // Il modulo ha due strade e una sola alla volta: o si sceglie un cliente
+    // che c'è già, o se ne descrive uno nuovo. I campi della strada chiusa
+    // restano `disabled`, così non vengono nemmeno inviati e il server non
+    // deve indovinare quale delle due valeva.
+    var cerca = document.getElementById("passo-cerca");
+    var suPasso = document.getElementById("passo-nuovo");
+    var scelto = document.getElementById("passo-scelto");
+    var campoCerca = document.getElementById("cerca-cliente");
     var elenco = document.getElementById("suggerimenti");
+    var identificativo = document.getElementById("nuovo-cliente-id");
+    var prenota = document.getElementById("nuovo-prenota");
+    var campiNuovo = suPasso.querySelectorAll("input");
     var attesa = null;
 
-    function riempi(c) {
-        document.getElementById("nuovo-nome").value = c.nome;
-        document.getElementById("nuovo-cognome").value = c.cognome;
-        document.getElementById("nuovo-telefono").value = c.telefono;
-        document.getElementById("nuovo-email").value = c.email;
-        elenco.hidden = true;
+    function mostra(passo) {
+        cerca.hidden = passo !== "cerca";
+        suPasso.hidden = passo !== "nuovo";
+        scelto.hidden = passo !== "scelto";
+        campiNuovo.forEach(function (campo) { campo.disabled = passo !== "nuovo"; });
+        identificativo.disabled = passo !== "scelto";
+        document.getElementById("nuovo-nome").required = passo === "nuovo";
+        // Senza un cliente non si prenota: il bottone spento lo dice prima,
+        // invece di far compilare tutto e rifiutare dopo.
+        prenota.disabled = passo === "cerca";
+        if (passo === "cerca") { elenco.hidden = true; campoCerca.value = ""; }
     }
 
-    nome.addEventListener("input", function () {
+    function scegli(c) {
+        identificativo.value = c.id;
+        scelto.querySelector('[data-campo="scelto-nome"]').textContent =
+            (c.nome + " " + c.cognome).trim() || "Cliente senza nome";
+        scelto.querySelector('[data-campo="scelto-recapito"]').textContent =
+            c.telefono || c.email || "nessun recapito";
+        mostra("scelto");
+    }
+
+    document.getElementById("apri-nuovo").addEventListener("click", function () {
+        mostra("nuovo");
+        document.getElementById("nuovo-nome").focus();
+    });
+    document.getElementById("torna-cerca").addEventListener("click", function () {
+        mostra("cerca");
+        campoCerca.focus();
+    });
+    document.getElementById("cambia-cliente").addEventListener("click", function () {
+        mostra("cerca");
+        campoCerca.focus();
+    });
+
+    campoCerca.addEventListener("input", function () {
         clearTimeout(attesa);
-        var cercato = nome.value.trim();
+        var cercato = campoCerca.value.trim();
         if (cercato.length < 2) { elenco.hidden = true; return; }
         attesa = setTimeout(async function () {
             try {
@@ -235,15 +282,38 @@
                     // textContent: il nome l'ha scritto un cliente.
                     bottone.textContent =
                         (c.nome + " " + c.cognome).trim() + (c.telefono ? " · " + c.telefono : "");
-                    bottone.addEventListener("click", function () { riempi(c); });
+                    bottone.addEventListener("click", function () { scegli(c); });
                     voce.appendChild(bottone);
                     elenco.appendChild(voce);
                 });
-                elenco.hidden = dati.clienti.length === 0;
+                if (dati.clienti.length === 0) {
+                    var vuoto = document.createElement("li");
+                    vuoto.className = "suggerimenti-vuoto";
+                    vuoto.textContent = "Nessun cliente con questo nome.";
+                    elenco.appendChild(vuoto);
+                }
+                elenco.hidden = false;
             } catch (e) {
                 // Senza suggerimenti si scrive a mano: non è un guasto.
             }
         }, 250);
+    });
+
+    document.querySelectorAll(".agenda-libero").forEach(function (posto) {
+        posto.addEventListener("click", function () {
+            var slot = posto.dataset.slot;
+            document.getElementById("nuovo-slot").value = slot;
+            document.getElementById("nuovo-operatore").value = posto.dataset.operatore;
+            modulo.querySelector('[data-campo="quando"]').textContent =
+                slot.slice(11) + " con " + posto.dataset.operatore;
+            mostra("cerca");
+            modulo.showModal();
+            campoCerca.focus();
+        });
+    });
+
+    modulo.addEventListener("click", function (evento) {
+        if (evento.target === modulo) modulo.close();
     });
 
     // La linea dell'ora corrente scende da sola: la pagina resta aperta tutta
