@@ -2,88 +2,96 @@
 {% block title %}{{ c.nome }} - Salone Nadia{% endblock %}
 
 {% block content %}
-<div class="gestione">
-    <p class="nota"><a href="/admin/conversazioni">← Tutte le conversazioni</a></p>
-
-    <h2>{{ c.nome }}</h2>
-    <p class="nota">
-        {{ c.telefono }}
-        {% if c.cliente_id %} — <a href="/admin/cliente/{{ c.cliente_id }}">scheda cliente</a>{% endif %}
-        {% if c.motivo %}<br><strong>Ha chiesto:</strong> {{ c.motivo }}{% endif %}
-    </p>
+<div class="chat">
+    {# Intestazione come quella di una chat: indietro, faccia, nome, e sotto
+       la sola cosa che qui serve sapere sempre, cioè da quanto aspetta. #}
+    <div class="chat-testata">
+        <a class="chat-indietro" href="/admin/conversazioni" aria-label="Tutte le conversazioni">‹</a>
+        <span class="chat-faccia" style="--tinta: {{ c.colore }}">{{ c.iniziali }}</span>
+        <span class="chat-chi">
+            <strong>{{ c.nome }}</strong>
+            <small>
+                {{ c.telefono }}
+                {%- if c.stato != 'chiusa' %} · in attesa da {{ c.attesa }}{% endif %}
+            </small>
+        </span>
+        {% if c.cliente_id %}
+        <a class="chat-scheda" href="/admin/cliente/{{ c.cliente_id }}" title="Scheda cliente">Scheda</a>
+        {% endif %}
+    </div>
 
     {% if esito == 'ok' %}
-    <div class="resoconto"><p>Messaggio inviato.</p></div>
+    <p class="chat-avviso chat-avviso-buono">Messaggio inviato.</p>
     {% elif esito == 'errore' %}
-    <div class="error">
-        <strong>WhatsApp non l'ha accettato.</strong>
-        Il messaggio non è partito e non è stato registrato. Il motivo esatto è
-        nei log del server. Se è urgente, telefona al cliente.
-    </div>
+    <p class="chat-avviso chat-avviso-grave">
+        WhatsApp non l'ha accettato: il messaggio non è partito e non è stato
+        registrato. Se è urgente, telefona al cliente.
+    </p>
     {% elif esito == 'canale' %}
-    <div class="error">
-        Questa conversazione arriva dal sito, non da WhatsApp: non c'è nessun
-        numero a cui scrivere. Contatta il cliente dalla sua scheda.
-    </div>
+    <p class="chat-avviso chat-avviso-grave">
+        Questa conversazione arriva dal sito: non c'è nessun numero a cui scrivere.
+    </p>
     {% endif %}
 
-    <div class="scambio" id="scambio"
+    {% if c.motivo %}
+    <p class="chat-motivo">Ha chiesto: {{ c.motivo }}</p>
+    {% endif %}
+
+    <div class="chat-scambio" id="scambio"
          data-conversazione="{{ c.id }}"
          data-stato="{{ c.stato }}"
          data-nome="{{ c.nome }}">
+        {% set ns = namespace(giorno=None) %}
         {% for m in c.messaggi %}
-        <div class="messaggio messaggio-{{ m.autore }}" data-id="{{ m.id }}">
-            <div class="messaggio-autore">
-                {% if m.autore == 'cliente' %}{{ c.nome }}
-                {% elif m.autore == 'bot' %}Bot
-                {% else %}Salone{% endif %}
-                <small>{{ m.creato_il.strftime('%d/%m %H:%M') }}</small>
-            </div>
-            <div class="messaggio-testo">{{ m.testo }}</div>
+            {% if m.creato_il.date() != ns.giorno %}
+            {% set ns.giorno = m.creato_il.date() %}
+            <div class="chat-giorno"><span>{{ m.creato_il.strftime('%d/%m/%Y') }}</span></div>
+            {% endif %}
+        <div class="bolla bolla-{{ m.autore }}" data-id="{{ m.id }}">
+            {% if m.autore == 'bot' %}<span class="bolla-chi">Bot</span>{% endif %}
+            <span class="bolla-testo">{{ m.testo }}</span>
+            <span class="bolla-ora">{{ m.creato_il.strftime('%H:%M') }}</span>
         </div>
         {% else %}
-        <p class="empty-state" id="scambio-vuoto">Nessun messaggio registrato.</p>
+        <p class="chat-vuoto" id="scambio-vuoto">Nessun messaggio registrato.</p>
         {% endfor %}
     </div>
 
     {% if c.stato == 'chiusa' %}
-    <p class="nota">
-        Conversazione chiusa: su questo numero risponde di nuovo il bot.
-    </p>
+    <p class="chat-avviso">Conversazione chiusa: su questo numero risponde di nuovo il bot.</p>
+
     {% elif not c.finestra_aperta %}
     {# WhatsApp lascia scrivere testo libero solo entro 24 ore dall'ultimo
-       messaggio del cliente. Dirlo prima, e togliere la casella, evita di far
+       messaggio del cliente: dirlo prima, e togliere la casella, evita di far
        scrivere una risposta che verrebbe rifiutata dopo l'invio. #}
-    <div class="error">
-        <strong>Sono passate più di 24 ore</strong> dall'ultimo messaggio del
-        cliente, e WhatsApp non lascia più scrivere testo libero a questo numero.
-        Puoi telefonargli, oppure aspettare che riscriva lui: al suo prossimo
-        messaggio la finestra si riapre.
-    </div>
-    <form method="POST" action="/admin/conversazioni/{{ c.id }}/chiudi">
+    <p class="chat-avviso chat-avviso-grave">
+        Sono passate più di 24 ore dall'ultimo messaggio: WhatsApp non lascia più
+        scrivere a questo numero. Telefonagli, oppure aspetta che riscriva lui.
+    </p>
+    <form class="chat-chiudi" method="POST" action="/admin/conversazioni/{{ c.id }}/chiudi">
         <button type="submit" class="btn-small btn-neutro">Ridai la conversazione al bot</button>
     </form>
+
     {% else %}
-    <div class="error" id="finestra-chiusa" hidden>
-        <strong>La finestra di 24 ore si è appena chiusa.</strong>
-        WhatsApp non accetta più testo libero per questo numero: telefona al
-        cliente, oppure aspetta che riscriva lui.
+    <p class="chat-avviso chat-avviso-grave" id="finestra-chiusa" hidden>
+        La finestra di 24 ore si è appena chiusa: WhatsApp non accetta più
+        messaggi per questo numero.
+    </p>
+
+    <form class="chat-scrivi" method="POST" action="/admin/conversazioni/{{ c.id }}/rispondi">
+        <label class="solo-per-lettori" for="testo">Rispondi come salone</label>
+        <textarea id="testo" name="testo" rows="1" required
+                  placeholder="Scrivi un messaggio"></textarea>
+        <button type="submit" id="invia" aria-label="Invia">➤</button>
+    </form>
+
+    <div class="chat-fondo">
+        <small id="scadenza">Si può scrivere ancora per {{ c.finestra_scade_fra }}.</small>
+        <form method="POST" action="/admin/conversazioni/{{ c.id }}/chiudi"
+              onsubmit="return confirm('Chiudo la conversazione? Da adesso al cliente risponde di nuovo il bot.');">
+            <button type="submit" class="btn-small btn-neutro">Ridai al bot</button>
+        </form>
     </div>
-
-    <form class="risposta" method="POST" action="/admin/conversazioni/{{ c.id }}/rispondi">
-        <label for="testo">Rispondi come salone</label>
-        <textarea id="testo" name="testo" rows="3" required
-                  placeholder="Il messaggio arriva su WhatsApp dal numero del salone."></textarea>
-        <div class="risposta-azioni">
-            <button type="submit" class="btn-small" id="invia">Invia</button>
-            <small id="scadenza">Si può scrivere ancora per {{ c.finestra_scade_fra }}.</small>
-        </div>
-    </form>
-
-    <form method="POST" action="/admin/conversazioni/{{ c.id }}/chiudi"
-          onsubmit="return confirm('Chiudo la conversazione? Da adesso al cliente risponde di nuovo il bot.');">
-        <button type="submit" class="btn-small btn-neutro">Ho finito, ridai la conversazione al bot</button>
-    </form>
     {% endif %}
 </div>
 {% endblock %}
@@ -95,48 +103,58 @@
 // Si chiedono solo i messaggi arrivati dopo l'ultimo che abbiamo già.
 (function () {
     var scambio = document.getElementById("scambio");
-    if (!scambio || scambio.dataset.stato === "chiusa") return;
+    if (!scambio) return;
 
     // Si parte dall'ultimo messaggio, come in qualsiasi chat: aprendola per
     // rispondere, quello che serve leggere è in fondo, non in cima.
     scambio.scrollTop = scambio.scrollHeight;
+
+    // La casella cresce con quello che si scrive, invece di far scorrere tre
+    // righe dentro una finestrella.
+    var testo = document.getElementById("testo");
+    if (testo) {
+        testo.addEventListener("input", function () {
+            testo.style.height = "auto";
+            testo.style.height = Math.min(testo.scrollHeight, 140) + "px";
+        });
+    }
+
+    if (scambio.dataset.stato === "chiusa") return;
 
     var conversazione = scambio.dataset.conversazione;
     var nomeCliente = scambio.dataset.nome;
     var OGNI = 8000;
 
     function ultimoId() {
-        var righe = scambio.querySelectorAll(".messaggio[data-id]");
+        var righe = scambio.querySelectorAll(".bolla[data-id]");
         return righe.length ? righe[righe.length - 1].dataset.id : 0;
     }
 
-    function etichetta(autore) {
-        if (autore === "cliente") return nomeCliente;
-        if (autore === "bot") return "Bot";
-        return "Salone";
-    }
-
     function aggiungi(m) {
-        var riga = document.createElement("div");
-        riga.className = "messaggio messaggio-" + m.autore;
-        riga.dataset.id = m.id;
+        var bolla = document.createElement("div");
+        bolla.className = "bolla bolla-" + m.autore;
+        bolla.dataset.id = m.id;
 
-        var chi = document.createElement("div");
-        chi.className = "messaggio-autore";
+        if (m.autore === "bot") {
+            var chi = document.createElement("span");
+            chi.className = "bolla-chi";
+            chi.textContent = "Bot";
+            bolla.appendChild(chi);
+        }
+
+        var corpo = document.createElement("span");
+        corpo.className = "bolla-testo";
         // textContent e non innerHTML: quel testo l'ha scritto un cliente, e
         // finirebbe interpretato come HTML nella pagina di chi lo legge.
-        chi.textContent = etichetta(m.autore) + " ";
-        var quando = document.createElement("small");
-        quando.textContent = m.ora;
-        chi.appendChild(quando);
+        corpo.textContent = m.testo;
 
-        var testo = document.createElement("div");
-        testo.className = "messaggio-testo";
-        testo.textContent = m.testo;
+        var ora = document.createElement("span");
+        ora.className = "bolla-ora";
+        ora.textContent = (m.ora || "").slice(-5);
 
-        riga.appendChild(chi);
-        riga.appendChild(testo);
-        scambio.appendChild(riga);
+        bolla.appendChild(corpo);
+        bolla.appendChild(ora);
+        scambio.appendChild(bolla);
     }
 
     function chiudiLaFinestra() {
@@ -145,9 +163,9 @@
         var scadenza = document.getElementById("scadenza");
         if (avviso) avviso.hidden = false;
         // Si disabilita il bottone ma non si tocca la casella: quello che ha
-        // scritto lo puo' ancora copiare e dettare al telefono.
+        // scritto lo può ancora copiare e dettare al telefono.
         if (invia) invia.disabled = true;
-        if (scadenza) scadenza.textContent = "Non si puo' piu' scrivere.";
+        if (scadenza) scadenza.textContent = "Non si può più scrivere.";
     }
 
     async function controlla() {
@@ -157,7 +175,7 @@
                 "/admin/conversazioni/" + conversazione + "/messaggi?dopo=" + ultimoId(),
                 { headers: { "Accept": "application/json" } }
             );
-            // Sessione scaduta: la risposta e' la pagina di login, non JSON.
+            // Sessione scaduta: la risposta è la pagina di login, non JSON.
             if (!risposta.ok) return;
             var dati = await risposta.json();
 
@@ -171,8 +189,6 @@
             var scadenza = document.getElementById("scadenza");
             var invia = document.getElementById("invia");
             if (dati.finestra_aperta) {
-                // Il modulo non c'e' quando la finestra era gia' chiusa
-                // all'apertura della pagina: qui non c'e' niente da aggiornare.
                 if (scadenza && invia && !invia.disabled) {
                     scadenza.textContent = "Si può scrivere ancora per " + dati.finestra_scade_fra + ".";
                 }
@@ -186,7 +202,6 @@
     }
 
     setInterval(controlla, OGNI);
-    // Tornando sulla scheda si guarda subito, senza aspettare il turno.
     document.addEventListener("visibilitychange", function () {
         if (!document.hidden) controlla();
     });

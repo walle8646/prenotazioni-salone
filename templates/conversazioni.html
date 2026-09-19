@@ -2,13 +2,8 @@
 {% block title %}Conversazioni - Salone Nadia{% endblock %}
 
 {% block content %}
-<div class="gestione">
-    <h2>Chi vuole parlare con una persona</h2>
-    <p class="nota">
-        Quando un cliente chiede di parlare con qualcuno, il bot si ferma su quel
-        numero e la conversazione compare qui. Finché resta aperta risponde solo
-        chi la prende in mano: chiudendola il bot riparte.
-    </p>
+<div class="gestione chat-elenco">
+    <h2>Conversazioni</h2>
 
     {# Il bottone dice sempre lo stato vero: il permesso lo dà il telefono,
        non questa pagina, e chi l'ha negato non lo riattiva da qui. #}
@@ -19,46 +14,54 @@
         <span class="nota" id="stato-notifiche"></span>
     </div>
 
-    <p class="nota">
-        {% if tutte %}
-        Stai vedendo anche quelle chiuse — <a href="/admin/conversazioni">mostra solo le aperte</a>.
-        {% else %}
-        <a href="/admin/conversazioni?tutte=1">Mostra anche quelle già chiuse</a>
-        {% endif %}
-    </p>
-
     {% if conversazioni %}
-    <div class="conversazioni">
+    <div class="chat-lista">
         {% for c in conversazioni %}
-        <a class="conversazione-riga{{ ' conversazione-chiusa' if c.stato == 'chiusa' }}"
+        <a class="chat-riga{{ ' chat-chiusa' if c.stato == 'chiusa' }}"
            href="/admin/conversazioni/{{ c.id }}">
-            <div class="conversazione-chi">
-                <strong>{{ c.nome }}</strong>
-                <small>{{ c.telefono }}</small>
-            </div>
-            <div class="conversazione-motivo">{{ c.motivo or '—' }}</div>
-            <div class="conversazione-stato">
-                {% if c.stato == 'attesa' %}
-                <span class="badge badge-attesa">in attesa da {{ c.attesa }}</span>
-                {% elif c.stato == 'presa' %}
-                <span class="badge badge-presa">già risposto</span>
-                {% else %}
-                <span class="badge">chiusa</span>
-                {% endif %}
+            <span class="chat-faccia" style="--tinta: {{ c.colore }}">{{ c.iniziali }}</span>
 
-                {% if c.stato != 'chiusa' and not c.finestra_aperta %}
-                <span class="badge badge-scaduta">non si può più scrivere</span>
-                {% endif %}
-            </div>
+            <span class="chat-testo">
+                <span class="chat-prima-riga">
+                    <strong class="chat-nome">{{ c.nome }}</strong>
+                    <small class="chat-quando">{{ c.quando }}</small>
+                </span>
+                <span class="chat-seconda-riga">
+                    <span class="chat-anteprima">
+                        {%- if c.ultimo -%}
+                            {%- if c.ultimo.autore == 'operatore' %}<span class="chat-tu">Tu:</span>
+                            {%- elif c.ultimo.autore == 'bot' %}<span class="chat-tu">Bot:</span>{% endif %}
+                            {{ c.ultimo.testo }}
+                        {%- else -%}
+                            {{ c.motivo or 'Ha chiesto di parlare con qualcuno' }}
+                        {%- endif -%}
+                    </span>
+                    {% if c.da_leggere %}
+                    <span class="chat-quanti" title="Messaggi in attesa di risposta">{{ c.da_leggere }}</span>
+                    {% elif c.stato != 'chiusa' and not c.finestra_aperta %}
+                    <span class="chat-scaduta" title="Non si può più scrivere">✕</span>
+                    {% endif %}
+                </span>
+            </span>
         </a>
         {% endfor %}
     </div>
     {% else %}
     <p class="empty-state">
         {% if tutte %}Non è mai stata passata nessuna conversazione.
-        {% else %}Nessuno sta aspettando. {% endif %}
+        {% else %}Nessuno sta aspettando.{% endif %}
     </p>
     {% endif %}
+
+    <p class="nota nota-in-fondo">
+        Quando un cliente chiede di parlare con qualcuno il bot si ferma su quel
+        numero e la conversazione compare qui. Chiudendola, il bot riparte.
+        {% if tutte %}
+        <br><a href="/admin/conversazioni">Mostra solo quelle aperte</a>
+        {% else %}
+        <br><a href="/admin/conversazioni?tutte=1">Mostra anche quelle già chiuse</a>
+        {% endif %}
+    </p>
 </div>
 {% endblock %}
 

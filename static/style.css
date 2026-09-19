@@ -1347,3 +1347,408 @@ body {
         padding-top: calc(0.8rem + env(safe-area-inset-top));
     }
 }
+
+/* ============================================= Conversazioni, stile chat
+
+   Chi risponde qui usa WhatsApp tutto il giorno: ritrovare le stesse forme —
+   l'elenco con la faccia e l'ultima frase, le bolle, la casella in fondo —
+   vuol dire non dover imparare niente. Le tinte però restano quelle del
+   pannello, perché questa non è WhatsApp e far finta di esserlo confonde chi
+   passa dall'una all'altro. */
+
+.chat-elenco h2 {
+    margin-bottom: 0.8rem;
+}
+
+.chat-lista {
+    background: white;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 5px rgba(0, 0, 0, 0.08);
+}
+
+.chat-riga {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.7rem 0.9rem;
+    text-decoration: none;
+    color: inherit;
+    border-bottom: 1px solid #eef1f4;
+}
+
+.chat-riga:last-child {
+    border-bottom: none;
+}
+
+.chat-riga:hover {
+    background: #f7f9fb;
+}
+
+.chat-chiusa {
+    opacity: 0.55;
+}
+
+/* La faccia è un disco con le iniziali, come per gli operatori: in un elenco
+   si ritrova molto prima di un nome. */
+.chat-faccia {
+    flex-shrink: 0;
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: var(--tinta);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-testo {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.chat-prima-riga,
+.chat-seconda-riga {
+    display: flex;
+    align-items: baseline;
+    gap: 0.6rem;
+}
+
+.chat-nome {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-quando {
+    flex-shrink: 0;
+    color: #8a97a4;
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.chat-anteprima {
+    flex: 1;
+    min-width: 0;
+    color: #6a7683;
+    font-size: 0.9rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-tu {
+    color: #95a2ae;
+}
+
+/* Quanti messaggi del cliente aspettano risposta: non quanti ce ne sono in
+   tutto, che non direbbe se qualcuno sta aspettando. */
+.chat-quanti {
+    flex-shrink: 0;
+    min-width: 1.35rem;
+    height: 1.35rem;
+    padding: 0 0.35rem;
+    border-radius: 999px;
+    background: #1f8a4c;
+    color: white;
+    font-size: 0.78rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.chat-scaduta {
+    flex-shrink: 0;
+    color: #c0392b;
+    font-size: 0.85rem;
+}
+
+.nota-in-fondo {
+    margin-top: 1.2rem;
+}
+
+/* ------------------------------------------------------- la conversazione */
+
+.chat {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.chat-testata {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.6rem 0.9rem;
+    background: white;
+    border-radius: 10px 10px 0 0;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.chat-indietro {
+    font-size: 1.8rem;
+    line-height: 1;
+    color: #2c3e50;
+    text-decoration: none;
+    padding: 0 0.2rem;
+}
+
+.chat-testata .chat-faccia {
+    width: 40px;
+    height: 40px;
+    font-size: 0.85rem;
+}
+
+.chat-chi {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    line-height: 1.25;
+}
+
+.chat-chi strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Su una riga sola: andando a capo si prende l'altezza di un messaggio, e
+   qui l'altezza è tutta dei messaggi. */
+.chat-chi small {
+    color: #8a97a4;
+    font-size: 0.78rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.chat-scheda {
+    flex-shrink: 0;
+    font-size: 0.85rem;
+    color: #3498db;
+    text-decoration: none;
+}
+
+.chat-motivo {
+    padding: 0.5rem 0.9rem;
+    background: #fff8e6;
+    border-bottom: 1px solid #f0e2bd;
+    color: #6b5420;
+    font-size: 0.88rem;
+}
+
+.chat-avviso {
+    padding: 0.6rem 0.9rem;
+    background: #eef2f6;
+    color: #5a6b7b;
+    font-size: 0.88rem;
+    text-align: center;
+}
+
+.chat-avviso-buono {
+    background: #e4f3e9;
+    color: #1f6b41;
+}
+
+.chat-avviso-grave {
+    background: #fdecea;
+    color: #a3372a;
+}
+
+/* Lo sfondo dello scambio è appena più caldo del bianco delle bolle: senza
+   stacco, i messaggi del cliente sparirebbero dentro la pagina. */
+.chat-scambio {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    padding: 0.9rem;
+    background: #eae6df;
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+.chat-giorno {
+    align-self: center;
+    margin: 0.4rem 0;
+}
+
+.chat-giorno span {
+    background: rgba(255, 255, 255, 0.85);
+    color: #6a7683;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+}
+
+.chat-vuoto {
+    align-self: center;
+    color: #6a7683;
+    font-size: 0.9rem;
+    padding: 1.5rem 0;
+}
+
+.bolla {
+    position: relative;
+    max-width: 80%;
+    padding: 0.4rem 3.6rem 0.4rem 0.6rem;
+    border-radius: 8px;
+    font-size: 0.95rem;
+    line-height: 1.35;
+    box-shadow: 0 1px 1px rgba(0, 0, 0, 0.12);
+    word-wrap: break-word;
+}
+
+/* Il cliente a sinistra, noi a destra: la disposizione che chi risponde ha
+   sotto gli occhi tutto il giorno. */
+.bolla-cliente {
+    align-self: flex-start;
+    background: white;
+    border-top-left-radius: 2px;
+}
+
+.bolla-operatore,
+.bolla-bot {
+    align-self: flex-end;
+    border-top-right-radius: 2px;
+}
+
+.bolla-operatore {
+    background: #d9fdd3;
+}
+
+/* Il bot è dalla nostra parte ma non siamo noi: più pallido, e col nome
+   sopra. Confonderli vorrebbe dire non sapere più chi ha detto cosa. */
+.bolla-bot {
+    background: #eef2f6;
+}
+
+.bolla-chi {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: #7f8c8d;
+}
+
+.bolla-testo {
+    white-space: pre-wrap;
+}
+
+.bolla-ora {
+    position: absolute;
+    right: 0.6rem;
+    bottom: 0.3rem;
+    font-size: 0.68rem;
+    color: #8a97a4;
+    font-variant-numeric: tabular-nums;
+}
+
+/* La casella: una riga che cresce scrivendo, e il bottone tondo accanto. */
+.chat-scrivi {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    background: #f0f2f5;
+}
+
+.chat-scrivi textarea {
+    flex: 1;
+    min-height: 2.6rem;
+    max-height: 140px;
+    padding: 0.6rem 0.9rem;
+    border: 1px solid #dfe3e8;
+    border-radius: 20px;
+    font: inherit;
+    resize: none;
+    background: white;
+}
+
+.chat-scrivi button {
+    flex-shrink: 0;
+    width: 2.6rem;
+    height: 2.6rem;
+    border: none;
+    border-radius: 50%;
+    background: #1f8a4c;
+    color: white;
+    font-size: 1.1rem;
+    cursor: pointer;
+}
+
+.chat-scrivi button:disabled {
+    background: #b8c2cc;
+    cursor: not-allowed;
+}
+
+.chat-fondo {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.8rem;
+    padding: 0.5rem 0.9rem 0.8rem;
+    background: #f0f2f5;
+    border-radius: 0 0 10px 10px;
+    color: #8a97a4;
+    font-size: 0.8rem;
+}
+
+.chat-chiudi {
+    padding: 0.8rem 0.9rem;
+    background: #f0f2f5;
+    border-radius: 0 0 10px 10px;
+    text-align: center;
+}
+
+.solo-per-lettori {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+}
+
+@media (max-width: 760px) {
+    /* Installata, la chat si prende tutto: intestazione in cima, casella in
+       fondo dove il pollice la trova, e in mezzo i messaggi che scorrono. */
+    .chat {
+        min-height: calc(100dvh - 7rem);
+        margin: -1rem -0.8rem;
+    }
+
+    .chat-testata,
+    .chat-fondo,
+    .chat-chiudi {
+        border-radius: 0;
+    }
+
+    .chat-scambio {
+        flex: 1;
+        max-height: none;
+    }
+
+    .chat-scrivi {
+        position: sticky;
+        bottom: 0;
+        padding-bottom: calc(0.6rem + env(safe-area-inset-bottom));
+    }
+
+    .bolla {
+        max-width: 88%;
+    }
+
+    .chat-lista {
+        margin: 0 -0.8rem;
+        border-radius: 0;
+    }
+}

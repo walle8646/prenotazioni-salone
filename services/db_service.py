@@ -598,7 +598,58 @@ async def elenco_conversazioni_operatore(aperte: bool = True, limite: int = 50) 
             intero = " ".join(p for p in (nome, cognome) if p)
             voce["nome"] = intero or riga.nome_visualizzato or riga.telefono
             elenco.append(voce)
+
+        await _aggiungi_anteprime(db, elenco)
         return elenco
+
+
+async def _aggiungi_anteprime(db, elenco: list[dict]) -> None:
+    """Ultimo messaggio e quanti aspettano risposta, per ogni conversazione.
+
+    Una riga d'elenco senza l'ultima frase costringe ad aprirle tutte per
+    sapere quale è urgente: è la differenza fra un elenco e una lista di chat.
+
+    Una query sola per tutte, non una per riga: con venti conversazioni
+    aperte sarebbero venti interrogazioni per disegnare una schermata.
+    """
+    from models.orm import MessaggioConversazione
+
+    if not elenco:
+        return
+
+    ids = [c["id"] for c in elenco]
+    righe = await db.execute(
+        select(MessaggioConversazione)
+        .where(MessaggioConversazione.conversazione_id.in_(ids))
+        .order_by(MessaggioConversazione.creato_il, MessaggioConversazione.id)
+    )
+
+    per_conversazione: dict[int, list] = {}
+    for messaggio in righe.scalars().all():
+        per_conversazione.setdefault(messaggio.conversazione_id, []).append(messaggio)
+
+    for voce in elenco:
+        messaggi = per_conversazione.get(voce["id"], [])
+        ultimo = messaggi[-1] if messaggi else None
+        voce["ultimo"] = (
+            {
+                "autore": ultimo.autore,
+                "testo": ultimo.testo,
+                "creato_il": ultimo.creato_il,
+            }
+            if ultimo
+            else None
+        )
+        # Quanti messaggi del cliente sono arrivati dopo l'ultima risposta del
+        # salone: è il numero che dice se qualcuno sta aspettando e da quanto,
+        # non quanti messaggi ci sono in tutto.
+        da_leggere = 0
+        for messaggio in reversed(messaggi):
+            if messaggio.autore == "operatore":
+                break
+            if messaggio.autore == "cliente":
+                da_leggere += 1
+        voce["da_leggere"] = da_leggere
 
 
 async def conversazione_con_messaggi(conversazione_id: int) -> dict | None:

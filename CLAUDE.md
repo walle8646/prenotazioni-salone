@@ -342,6 +342,18 @@ di prima resta come seconda vista (`?vista=elenco`).
 **Conversazioni** mostra chi sta aspettando una risposta da una persona, con
 lo scambio già avuto col bot e una casella per rispondere via WhatsApp.
 
+**Le due schermate hanno la forma di una chat**, perché chi risponde usa
+WhatsApp tutto il giorno e ritrovare le stesse forme vuol dire non dover
+imparare niente: l'elenco ha faccia, ultima frase e ora; la conversazione ha
+le bolle, il cliente a sinistra e noi a destra, la casella in fondo. Le tinte
+restano quelle del pannello: far finta di essere WhatsApp confonde chi passa
+dall'una all'altro. Il **bot sta dalla nostra parte ma in una bolla più
+pallida e col nome sopra** — confonderlo con la receptionist vorrebbe dire non
+sapere più chi ha detto cosa al cliente. Il numero sulla riga è **quanti
+messaggi del cliente aspettano risposta**, non quanti ce ne sono in tutto: è
+l'unico che dice se qualcuno sta aspettando. Le anteprime costano **una query
+per tutte** le conversazioni e non una per riga (`_aggiungi_anteprime`).
+
 **La conversazione si aggiorna da sola ma non si ricarica.** Un refresh della
 pagina intera cancellerebbe la risposta che la receptionist sta scrivendo,
 proprio nell'unico momento in cui è al lavoro: la pagina chiede ogni otto

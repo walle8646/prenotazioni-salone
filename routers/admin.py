@@ -1029,17 +1029,40 @@ def _ore_e_minuti(quanto: timedelta) -> str:
     return f"{minuti // 60} h {minuti % 60:02d} min"
 
 
+def _quando_breve(momento: datetime | None, adesso: datetime) -> str:
+    """L'ora come la scrive una chat: oggi l'orario, ieri "ieri", prima la data."""
+    if momento is None:
+        return ""
+    giorni = (adesso.date() - momento.date()).days
+    if giorni <= 0:
+        return momento.strftime("%H:%M")
+    if giorni == 1:
+        return "ieri"
+    return momento.strftime("%d/%m")
+
+
 async def _conversazione_per_pannello(conversazione: dict, adesso: datetime) -> dict:
     """Aggiunge alla conversazione quello che serve a chi la guarda."""
+    from services.avatar import colore, iniziali
     from services.operatore_umano import finestra_aperta, minuti_rimasti
 
     aperta = finestra_aperta(conversazione.get("ultimo_messaggio_cliente"), adesso)
     rimasti = minuti_rimasti(conversazione.get("ultimo_messaggio_cliente"), adesso)
+    nome = conversazione.get("nome") or conversazione.get("telefono") or ""
+    ultimo = conversazione.get("ultimo")
     return {
         **conversazione,
         "attesa": _ore_e_minuti(adesso - conversazione["aperta_il"]),
         "finestra_aperta": aperta,
         "finestra_scade_fra": _ore_e_minuti(timedelta(minutes=rimasti)),
+        # Le stesse iniziali e lo stesso colore degli operatori, e per lo
+        # stesso motivo: una faccia, anche finta, si ritrova in un elenco
+        # molto prima di un nome.
+        "iniziali": iniziali(nome),
+        "colore": colore(nome),
+        "quando": _quando_breve(
+            (ultimo or {}).get("creato_il") or conversazione.get("aperta_il"), adesso
+        ),
     }
 
 
