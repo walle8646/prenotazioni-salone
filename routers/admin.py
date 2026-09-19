@@ -10,6 +10,7 @@ from services import catalogo
 from config import settings
 import logging
 import re
+from urllib.parse import quote
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +138,12 @@ def _alias_da_testo(testo: str) -> list[str]:
 
 @router.get("/dashboard", response_class=HTMLResponse)
 async def dashboard(
-    request: Request, data: str = None, vista: str = None, db=Depends(get_db)
+    request: Request,
+    data: str = None,
+    vista: str = None,
+    creato: int = 0,
+    errore: str = None,
+    db=Depends(get_db),
 ):
     user = verify_session(request)
     if not user:
@@ -187,6 +193,7 @@ async def dashboard(
     from services.slots import adesso_salone, orari_salone
 
     ordine_servizi = [s["nome"] for s in catalogo.elenco_per_sito()]
+    adesso = adesso_salone().replace(tzinfo=None)
     agenda = costruisci_agenda(
         appuntamenti,
         giorno=target_date,
@@ -197,7 +204,8 @@ async def dashboard(
         ordine_servizi=ordine_servizi,
         # L'ora del salone e non del server: su Render è UTC, e la linea
         # dell'ora corrente starebbe due ore indietro.
-        adesso=adesso_salone().replace(tzinfo=None),
+        adesso=adesso,
+        liberi=await _dove_c_e_posto(target_date, adesso),
     )
     servizi_del_giorno = {s for a in appuntamenti for s in (a.servizi or [])[:1]}
 
@@ -219,6 +227,9 @@ async def dashboard(
             "vista": "elenco" if vista == "elenco" else "calendario",
             "agenda": agenda,
             "legenda": legenda(ordine_servizi, servizi_del_giorno),
+            "servizi_listino": catalogo.elenco_per_sito(),
+            "creato": bool(creato),
+            "errore": errore,
         },
     )
 
@@ -1343,3 +1354,189 @@ async def push_iscrizione(request: Request, utente=Depends(utente_del_pannello))
     await salva_iscrizione_push(endpoint, chiavi["p256dh"], chiavi["auth"])
     logger.info("Un dispositivo in più riceverà le notifiche del salone")
     return {"ok": True}
+
+
+# ------------------------------------------------- prenotazione dal pannello
+
+
+async def _dove_c_e_posto(giorno: date, adesso: datetime) -> dict[str, set[str]]:
+    """Gli orari liberi di ogni operatore, secondo Google.
+
+    Non dal database: un impegno segnato a mano sul calendario — una pausa, una
+    visita, un cliente arrivato senza appuntamento — occupa la poltrona
+    esattamente come una prenotazione, e il database non lo sa. Prenotare
+    sopra quello sarebbe il difetto peggiore di questa schermata.
+
+    I giorni passati non si interrogano: nessuno ci prenota, e sarebbero sei
+    chiamate a Google per disegnare del verde inutile. Se Google non risponde
+    si torna vuoto e la griglia mostra solo gli impegni: nessun posto segnato
+    è meglio di posti sbagliati.
+    """
+    if giorno < adesso.date():
+        return {}
+
+    try:
+        from services.backends import RealBackends
+
+        slot = await RealBackends().check_availability(giorno.isoformat(), None, 30)
+    except Exception:  # noqa: BLE001
+        logger.warning("Disponibilità non leggibile per %s", giorno, exc_info=True)
+        return {}
+
+    liberi: dict[str, set[str]] = {}
+    for s in slot:
+        liberi.setdefault(s["parrucchiere"], set()).add(s["slot"])
+    return liberi
+
+
+@router.get("/clienti/cerca")
+async def clienti_cerca(q: str = "", utente=Depends(utente_del_pannello), db=Depends(get_db)):
+    """I clienti che somigliano a quello che si sta scrivendo.
+
+    Serve a non ricreare da capo chi è già in anagrafica: due schede per la
+    stessa persona vogliono dire uno storico spezzato in due, e il bot che non
+    la riconosce più.
+    """
+    testo = (q or "").strip()
+    if len(testo) < 2:
+        return {"clienti": []}
+
+    somiglia = f"%{testo}%"
+    risultato = await db.execute(
+        select(Cliente)
+        .where(
+            or_(
+                Cliente.nome.ilike(somiglia),
+                Cliente.cognome.ilike(somiglia),
+                Cliente.telefono_wa.ilike(somiglia),
+                Cliente.email.ilike(somiglia),
+            )
+        )
+        .order_by(Cliente.ultima_visita.desc().nullslast())
+        .limit(8)
+    )
+    return {
+        "clienti": [
+            {
+                "id": c.id,
+                "nome": c.nome or "",
+                "cognome": c.cognome or "",
+                # Chi è nato dal sito ha come telefono un identificativo di
+                # sessione: metterlo nel modulo farebbe prenotare su un numero
+                # che non esiste.
+                "telefono": "" if (c.telefono_wa or "").startswith("web_") else (c.telefono_wa or ""),
+                "email": c.email or "",
+            }
+            for c in risultato.scalars().all()
+        ]
+    }
+
+
+@router.post("/appuntamenti")
+async def appuntamento_a_mano(
+    request: Request,
+    utente=Depends(utente_del_pannello),
+):
+    """Crea un appuntamento preso al telefono o di persona.
+
+    Passa dalle stesse funzioni del bot — stesso evento su Google, stessa riga
+    in anagrafica, stessa email di conferma — perché due strade diverse per
+    creare la stessa cosa divergono al primo cambiamento, e una delle due
+    smette di mandare le email senza che nessuno se ne accorga.
+
+    Quello che il bot rifiuta e qui si permette è **un secondo appuntamento
+    allo stesso cliente**: quella regola esiste perché il modello sbagliava da
+    solo, mentre chi prenota a mano ha la persona al telefono e sa cosa sta
+    facendo.
+    """
+    from prompts.system_prompt import get_cal_id_for_parrucchiere
+    from services.backends import RealBackends
+    from services.conversation import _slot_ancora_libero
+    from services.db_service import create_appointment, find_or_create_client
+
+    modulo = await request.form()
+    slot = (modulo.get("slot") or "").strip()
+    operatore = (modulo.get("operatore") or "").strip()
+    servizio = (modulo.get("servizio") or "").strip()
+    nome = (modulo.get("nome") or "").strip()
+    cognome = (modulo.get("cognome") or "").strip()
+    telefono = "".join(c for c in (modulo.get("telefono") or "") if c.isdigit())
+    email = (modulo.get("email") or "").strip()
+    note = (modulo.get("note") or "").strip()
+    giorno = slot[:10] if slot else date.today().isoformat()
+
+    def torna(errore: str | None = None):
+        indirizzo = f"/admin/dashboard?data={giorno}"
+        return RedirectResponse(
+            indirizzo + (f"&errore={quote(errore)}" if errore else "&creato=1"), 303
+        )
+
+    if not slot or not operatore or not servizio or not nome:
+        return torna("Servono almeno orario, operatore, servizio e nome.")
+
+    cal_id = get_cal_id_for_parrucchiere(operatore)
+    if not cal_id:
+        return torna(f"Non so su quale calendario scrivere per {operatore}.")
+
+    durata = catalogo.durata_totale([servizio]) or 30
+    prezzo = catalogo.prezzo_totale([servizio])
+    backends = RealBackends()
+
+    # Lo stesso controllo della prenotazione dal bot: fra quando la schermata
+    # ha disegnato il verde e quando si conferma possono passare minuti.
+    if not await _slot_ancora_libero(slot, cal_id, durata, backends):
+        return torna("Quell'orario non è più libero: ricarica e riprova.")
+
+    try:
+        cliente = await find_or_create_client(
+            phone=telefono or f"salone:{slot}:{nome}{cognome}",
+            nome=nome,
+            cognome=cognome,
+            email=email or None,
+            canale="salone",
+        )
+        event_id = await backends.create_event(
+            slot=slot,
+            parrucchiere_cal_id=cal_id,
+            servizi=[servizio],
+            durata=durata,
+            cliente_nome=f"{nome} {cognome}".strip(),
+            descrizione="\n".join(
+                p for p in (
+                    f"Totale: {catalogo.prezzo_formattato([servizio])}",
+                    f"Richieste: {note}" if note else "",
+                    f"Telefono: {telefono}" if telefono else "",
+                    "Preso dal salone",
+                ) if p
+            ),
+        )
+        await create_appointment(
+            client_id=cliente["id"],
+            data_ora=slot,
+            servizi=[servizio],
+            parrucchiere=operatore,
+            richieste_spec=note or None,
+            gcal_event_id=event_id,
+            durata_min=durata,
+            prezzo=prezzo,
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("Appuntamento dal pannello non creato")
+        return torna("Non sono riuscito a salvarlo. Riprova o controlla i log.")
+
+    # L'email è un di più: l'appuntamento c'è comunque, e chi prenota al
+    # telefono lo ha già confermato a voce.
+    if email:
+        try:
+            await backends.send_confirmation_email(
+                to=email,
+                nome=nome,
+                data_ora=slot,
+                parrucchiere=operatore,
+                servizi=[servizio],
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("Conferma non inviata a %s", email, exc_info=True)
+
+    logger.info("Appuntamento creato dal pannello: %s con %s", slot, operatore)
+    return torna()

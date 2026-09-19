@@ -94,6 +94,51 @@ def _zone_fuori_salone(nome: str, giorno: date, inizio: int, fine: int, e_in_sal
     return zone
 
 
+def _posti_liberi(
+    nome: str,
+    giorno: date,
+    inizio: int,
+    fine: int,
+    liberi: dict[str, set[str]] | None,
+    adesso: datetime | None,
+) -> list[dict]:
+    """Le mezz'ore in cui questo operatore può ricevere qualcuno.
+
+    `liberi` è quello che dice Google. Se manca — non l'abbiamo chiesto, o non
+    ha risposto — non si inventa niente: meglio nessun posto segnato che dei
+    posti segnati liberi e in realtà occupati, perché su quelli qualcuno
+    prenoterebbe davvero.
+
+    Le ore già passate non si segnano: prenotare alle nove di stamattina non
+    serve a nessuno, e riempirebbe di verde metà giornata.
+    """
+    if not liberi:
+        return []
+
+    suoi = liberi.get(nome) or set()
+    if not suoi:
+        return []
+
+    trascorsi = None
+    if adesso is not None and adesso.date() == giorno:
+        trascorsi = adesso.hour * 60 + adesso.minute
+
+    posti = []
+    for minuto in range(inizio, fine, PASSO_MIN):
+        if trascorsi is not None and minuto < trascorsi:
+            continue
+        quando = f"{giorno.isoformat()}T{_ora(minuto)}"
+        if quando in suoi:
+            posti.append(
+                {
+                    "da": (minuto - inizio) / PASSO_MIN,
+                    "slot": quando,
+                    "ora": _ora(minuto),
+                }
+            )
+    return posti
+
+
 def costruisci_agenda(
     appuntamenti: list,
     giorno: date,
@@ -103,6 +148,7 @@ def costruisci_agenda(
     prezzo_di,
     ordine_servizi: list[str],
     adesso: datetime | None = None,
+    liberi: dict[str, set[str]] | None = None,
 ) -> dict:
     """Tutto quello che serve al template per disegnare la giornata.
 
@@ -185,6 +231,13 @@ def costruisci_agenda(
         if in_organico and not blocchi and sum(z["per"] for z in zone) >= righe:
             continue
 
+        # Gli spazi liberi contano più degli impegni: chi prenota a mano cerca
+        # dove c'è posto, non chi è occupato. Arrivano da Google e non dal
+        # database, perché un impegno segnato a mano sul calendario — una
+        # pausa, una visita — occupa la poltrona esattamente come un
+        # appuntamento, e il database non lo conosce.
+        posti = _posti_liberi(nome, giorno, inizio_giorno, fine_giorno, liberi, adesso)
+
         corsie = _corsie(blocchi)
         for blocco in blocchi:
             blocco["da"] = (blocco["_inizio"] - inizio_giorno) / PASSO_MIN
@@ -197,6 +250,7 @@ def costruisci_agenda(
                 "quanti": len(blocchi),
                 "blocchi": sorted(blocchi, key=lambda b: b["_inizio"]),
                 "fuori": zone,
+                "liberi": posti,
             }
         )
 

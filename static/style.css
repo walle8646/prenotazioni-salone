@@ -1752,3 +1752,125 @@ body {
         border-radius: 0;
     }
 }
+
+/* ------------------------------------------ prenotare dal calendario
+
+   Il verde è la cosa che si cerca guardando questa schermata: non "chi è
+   occupato" ma "dove posso mettere il cliente che ho al telefono". Quindi i
+   posti liberi si vedono, e si toccano. */
+
+.agenda-libero {
+    position: absolute;
+    left: 2px;
+    right: 2px;
+    top: calc(var(--da) * var(--riga) + 1px);
+    height: calc(var(--riga) - 3px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    border: 1px dashed #a9d5bd;
+    border-radius: 4px;
+    background: #f0f9f4;
+    color: #2d7a55;
+    font: inherit;
+    font-size: 0.72rem;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+}
+
+.agenda-libero span {
+    opacity: 0;
+}
+
+.agenda-libero:hover,
+.agenda-libero:focus-visible {
+    background: #dcf1e5;
+    border-style: solid;
+}
+
+.agenda-libero:hover span,
+.agenda-libero:focus-visible span {
+    opacity: 1;
+}
+
+/* Sul telefono non esiste il passaggio del dito prima del tocco: l'ora si
+   legge sempre, altrimenti sono solo rettangoli verdi tutti uguali. */
+@media (hover: none) {
+    .agenda-libero span {
+        opacity: 1;
+    }
+}
+
+.avviso-buono,
+.avviso-grave {
+    padding: 0.7rem 1rem;
+    border-radius: 6px;
+    margin-bottom: 1rem;
+}
+
+.avviso-buono {
+    background: #e4f3e9;
+    color: #1f6b41;
+}
+
+.avviso-grave {
+    background: #fdecea;
+    color: #a3372a;
+}
+
+.modulo-nuovo {
+    display: grid;
+    gap: 0.15rem;
+}
+
+.modulo-nuovo label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #8a97a4;
+    margin-top: 0.5rem;
+}
+
+.modulo-nuovo input,
+.modulo-nuovo select {
+    padding: 0.55rem 0.7rem;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    font: inherit;
+    font-size: 16px;
+}
+
+.suggerimenti {
+    list-style: none;
+    margin: 0.2rem 0 0;
+    padding: 0;
+    border: 1px solid #d0d7de;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.suggerimenti button {
+    width: 100%;
+    text-align: left;
+    padding: 0.5rem 0.7rem;
+    border: none;
+    background: white;
+    font: inherit;
+    font-size: 0.9rem;
+    cursor: pointer;
+}
+
+.suggerimenti button:hover {
+    background: #eef4fa;
+}
+
+.modulo-azioni {
+    margin-top: 1rem;
+}
+
+.modulo-azioni .btn-small {
+    width: 100%;
+    padding: 0.7rem;
+    font-size: 1rem;
+}

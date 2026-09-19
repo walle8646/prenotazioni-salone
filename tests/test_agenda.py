@@ -35,7 +35,8 @@ def _sempre_in_salone(nome, quando):
     return True
 
 
-def _agenda(appuntamenti, e_in_salone=_sempre_in_salone, orari=ORARI, adesso=None):
+def _agenda(appuntamenti, e_in_salone=_sempre_in_salone, orari=ORARI, adesso=None,
+            liberi_google=None):
     return costruisci_agenda(
         appuntamenti,
         giorno=GIORNO,
@@ -45,6 +46,7 @@ def _agenda(appuntamenti, e_in_salone=_sempre_in_salone, orari=ORARI, adesso=Non
         prezzo_di=lambda a: "13,50 €",
         ordine_servizi=ORDINE,
         adesso=adesso,
+        liberi=liberi_google,
     )
 
 
@@ -185,3 +187,40 @@ def test_lo_stesso_servizio_ha_sempre_la_stessa_tinta():
 
 def test_la_legenda_mostra_solo_i_servizi_della_giornata():
     assert [v["nome"] for v in legenda(ORDINE, {"Barba", "Taglio"})] == ["Taglio", "Barba"]
+
+
+# ----------------------------------------------------- dove c'è posto libero
+#
+# Il verde è quello che si cerca guardando questa schermata: non chi è
+# occupato, ma dove mettere il cliente che si ha al telefono. Sbagliarlo
+# significa far prenotare su una poltrona già presa.
+
+
+def test_i_posti_liberi_sono_quelli_che_dice_google():
+    liberi = {"Francesco": {"2026-09-17T10:00", "2026-09-17T10:30"}}
+    colonna = _colonna(_agenda([], liberi_google=liberi), "Francesco")
+
+    assert [p["ora"] for p in colonna["liberi"]] == ["10:00", "10:30"]
+    assert colonna["liberi"][0]["da"] == 2, "le 10 sono la seconda mezz'ora dopo le 9"
+
+
+def test_senza_risposta_da_google_non_si_inventa_niente():
+    """Meglio nessun posto segnato che posti segnati liberi e in realtà presi:
+    su quelli qualcuno prenoterebbe davvero."""
+    colonna = _colonna(_agenda([], liberi_google=None), "Francesco")
+    assert colonna["liberi"] == []
+
+
+def test_le_ore_gia_passate_non_si_offrono():
+    liberi = {"Francesco": {"2026-09-17T09:00", "2026-09-17T15:00"}}
+    agenda = _agenda([], liberi_google=liberi, adesso=datetime(2026, 9, 17, 11, 0))
+
+    assert [p["ora"] for p in _colonna(agenda, "Francesco")["liberi"]] == ["15:00"]
+
+
+def test_in_un_altro_giorno_valgono_tutte_le_ore():
+    """L'ora corrente taglia solo la giornata di oggi."""
+    liberi = {"Francesco": {"2026-09-17T09:00", "2026-09-17T15:00"}}
+    agenda = _agenda([], liberi_google=liberi, adesso=datetime(2026, 9, 16, 11, 0))
+
+    assert len(_colonna(agenda, "Francesco")["liberi"]) == 2

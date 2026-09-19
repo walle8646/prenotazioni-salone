@@ -339,6 +339,28 @@ motivo per cui va visto; e due appuntamenti sovrapposti nella stessa colonna
 si **affiancano**, perché uno sopra l'altro il secondo sparirebbe. L'elenco
 di prima resta come seconda vista (`?vista=elenco`).
 
+**Si prenota anche a mano, dal calendario.** Le mezz'ore libere di ogni
+operatore sono celle verdi cliccabili: toccarne una apre il modulo già
+compilato con **quando e con chi**, che al telefono sono i due dati appena
+detti e i più facili da ricopiare male. Il verde è il punto della schermata —
+chi prenota cerca dove c'è posto, non chi è occupato.
+
+Quei posti liberi arrivano da **Google e non dal database**: un impegno
+segnato a mano sul calendario — una pausa, una visita — occupa la poltrona
+come un appuntamento, e il database non lo sa. Se Google non risponde non si
+segna niente: nessun posto è meglio di posti sbagliati, perché su quelli
+qualcuno prenoterebbe davvero. I giorni passati non si interrogano.
+
+La creazione passa dalle **stesse funzioni del bot** (`find_or_create_client`,
+`create_event`, `create_appointment`, la conferma per email): due strade per
+creare la stessa cosa divergono al primo cambiamento, e una delle due smette
+di mandare le email senza che nessuno se ne accorga. Restano validi il
+ricontrollo dello slot e la durata decisa dal listino. **Cade invece la regola
+dell'unico appuntamento per cliente**: esiste perché il modello sbagliava da
+solo, mentre chi prenota a mano ha la persona al telefono. Scrivendo il nome
+si cercano i clienti già in anagrafica: due schede per la stessa persona
+vogliono dire uno storico spezzato e il bot che non la riconosce più.
+
 **Conversazioni** mostra chi sta aspettando una risposta da una persona, con
 lo scambio già avuto col bot e una casella per rispondere via WhatsApp.
 

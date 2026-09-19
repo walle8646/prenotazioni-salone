@@ -50,6 +50,12 @@
         </nav>
     </div>
 
+    {% if creato %}
+    <p class="avviso-buono">Appuntamento inserito.</p>
+    {% elif errore %}
+    <p class="avviso-grave">{{ errore }}</p>
+    {% endif %}
+
     {% if appuntamenti %}
     <p class="riepilogo-giornata">
         <strong>{{ appuntamenti | length }}</strong> appuntament{{ 'o' if appuntamenti | length == 1 else 'i' }}
@@ -92,6 +98,19 @@
                     <div class="agenda-fuori" style="--da: {{ z.da }}; --per: {{ z.per }};"></div>
                     {% endfor %}
 
+                    {# Prima dei blocchi, così un appuntamento ci finisce sopra
+                       e non sotto. Sono bottoni: si tocca l'ora libera e si
+                       prenota lì, che è il gesto che si fa col cliente al
+                       telefono. #}
+                    {% for l in c.liberi %}
+                    <button type="button" class="agenda-libero"
+                            style="--da: {{ l.da }};"
+                            data-slot="{{ l.slot }}" data-operatore="{{ c.nome }}"
+                            title="Prenota alle {{ l.ora }} con {{ c.nome }}">
+                        <span>{{ l.ora }}</span>
+                    </button>
+                    {% endfor %}
+
                     {% for b in c.blocchi %}
                     <button type="button" class="agenda-blocco{{ ' blocco-corto' if b.per < 1.5 }}"
                             style="--da: {{ b.da }}; --per: {{ b.per }}; --corsia: {{ b.corsia }}; --corsie: {{ b.corsie }}; --sfondo: {{ b.sfondo }}; --bordo: {{ b.bordo }};"
@@ -127,6 +146,54 @@
         <li><span class="legenda-fuori"></span>Non in salone</li>
     </ul>
     {% endif %}
+
+    <dialog id="nuovo" class="dettaglio">
+        <form method="dialog" class="dettaglio-chiudi">
+            <button type="submit" aria-label="Chiudi">×</button>
+        </form>
+        <p class="dettaglio-quando" data-campo="quando"></p>
+        <h3>Nuovo appuntamento</h3>
+
+        <form method="POST" action="/admin/appuntamenti" class="modulo-nuovo" id="modulo-nuovo">
+            <input type="hidden" name="slot" id="nuovo-slot">
+            <input type="hidden" name="operatore" id="nuovo-operatore">
+
+            {# Si parte dal nome: chi prenota al telefono ha in mano quello,
+               non un identificativo. Se il cliente c'è già, scegliendolo
+               dall'elenco si riempiono da sé telefono ed email, e lo storico
+               resta uno solo invece di spezzarsi in due schede. #}
+            <label for="nuovo-nome">Nome</label>
+            <input type="text" name="nome" id="nuovo-nome" required autocomplete="off"
+                   placeholder="Comincia a scrivere: se è già cliente compare">
+            <ul class="suggerimenti" id="suggerimenti" hidden></ul>
+
+            <label for="nuovo-cognome">Cognome</label>
+            <input type="text" name="cognome" id="nuovo-cognome" autocomplete="off">
+
+            <label for="nuovo-telefono">Telefono</label>
+            <input type="tel" name="telefono" id="nuovo-telefono" autocomplete="off"
+                   placeholder="Serve per avvisarlo se qualcosa cambia">
+
+            <label for="nuovo-email">Email</label>
+            <input type="email" name="email" id="nuovo-email" autocomplete="off"
+                   placeholder="Se la lascia, riceve la conferma">
+
+            <label for="nuovo-servizio">Servizio</label>
+            <select name="servizio" id="nuovo-servizio" required>
+                {% for s in servizi_listino %}
+                <option value="{{ s.nome }}">{{ s.nome }} · {{ s.prezzo }} · {{ s.durata }}</option>
+                {% endfor %}
+            </select>
+
+            <label for="nuovo-note">Note</label>
+            <input type="text" name="note" id="nuovo-note" autocomplete="off"
+                   placeholder="Corto ai lati, come l'ultima volta…">
+
+            <div class="modulo-azioni">
+                <button type="submit" class="btn-small">Prenota</button>
+            </div>
+        </form>
+    </dialog>
 
     <dialog id="dettaglio" class="dettaglio">
         <form method="dialog" class="dettaglio-chiudi">
@@ -243,6 +310,71 @@
     finestra.addEventListener("click", function (evento) {
         if (evento.target === finestra) finestra.close();
     });
+
+    // Toccando un'ora libera si apre il modulo già compilato con quando e
+    // con chi: al telefono quei due dati si sono appena detti, riscriverli è
+    // il modo più facile di sbagliarli.
+    var modulo = document.getElementById("nuovo");
+    if (modulo) {
+        document.querySelectorAll(".agenda-libero").forEach(function (posto) {
+            posto.addEventListener("click", function () {
+                var slot = posto.dataset.slot;
+                document.getElementById("nuovo-slot").value = slot;
+                document.getElementById("nuovo-operatore").value = posto.dataset.operatore;
+                modulo.querySelector('[data-campo="quando"]').textContent =
+                    slot.slice(11) + " con " + posto.dataset.operatore;
+                modulo.showModal();
+                document.getElementById("nuovo-nome").focus();
+            });
+        });
+
+        modulo.addEventListener("click", function (evento) {
+            if (evento.target === modulo) modulo.close();
+        });
+
+        // Chi è già cliente si sceglie dall'elenco: due schede per la stessa
+        // persona vogliono dire uno storico spezzato, e il bot che non la
+        // riconosce più.
+        var nome = document.getElementById("nuovo-nome");
+        var elenco = document.getElementById("suggerimenti");
+        var attesa = null;
+
+        function riempi(c) {
+            document.getElementById("nuovo-nome").value = c.nome;
+            document.getElementById("nuovo-cognome").value = c.cognome;
+            document.getElementById("nuovo-telefono").value = c.telefono;
+            document.getElementById("nuovo-email").value = c.email;
+            elenco.hidden = true;
+        }
+
+        nome.addEventListener("input", function () {
+            clearTimeout(attesa);
+            var cercato = nome.value.trim();
+            if (cercato.length < 2) { elenco.hidden = true; return; }
+            attesa = setTimeout(async function () {
+                try {
+                    var risposta = await fetch("/admin/clienti/cerca?q=" + encodeURIComponent(cercato));
+                    if (!risposta.ok) return;
+                    var dati = await risposta.json();
+                    elenco.textContent = "";
+                    dati.clienti.forEach(function (c) {
+                        var voce = document.createElement("li");
+                        var bottone = document.createElement("button");
+                        bottone.type = "button";
+                        // textContent: il nome l'ha scritto un cliente.
+                        bottone.textContent =
+                            (c.nome + " " + c.cognome).trim() + (c.telefono ? " · " + c.telefono : "");
+                        bottone.addEventListener("click", function () { riempi(c); });
+                        voce.appendChild(bottone);
+                        elenco.appendChild(voce);
+                    });
+                    elenco.hidden = dati.clienti.length === 0;
+                } catch (e) {
+                    // Senza suggerimenti si scrive a mano: non è un guasto.
+                }
+            }, 250);
+        });
+    }
 
     // La linea dell'ora corrente scende da sola: la pagina resta aperta tutta
     // la mattina, e una linea ferma alle nove direbbe il falso alle undici.
