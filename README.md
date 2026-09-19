@@ -1,4 +1,4 @@
-# Salone Nadia — Bot Prenotazioni
+# Acconciature Simone — Bot Prenotazioni
 
 Sistema AI per prenotazioni automatizzate via WhatsApp e sito web.
 

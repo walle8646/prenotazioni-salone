@@ -68,7 +68,7 @@ async def _invia(destinatario: str, oggetto: str, html: str) -> None:
         return
 
     messaggio = EmailMessage()
-    messaggio["From"] = f"Salone Nadia <{_mittente()}>"
+    messaggio["From"] = f"Acconciature Simone <{_mittente()}>"
     messaggio["To"] = destinatario
     messaggio["Subject"] = oggetto
     messaggio.set_content(
@@ -97,7 +97,7 @@ async def send_confirmation_email(
     servizi_str = ", ".join(servizi or [])
     await _invia(
         to,
-        "Conferma appuntamento - Salone Nadia",
+        "Conferma appuntamento - Acconciature Simone",
         f"""
             <h2>Ciao {nome}!</h2>
             <p>Il tuo appuntamento è confermato:</p>
@@ -107,7 +107,7 @@ async def send_confirmation_email(
                 <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
             </ul>
             <p>Per cancellare o modificare, scrivici su WhatsApp o rispondi a questa email.</p>
-            <p>A presto!<br>Salone Nadia</p>
+            <p>A presto!<br>Acconciature Simone</p>
         """,
     )
 
@@ -123,7 +123,7 @@ async def send_cancellation_email(
     servizi_str = ", ".join(servizi or [])
     await _invia(
         to,
-        "Appuntamento annullato - Salone Nadia",
+        "Appuntamento annullato - Acconciature Simone",
         f"""
             <h2>Ciao {nome}!</h2>
             <p>Il tuo appuntamento è stato annullato:</p>
@@ -134,7 +134,7 @@ async def send_cancellation_email(
             </ul>
             <p>Se non l'hai chiesto tu, o se vuoi prenotare di nuovo, scrivici
             pure: ti troviamo un altro orario.</p>
-            <p>A presto!<br>Salone Nadia</p>
+            <p>A presto!<br>Acconciature Simone</p>
         """,
     )
 
@@ -156,7 +156,7 @@ async def send_absence_email(
     )
     await _invia(
         to,
-        "Dobbiamo spostare il tuo appuntamento - Salone Nadia",
+        "Dobbiamo spostare il tuo appuntamento - Acconciature Simone",
         f"""
             <h2>Ciao {nome},</h2>
             <p>ci dispiace: {parrucchiere} non sarà in salone e dobbiamo
@@ -167,7 +167,7 @@ async def send_absence_email(
             </ul>
             <p>Ci scusiamo per il disagio. Per trovare subito un altro orario
             {contatto}, oppure rispondi a questo messaggio.</p>
-            <p>A presto!<br>Salone Nadia</p>
+            <p>A presto!<br>Acconciature Simone</p>
         """,
     )
 
@@ -179,7 +179,7 @@ async def send_change_email(
     servizi_str = ", ".join(servizi or [])
     await _invia(
         to,
-        "Appuntamento spostato - Salone Nadia",
+        "Appuntamento spostato - Acconciature Simone",
         f"""
             <h2>Ciao {nome}!</h2>
             <p>Il tuo appuntamento è stato spostato.</p>
@@ -190,7 +190,7 @@ async def send_change_email(
                 <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
             </ul>
             <p>Se il nuovo orario non ti va bene, scrivici pure.</p>
-            <p>A presto!<br>Salone Nadia</p>
+            <p>A presto!<br>Acconciature Simone</p>
         """,
     )
 
@@ -199,13 +199,13 @@ async def send_verification_code(to: str, codice: str):
     """Invia il codice che sblocca lo storico dalla chat del sito."""
     await _invia(
         to,
-        f"{codice} è il tuo codice - Salone Nadia",
+        f"{codice} è il tuo codice - Acconciature Simone",
         f"""
             <h2>Il tuo codice è {codice}</h2>
             <p>Scrivilo nella chat per vedere i tuoi appuntamenti.</p>
             <p>Vale per pochi minuti. Se non l'hai chiesto tu, ignora questo
             messaggio: senza il codice nessuno può vedere i tuoi dati.</p>
-            <p>Salone Nadia</p>
+            <p>Acconciature Simone</p>
         """,
     )
 
@@ -214,13 +214,13 @@ async def send_reminder_email(to: str, nome: str, orario: str, parrucchiere: str
     """Invia email di promemoria appuntamento."""
     await _invia(
         to,
-        "Promemoria: appuntamento domani - Salone Nadia",
+        "Promemoria: appuntamento domani - Acconciature Simone",
         f"""
             <h2>Ciao {nome}!</h2>
             <p>Ti ricordiamo il tuo appuntamento di <strong>domani alle {orario}</strong>
             con <strong>{parrucchiere}</strong>.</p>
             <p>Per cancellare, scrivici su WhatsApp entro 12 ore.</p>
-            <p>A domani!<br>Salone Nadia</p>
+            <p>A domani!<br>Acconciature Simone</p>
         """,
     )
 
@@ -250,7 +250,7 @@ async def send_handoff_email(
     )
     await _invia(
         destinatario,
-        f"{chi} vuole parlare con una persona - Salone Nadia",
+        f"{chi} vuole parlare con una persona - Acconciature Simone",
         f"""
             <h2>{chi} ha chiesto di parlare con qualcuno</h2>
             <p><strong>Numero:</strong> {telefono}</p>

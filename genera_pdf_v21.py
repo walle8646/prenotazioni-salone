@@ -94,7 +94,7 @@ def header_footer(canvas, doc):
     canvas.rect(0, HEIGHT - 18*mm, WIDTH, 18*mm, fill=1, stroke=0)
     canvas.setFillColor(white)
     canvas.setFont("Helvetica-Bold", 9)
-    canvas.drawString(15*mm, HEIGHT - 12*mm, "Guida Tecnica — Salone Nadia — v2.1")
+    canvas.drawString(15*mm, HEIGHT - 12*mm, "Guida Tecnica — Acconciature Simone — v2.1")
     # Footer
     canvas.setFillColor(HexColor("#888888"))
     canvas.setFont("Helvetica", 8)
@@ -161,7 +161,7 @@ def build_pdf():
     story.append(Spacer(1, 40*mm))
     story.append(Paragraph("GUIDA TECNICA DI SVILUPPO", styles['CoverTitle']))
     story.append(Spacer(1, 6))
-    story.append(Paragraph("Sistema AI WhatsApp per prenotazioni — Salone Nadia", styles['CoverSubtitle']))
+    story.append(Paragraph("Sistema AI WhatsApp per prenotazioni — Acconciature Simone", styles['CoverSubtitle']))
     story.append(Spacer(1, 20))
 
     cover_items = [
@@ -439,10 +439,10 @@ Campi sottoscritti: messages"""
         styles['BodyText2']
     ))
     tmpl_rows = [
-        ["conferma_prenotazione", "Ciao {{1}}, il tuo appuntamento e' confermato per il {{2}} alle {{3}} con {{4}}. A presto dal Salone Nadia!"],
+        ["conferma_prenotazione", "Ciao {{1}}, il tuo appuntamento e' confermato per il {{2}} alle {{3}} con {{4}}. A presto da Acconciature Simone!"],
         ["reminder_12h", "Ciao {{1}}, ti ricordiamo l'appuntamento di domani alle {{2}} con {{3}}. Per cancellare scrivi qui entro le prossime 12 ore."],
         ["cancellazione_operatore", "Ciao {{1}}, purtroppo {{2}} non e' disponibile il {{3}}. Scrivi qui per riprenota con un altro operatore o in un altro giorno."],
-        ["ricontatto_inattivo", "Ciao {{1}}, e' da un po' che non ti vediamo al Salone Nadia. Vuoi prenotare un appuntamento?"],
+        ["ricontatto_inattivo", "Ciao {{1}}, e' da un po' che non ti vediamo da Acconciature Simone. Vuoi prenotare un appuntamento?"],
     ]
     story.append(make_table(["Template", "Testo"], tmpl_rows, [usable*0.25, usable*0.75]))
     story.append(Paragraph("I template richiedono 24-48 ore per l'approvazione Meta. Sottomettere in anticipo.", styles['BodyText2']))
@@ -570,7 +570,7 @@ Struttura JSON:
         story.append(bullet(s, styles))
 
     story.append(Paragraph("7.2 Template system prompt (estratto)", styles['SubSection']))
-    sp_template = """Sei Nadia, l'assistente virtuale del Salone Nadia.
+    sp_template = """Sei l'assistente virtuale di Acconciature Simone.
 Sei cordiale e professionale. Parli in italiano.
 
 ## INFORMAZIONI SUL SALONE

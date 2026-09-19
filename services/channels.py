@@ -225,10 +225,10 @@ class ConsoleChannel(Channel):
     supports_options = True
 
     async def send_text(self, to: str, text: str) -> None:
-        print(f"\n\033[92mNadia\033[0m: {text}\n")
+        print(f"\n\033[92mAssistente\033[0m: {text}\n")
 
     async def send_options(self, to: str, text: str, options: list[dict]) -> None:
-        print(f"\n\033[92mNadia\033[0m: {text}")
+        print(f"\n\033[92mAssistente\033[0m: {text}")
         for i, opt in enumerate(options, 1):
             print(f"   \033[94m[{i}]\033[0m {opt['title']}")
         print()

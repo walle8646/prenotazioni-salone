@@ -111,7 +111,7 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
-app = FastAPI(title="Salone Nadia Bot", lifespan=lifespan)
+app = FastAPI(title="Acconciature Simone Bot", lifespan=lifespan)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 app.include_router(webhook.router)
 app.include_router(admin.router)

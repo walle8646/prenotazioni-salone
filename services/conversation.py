@@ -60,7 +60,7 @@ MESSAGGIO_FALLBACK = (
     "Puoi riprovare tra poco?"
 )
 SALUTO_INIZIALE = (
-    "Ciao! Sono Nadia, l'assistente del salone. Come posso aiutarti? "
+    "Ciao! Sono l'assistente di Acconciature Simone. Come posso aiutarti? "
     "Vuoi prenotare un appuntamento?"
 )
 MESSAGGIO_RICOMINCIATO = (

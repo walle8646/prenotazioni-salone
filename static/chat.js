@@ -194,7 +194,7 @@
         input.focus();
     });
 
-    // "Nadia sta scrivendo": una risposta può richiedere qualche secondo, fra
+    // "Sta scrivendo": una risposta può richiedere qualche secondo, fra
     // il modello e la lettura dei calendari. Senza segnale il riquadro sembra
     // fermo, e il cliente riscrive o se ne va.
     let indicatore = null;
@@ -203,7 +203,7 @@
         if (indicatore) return;
         indicatore = document.createElement('div');
         indicatore.className = 'message bot sta-scrivendo';
-        indicatore.setAttribute('aria-label', 'Nadia sta scrivendo');
+        indicatore.setAttribute('aria-label', 'L\'assistente sta scrivendo');
         for (let i = 0; i < 3; i++) {
             indicatore.appendChild(document.createElement('span'));
         }

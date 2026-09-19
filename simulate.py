@@ -39,13 +39,13 @@ def _stampa_intestazione(offline: bool, fake_claude: bool) -> None:
     if fake_claude:
         modalita += " + Claude finto"
     print("\n" + "=" * 60)
-    print("  Simulatore Salone Nadia — modalità:", modalita)
+    print("  Simulatore Acconciature Simone — modalità:", modalita)
     print("  Comandi: /reset  /stato  /esci")
     print("=" * 60)
 
 
 async def main() -> int:
-    parser = argparse.ArgumentParser(description="Simulatore di chat del bot Salone Nadia")
+    parser = argparse.ArgumentParser(description="Simulatore di chat del bot Acconciature Simone")
     parser.add_argument(
         "--offline",
         action="store_true",

@@ -24,7 +24,7 @@ self.addEventListener('activate', (evento) => {
 self.addEventListener('fetch', () => {});
 
 self.addEventListener('push', (evento) => {
-    let dati = { titolo: 'Salone Nadia', testo: 'Qualcuno ti sta aspettando.', url: '/admin/conversazioni' };
+    let dati = { titolo: 'Acconciature Simone', testo: 'Qualcuno ti sta aspettando.', url: '/admin/conversazioni' };
     try {
         if (evento.data) {
             dati = Object.assign(dati, evento.data.json());

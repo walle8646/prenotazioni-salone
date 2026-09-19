@@ -1,4 +1,12 @@
-# Salone Nadia — bot prenotazioni
+# Acconciature Simone — bot prenotazioni
+
+Il salone si chiama **Acconciature Simone**. Il nome compare in una trentina
+di punti — saluto del bot, prompt, email, sito, informativa, pannello — e
+sbagliarlo in metà di quelli è peggio che sbagliarlo in tutti: chi legge due
+nomi diversi non sa più a chi sta scrivendo. **Nadia lavora in salone**: il
+suo nome non va dato all'assistente, che infatti non ne ha nessuno. Un bot che
+si presenta col nome di una persona vera fa credere a chi scrive di stare
+parlando con lei.
 
 Bot conversazionale che gestisce le prenotazioni di un salone da barbiere dal
 sito e (in futuro) via WhatsApp, con i calendari Google degli operatori e un
@@ -706,7 +714,7 @@ degli operatori stanno nel database.
   (è una conversazione avviata dall'azienda, e col template il messaggio del
   cliente non ci sta dentro per intero); Telegram sarebbe gratuito e immediato
   ma richiede che il personale ce l'abbia; gli SMS costano di più e dicono meno.
-- **Il titolare nell'informativa privacy è solo "Salone Nadia"**
+- **Il titolare nell'informativa privacy è solo "Acconciature Simone"**
   (`TITOLARE_PRIVACY` in `routers/website.py`): va completato con ragione
   sociale, sede e partita IVA.
 - I clienti senza email vanno avvisati a voce anche quando un operatore manca:
@@ -725,6 +733,13 @@ WhatsApp passa dalla Cloud API di Meta, con l'app `salone-nadia`
 `1321638091031766` in `META_PHONE_NUMBER_ID`), sull'account WhatsApp Business
 `Salone Simone Nadia`, id `1743717593345386`. Il token è di un utente di
 sistema e non scade.
+
+**Il nome visualizzato su WhatsApp è l'unico che non si cambia da qui.** Il
+salone si chiama **Acconciature Simone** e così si presenta in ogni messaggio,
+email e pagina; l'account su Meta è ancora registrato come "Salone Simone
+Nadia". Il nome visualizzato si cambia dal Business Manager e **lo riapprova
+Meta**, quindi resta indietro qualche giorno — ed è quello che il cliente
+legge in cima alla conversazione, prima ancora di aprirla.
 
 Il numero di prova americano `+1 555-201-1459` e il vecchio account
 `1687123500082794` non si usano più: quello era un **Test WhatsApp Business

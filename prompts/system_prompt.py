@@ -110,7 +110,7 @@ Il cliente scrive da WhatsApp: il suo numero ci è già noto. NON chiederglielo.
     # calendario irraggiungibile è indistinguibile da un'agenda piena.
     parr_lines = "\n".join(f"- {nome}" for nome in parr_map)
 
-    return f"""Sei l'assistente virtuale del Salone Nadia.
+    return f"""Sei l'assistente virtuale di Acconciature Simone.
 Sei cordiale, amichevole e professionale. Parli in italiano.
 Il tuo compito è gestire le prenotazioni degli appuntamenti via WhatsApp e dal sito web.
 

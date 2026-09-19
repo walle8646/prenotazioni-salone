@@ -195,8 +195,8 @@ async def manifest():
     """
     return JSONResponse(
         {
-            "name": "Salone Nadia — Conversazioni",
-            "short_name": "Salone Nadia",
+            "name": "Acconciature Simone — Conversazioni",
+            "short_name": "Acconciature Simone",
             "description": "Rispondi ai clienti che chiedono di parlare con una persona.",
             "start_url": "/admin/conversazioni",
             "scope": "/admin/",
@@ -282,7 +282,7 @@ async def chi_siamo(request: Request):
 # Denominazione da esporre nell'informativa. Scritta qui e non nel template
 # perché è un dato dell'attività, non una scelta di impaginazione: va
 # completata con ragione sociale, sede e partita IVA reali.
-TITOLARE_PRIVACY = "Salone Nadia"
+TITOLARE_PRIVACY = "Acconciature Simone"
 
 # Fissa e non calcolata da `date.today()`: la data dice quando l'informativa è
 # stata cambiata l'ultima volta, non quando la si sta leggendo. Aggiornarla a
