@@ -352,12 +352,34 @@ verde che si sta cercando. La griglia la costruisce una funzione sola
 poi dicono due cose diverse sullo stesso orario — e quella su cui si prenota è
 sempre l'altra.
 
+**In cima ci sono due mesi interi, non un campo "vai a un'altra data".**
+Quello sapeva portare da qualche parte, ma non dove conveniva andare: per
+trovare il primo giorno scarico si tiravano a indovinare date una per volta.
+Ogni casella porta sotto il numero una barretta lunga quanto il suo carico,
+**relativo al giorno più pieno dei due mesi** e non a una capienza teorica —
+le poltrone cambiano con le presenze, e una percentuale calcolata su una
+capienza sbagliata direbbe "pieno" dove c'è posto. La domanda vera è "dove c'è
+meno gente". I giorni di chiusura non sono cliccabili: mandare a cercare posto
+di domenica fa perdere tempo a chi ha il cliente in linea. Il conteggio dei
+sessanta giorni è **una query sola** (`_carico()`), per lo stesso motivo per
+cui la striscia dei sette giorni ne fa una.
+
+Due mesi e non uno perché a fine mese metà della finestra utile sarebbe già
+fuori; due e non tre perché un taglio a novanta giorni non lo prenota nessuno.
+Con un operatore scelto il carico è **il suo**, non quello del salone:
+altrimenti i due calendari direbbero che giovedì è pieno mentre lui è libero
+tutto il giorno.
+
 **Le chips in cima cambiano il significato delle colonne.** Con "Tutti" si
 guarda una giornata, una colonna per operatore. Scegliendo una persona si
 guarda la sua **settimana**: sette giorni, una colonna per giorno, e le frecce
 spostano di sette in sette. Risponde alla domanda che la giornata non sa
 reggere — "quando me lo dai con Andrea?" — che altrimenti vuol dire aprire
-sette schermate per scoprire che il primo posto è giovedì. L'operatore scelto
+sette schermate per scoprire che il primo posto è giovedì. **Toccando un
+giorno sui due mesi si scende su quel giorno solo** (`vista=giorno`), con
+quell'operatore in una colonna sola o con tutti se non ne è scelto nessuno: le
+due viste si dichiarano con un interruttore, invece di dipendere da come ci si
+è arrivati. L'operatore scelto
 **resta** cambiando settimana (`filtro` in `_striscia()`): perderlo a ogni
 freccia renderebbe le chips inservibili proprio mentre si cerca un posto per
 quella persona.

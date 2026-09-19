@@ -12,6 +12,7 @@ from types import SimpleNamespace as N
 from services.agenda import (
     SENZA_OPERATORE,
     costruisci_agenda,
+    costruisci_mesi,
     costruisci_settimana,
     legenda,
     tinta_del_servizio,
@@ -339,3 +340,91 @@ def test_le_ore_gia_passate_di_oggi_non_si_offrono():
     )
 
     assert [p["ora"] for p in agenda["colonne"][2]["liberi"]] == ["15:00"]
+
+
+# ------------------------------------------------- i due mesi in cima a Prenota
+#
+# Servono a scegliere il giorno **sapendo** com'è messo, invece di tirare a
+# indovinare date una per volta. Sbagliare qui non rompe niente: manda a
+# prenotare nel giorno sbagliato, che è peggio.
+
+
+def _aperto_feriale(giorno):
+    return giorno.weekday() not in (6, 0)
+
+
+def test_i_mesi_sono_due_e_consecutivi():
+    mesi = costruisci_mesi(date(2026, 11, 20), {}, _aperto_feriale)
+    assert [m["nome"] for m in mesi] == ["Novembre 2026", "Dicembre 2026"]
+
+
+def test_dopo_dicembre_viene_gennaio_dell_anno_dopo():
+    mesi = costruisci_mesi(date(2026, 12, 3), {}, _aperto_feriale)
+    assert [m["nome"] for m in mesi] == ["Dicembre 2026", "Gennaio 2027"]
+
+
+def test_il_mese_comincia_nella_colonna_del_suo_giorno():
+    """Il 1° settembre 2026 è un martedì: prima di lui una casella vuota."""
+    settembre = costruisci_mesi(date(2026, 9, 10), {}, _aperto_feriale)[0]
+    prima = settembre["settimane"][0]
+
+    assert prima[0] is None
+    assert prima[1]["numero"] == 1
+
+
+def test_ogni_settimana_ha_sette_caselle():
+    for mese in costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale):
+        assert all(len(settimana) == 7 for settimana in mese["settimane"])
+
+
+def test_ci_sono_tutti_i_giorni_del_mese():
+    settembre = costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]
+    numeri = [c["numero"] for s in settembre["settimane"] for c in s if c]
+    assert numeri == list(range(1, 31))
+
+
+def test_il_riempimento_e_relativo_al_giorno_piu_carico():
+    """Non a una capienza teorica: le poltrone cambiano con le presenze, e una
+    percentuale su una capienza sbagliata direbbe "pieno" dove c'è posto."""
+    carico = {date(2026, 9, 1): 40, date(2026, 9, 2): 10, date(2026, 9, 3): 0}
+    celle = {
+        c["numero"]: c
+        for s in costruisci_mesi(date(2026, 9, 1), carico, _aperto_feriale)[0]["settimane"]
+        for c in s
+        if c
+    }
+
+    assert celle[1]["riempimento"] == 1
+    assert celle[2]["riempimento"] == 0.25
+    assert celle[3]["riempimento"] == 0
+    assert celle[1]["quanti"] == 40
+
+
+def test_senza_nessun_appuntamento_non_si_divide_per_zero():
+    celle = [c for s in costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]["settimane"] for c in s if c]
+    assert all(c["riempimento"] == 0 for c in celle)
+
+
+def test_oggi_il_giorno_scelto_e_i_giorni_passati_si_riconoscono():
+    mesi = costruisci_mesi(
+        date(2026, 9, 1), {}, _aperto_feriale,
+        oggi=date(2026, 9, 17), scelto=date(2026, 9, 22),
+    )
+    celle = {c["numero"]: c for s in mesi[0]["settimane"] for c in s if c}
+
+    assert celle[17]["oggi"] is True
+    assert celle[22]["scelto"] is True
+    assert celle[16]["passato"] is True
+    assert celle[18]["passato"] is False
+
+
+def test_i_giorni_di_chiusura_si_vedono():
+    """Mandare a prenotare di domenica è il modo più veloce di far perdere
+    tempo a chi ha il cliente in linea."""
+    domeniche = [
+        c
+        for s in costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]["settimane"]
+        for c in s
+        if c and date(2026, 9, c["numero"]).weekday() == 6
+    ]
+    assert domeniche and all(c["aperto"] is False for c in domeniche)

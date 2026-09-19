@@ -396,6 +396,73 @@ def costruisci_settimana(
     }
 
 
+MESI = [
+    "Gennaio", "Febbraio", "Marzo", "Aprile", "Maggio", "Giugno",
+    "Luglio", "Agosto", "Settembre", "Ottobre", "Novembre", "Dicembre",
+]
+
+
+def costruisci_mesi(
+    dal: date,
+    carico: dict,
+    aperto_il,
+    oggi: date | None = None,
+    scelto: date | None = None,
+    quanti: int = 2,
+) -> list[dict]:
+    """Due mesi come un calendario da muro, con quanto è pieno ogni giorno.
+
+    Sostituisce il campo "vai a un'altra data", che sapeva portare da qualche
+    parte ma non dove conveniva andare: per trovare il primo giorno scarico si
+    tiravano a indovinare date una per volta. Qui la distribuzione si vede
+    prima di scegliere — due mesi bastano, perché nessuno prenota un taglio a
+    tre mesi.
+
+    Il riempimento è **relativo al giorno più carico dei due mesi**, non a una
+    capienza teorica: il numero di poltrone cambia con le presenze, e una
+    percentuale calcolata su una capienza sbagliata direbbe "pieno" dove c'è
+    posto. Relativo risponde alla domanda vera, che è "dove c'è meno gente".
+    """
+    import calendar
+
+    massimo = max(carico.values(), default=0)
+    mesi = []
+    primo = dal.replace(day=1)
+
+    for _ in range(quanti):
+        giorni_del_mese = calendar.monthrange(primo.year, primo.month)[1]
+        # Le caselle vuote prima del primo: il mese comincia di lunedì nella
+        # colonna del lunedì, altrimenti le settimane non si leggono in riga.
+        celle: list = [None] * primo.weekday()
+        for numero in range(1, giorni_del_mese + 1):
+            giorno = date(primo.year, primo.month, numero)
+            quanti_appuntamenti = carico.get(giorno, 0)
+            celle.append(
+                {
+                    "iso": giorno.isoformat(),
+                    "numero": numero,
+                    "quanti": quanti_appuntamenti,
+                    "riempimento": round(quanti_appuntamenti / massimo, 2) if massimo else 0,
+                    "aperto": aperto_il(giorno),
+                    "oggi": giorno == oggi,
+                    "scelto": giorno == scelto,
+                    "passato": oggi is not None and giorno < oggi,
+                }
+            )
+        while len(celle) % 7:
+            celle.append(None)
+
+        mesi.append(
+            {
+                "nome": f"{MESI[primo.month - 1]} {primo.year}",
+                "settimane": [celle[i : i + 7] for i in range(0, len(celle), 7)],
+            }
+        )
+        primo = date(primo.year + primo.month // 12, primo.month % 12 + 1, 1)
+
+    return mesi
+
+
 def legenda(ordine_servizi: list[str], usati: set[str]) -> list[dict]:
     """I colori dei servizi presenti nella giornata, nell'ordine del listino."""
     return [

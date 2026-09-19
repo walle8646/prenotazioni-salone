@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Request, Form, Depends, File, HTTPException, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import delete, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import selectinload
 from datetime import datetime, date, timedelta
 from models.database import get_db
@@ -173,6 +173,7 @@ async def prenota(
     request: Request,
     data: str = None,
     operatore: str = None,
+    vista: str = None,
     creato: int = 0,
     errore: str = None,
     db=Depends(get_db),
@@ -205,29 +206,32 @@ async def prenota(
     # ricade su tutti, che è quello che la pagina faceva prima delle chips.
     scelto = operatore if operatore in operatori else None
 
-    if scelto:
+    # Scelto un operatore si guarda la sua settimana; toccando un giorno sul
+    # calendario dei mesi si scende su quel giorno solo, con lui o con tutti.
+    settimanale = bool(scelto) and vista != "giorno"
+
+    if settimanale:
         giorni = [target_date + timedelta(days=i) for i in range(7)]
         liberi, nota_liberi = await _posti_della_settimana(scelto, giorni, adesso)
-        vista = await _settimana_di(db, scelto, giorni, adesso, liberi)
+        contenuto = await _settimana_di(db, scelto, giorni, adesso, liberi)
     else:
-        liberi, nota_liberi = await _dove_c_e_posto(target_date, adesso)
-        vista = await _giornata(db, target_date, adesso, liberi=liberi)
+        liberi, nota_liberi = await _dove_c_e_posto(target_date, adesso, operatore=scelto)
+        contenuto = await _giornata(db, target_date, adesso, liberi=liberi, solo=scelto)
 
     return templates.TemplateResponse(
         "prenota.html",
         {
             "request": request,
             "data_selezionata": target_date,
-            **vista,
-            **_striscia(
-                target_date,
-                # Con un operatore scelto la striscia non si mostra — i sette
-                # giorni sono già le colonne — e il suo conteggio non si chiede.
-                [] if scelto else await _settimana(db, target_date),
-                "/admin/prenota",
-                filtro=f"&operatore={quote(scelto)}" if scelto else "",
-            ),
+            **contenuto,
+            "mesi": await _due_mesi(db, target_date, adesso, scelto),
+            "dove": "/admin/prenota",
+            "filtro": f"&operatore={quote(scelto)}" if scelto else "",
+            "settimana_prima": (target_date - timedelta(days=7)).isoformat(),
+            "settimana_dopo": (target_date + timedelta(days=7)).isoformat(),
+            "intestazione_settimana": _intestazione_settimana(target_date),
             "titolo_giornata": _in_italiano(target_date),
+            "vista_settimana": settimanale,
             "nota_liberi": nota_liberi,
             "operatori": operatori,
             "operatore_scelto": scelto,
@@ -256,6 +260,65 @@ def _striscia(giorno: date, settimana: list[dict], dove: str, filtro: str = "") 
         # inservibili proprio mentre si cerca un posto per quella persona.
         "filtro": filtro,
     }
+
+
+async def _due_mesi(db, giorno: date, adesso: datetime, operatore: str | None = None) -> list:
+    """Il mese di quel giorno e il successivo, con quanto è pieno ogni giorno.
+
+    Due e non uno perché a fine mese metà della finestra utile sarebbe già
+    fuori; due e non tre perché un taglio a novanta giorni non lo prenota
+    nessuno, e tre calendari su un telefono non ci stanno.
+    """
+    from services.agenda import costruisci_mesi
+    from services.slots import chiusure, orari_salone
+
+    primo = giorno.replace(day=1)
+    secondo = date(primo.year + primo.month // 12, primo.month % 12 + 1, 1)
+    oltre = date(secondo.year + secondo.month // 12, secondo.month % 12 + 1, 1)
+
+    orari = orari_salone()
+    ferie = chiusure()
+
+    def aperto_il(quando: date) -> bool:
+        return bool(orari.get(quando.weekday())) and quando.isoformat() not in ferie
+
+    return costruisci_mesi(
+        primo,
+        await _carico(db, primo, oltre, operatore),
+        aperto_il,
+        oggi=adesso.date(),
+        scelto=giorno,
+    )
+
+
+async def _carico(db, dal: date, a: date, operatore: str | None = None) -> dict:
+    """Quanti appuntamenti ha ogni giorno, in una query sola.
+
+    Sessanta giorni contati uno per uno sarebbero sessanta query per disegnare
+    due calendari: è lo stesso motivo per cui la striscia dei sette giorni ne
+    fa una sola.
+    """
+    quando = func.date(Appuntamento.data_ora)
+    query = (
+        select(quando, func.count())
+        .where(
+            Appuntamento.data_ora >= datetime.combine(dal, datetime.min.time()),
+            Appuntamento.data_ora < datetime.combine(a, datetime.min.time()),
+            Appuntamento.stato == "Confermato",
+        )
+        .group_by(quando)
+    )
+    if operatore:
+        query = query.join(Appuntamento.parrucchiere).where(
+            Parrucchiere.nome == operatore
+        )
+
+    carico: dict[date, int] = {}
+    for giorno, quanti in (await db.execute(query)).all():
+        # Postgres restituisce una data, SQLite una stringa: la chiave deve
+        # essere sempre dello stesso tipo o il calendario non trova niente.
+        carico[date.fromisoformat(giorno) if isinstance(giorno, str) else giorno] = quanti
+    return carico
 
 
 async def _settimana_di(
@@ -349,7 +412,9 @@ async def _posti_della_settimana(
     return liberi, None
 
 
-async def _giornata(db, giorno: date, adesso: datetime, liberi=None) -> dict:
+async def _giornata(
+    db, giorno: date, adesso: datetime, liberi=None, solo: str | None = None
+) -> dict:
     """Gli appuntamenti di una giornata e la griglia che li disegna.
 
     In una funzione sola perché la mostrano due schermate: una griglia
@@ -361,7 +426,7 @@ async def _giornata(db, giorno: date, adesso: datetime, liberi=None) -> dict:
     from services.presenze import e_in_salone
     from services.slots import orari_salone
 
-    result = await db.execute(
+    query = (
         select(Appuntamento)
         .options(
             selectinload(Appuntamento.cliente),
@@ -374,7 +439,9 @@ async def _giornata(db, giorno: date, adesso: datetime, liberi=None) -> dict:
         )
         .order_by(Appuntamento.data_ora)
     )
-    appuntamenti = result.scalars().all()
+    if solo:
+        query = query.join(Appuntamento.parrucchiere).where(Parrucchiere.nome == solo)
+    appuntamenti = (await db.execute(query)).scalars().all()
 
     def prezzo_di(app) -> str:
         """Prezzo pattuito alla prenotazione; per i vecchi record lo ricava dal listino."""
@@ -394,7 +461,9 @@ async def _giornata(db, giorno: date, adesso: datetime, liberi=None) -> dict:
     agenda = costruisci_agenda(
         appuntamenti,
         giorno=giorno,
-        operatori=list(get_parrucchieri_map_cached()),
+        # Con un operatore scelto resta la sua colonna sola: le altre cinque
+        # direbbero di chi non si sta parlando.
+        operatori=[solo] if solo else list(get_parrucchieri_map_cached()),
         orari_del_giorno=orari_salone().get(giorno.weekday(), []),
         e_in_salone=e_in_salone,
         prezzo_di=prezzo_di,

@@ -1805,6 +1805,104 @@ body {
     box-shadow: none;
 }
 
+/* Un operatore solo: la colonna non si stira su tutto lo schermo, o l'occhio
+   attraversa mille pixel per restare sulla stessa mezz'ora. */
+.agenda-stretta {
+    max-width: 28rem;
+}
+
+/* I due mesi. Il riempimento di ogni giorno e' una barretta sotto il numero:
+   il numero esatto sta nel title, perche' in una casella da trenta pixel due
+   cifre in piu' si leggono peggio di una barra lunga il doppio. */
+.mesi {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.2rem;
+    margin-bottom: 1rem;
+    padding: 0.9rem 1rem;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.mese-nome {
+    font-weight: 600;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+}
+
+.mese-griglia {
+    display: grid;
+    grid-template-columns: repeat(7, 2.1rem);
+    gap: 2px;
+}
+
+.mese-testa {
+    text-align: center;
+    font-size: 0.68rem;
+    color: #8a97a4;
+    text-transform: uppercase;
+}
+
+.mese-giorno {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 2.1rem;
+    border-radius: 5px;
+    background: #f2f5f8;
+    color: #2c3e50;
+    font-size: 0.82rem;
+    font-variant-numeric: tabular-nums;
+    text-decoration: none;
+}
+
+a.mese-giorno:hover {
+    outline: 2px solid #2f80c4;
+}
+
+.mese-carico {
+    position: absolute;
+    left: 3px;
+    bottom: 3px;
+    height: 3px;
+    border-radius: 2px;
+    /* Larghezza proporzionale al giorno piu' carico dei due mesi: la domanda
+       vera non e' "quanto e' pieno" ma "dove c'e' meno gente". */
+    width: calc((100% - 6px) * var(--carico));
+    background: #d98b6a;
+}
+
+.mese-vuoto {
+    height: 2.1rem;
+}
+
+.mese-chiuso {
+    background: repeating-linear-gradient(
+        -45deg, #f4f6f8, #f4f6f8 3px, #e8ecf0 3px, #e8ecf0 6px
+    );
+    color: #b6c0c9;
+}
+
+.mese-passato {
+    opacity: 0.5;
+}
+
+.mese-oggi {
+    box-shadow: inset 0 0 0 1px #2f80c4;
+    font-weight: 700;
+}
+
+.mese-scelto {
+    background: #2c3e50;
+    color: white;
+}
+
+.mese-scelto .mese-carico {
+    background: #ffc9a8;
+}
+
 /* Le chips: per chi si sta prenotando. Sceglierne uno cambia il significato
    delle colonne — da operatori a giorni — quindi devono stare in cima e
    dichiarare da sole quale delle due viste e' accesa. */

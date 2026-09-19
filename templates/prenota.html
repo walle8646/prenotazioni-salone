@@ -7,7 +7,8 @@
    servono a leggere la giornata, servono a sapere dove non c'è posto. #}
 <div class="dashboard">
     <h2>Prenota —
-        {%- if operatore_scelto %} {{ operatore_scelto }}, {{ intestazione_settimana }}
+        {%- if vista_settimana %} {{ operatore_scelto }}, {{ intestazione_settimana }}
+        {%- elif operatore_scelto %} {{ operatore_scelto }}, {{ titolo_giornata | lower }}
         {%- else %} {{ titolo_giornata }}{% endif %}</h2>
 
     {# Chi cerca posto per una persona sola non vuole sei colonne: ne vuole
@@ -25,45 +26,60 @@
         {% endfor %}
     </nav>
 
-    <div class="calendario"{% if operatore_scelto %} hidden{% endif %}>
-        <div class="calendario-testata">
-            <a class="calendario-freccia" href="{{ dove }}?data={{ settimana_prima }}{{ filtro }}"
-               title="Sette giorni indietro" aria-label="Sette giorni indietro">‹</a>
-            <span class="calendario-mese">{{ intestazione_settimana }}</span>
-            <a class="calendario-freccia" href="{{ dove }}?data={{ settimana_dopo }}{{ filtro }}"
-               title="Sette giorni avanti" aria-label="Sette giorni avanti">›</a>
-        </div>
+    {# Due mesi interi al posto del campo "vai a un'altra data": quello sapeva
+       portare da qualche parte, ma non dove conveniva andare. Per trovare il
+       primo giorno scarico si tiravano a indovinare date una per volta, mentre
+       qui la distribuzione si vede prima di scegliere. #}
+    <div class="mesi">
+        {% for m in mesi %}
+        <div class="mese">
+            <p class="mese-nome">{{ m.nome }}</p>
+            <div class="mese-griglia">
+                {% for g in ["L", "M", "M", "G", "V", "S", "D"] %}
+                <span class="mese-testa" aria-hidden="true">{{ g }}</span>
+                {% endfor %}
 
-        <div class="settimana">
-            {% for g in settimana %}
-            <a class="giorno{{ ' giorno-scelto' if g.scelto }}{{ ' giorno-chiuso' if not g.aperto }}{{ ' giorno-oggi' if g.oggi }}"
-               href="{{ dove }}?data={{ g.iso }}{{ filtro }}">
-                <span class="giorno-nome">{{ g.nome }}</span>
-                <span class="giorno-numero">{{ g.numero }}</span>
-                <span class="giorno-quanti">
-                    {%- if not g.aperto -%}
-                        chiuso
-                    {%- elif g.quanti -%}
-                        {{ g.quanti }} appunt.
-                    {%- else -%}
-                        libero
-                    {%- endif -%}
-                </span>
-            </a>
-            {% endfor %}
+                {% for settimana in m.settimane %}
+                {% for c in settimana %}
+                {% if not c %}
+                <span class="mese-vuoto"></span>
+                {% elif not c.aperto %}
+                {# Un giorno di chiusura non si tocca: mandare a cercare posto
+                   di domenica fa perdere tempo a chi ha il cliente in linea. #}
+                <span class="mese-giorno mese-chiuso" title="Chiuso">{{ c.numero }}</span>
+                {% else %}
+                <a class="mese-giorno{{ ' mese-scelto' if c.scelto }}{{ ' mese-oggi' if c.oggi }}{{ ' mese-passato' if c.passato }}"
+                   href="{{ dove }}?data={{ c.iso }}&amp;vista=giorno{{ filtro }}"
+                   style="--carico: {{ c.riempimento }};"
+                   title="{{ c.quanti }} appuntament{{ 'o' if c.quanti == 1 else 'i' }}">
+                    {{ c.numero }}
+                    <span class="mese-carico" aria-hidden="true"></span>
+                </a>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+            </div>
         </div>
+        {% endfor %}
     </div>
 
     <div class="barra-giornata">
-        <form class="date-picker" method="GET" action="/admin/prenota">
-            <input type="date" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
-            <button type="submit" class="btn-small">Vai a un'altra data</button>
-        </form>
-
         {% if operatore_scelto %}
+        {# Scelto un operatore si guarda la sua settimana; toccando un giorno
+           sul calendario si scende su quel giorno solo. Le due viste si
+           dichiarano, invece di dipendere da come ci si è arrivati. #}
+        <nav class="scelta-vista" aria-label="Come guardare">
+            <a href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}{{ filtro }}"
+               {% if vista_settimana %}aria-current="page"{% endif %}>Settimana</a>
+            <a href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}&amp;vista=giorno{{ filtro }}"
+               {% if not vista_settimana %}aria-current="page"{% endif %}>Solo questo giorno</a>
+        </nav>
+        {% endif %}
+
+        {% if vista_settimana %}
         <nav class="scelta-vista" aria-label="Cambia settimana">
-            <a href="{{ dove }}?data={{ settimana_prima }}{{ filtro }}">‹ Settimana prima</a>
-            <a href="{{ dove }}?data={{ settimana_dopo }}{{ filtro }}">Settimana dopo ›</a>
+            <a href="{{ dove }}?data={{ settimana_prima }}{{ filtro }}">‹ Prima</a>
+            <a href="{{ dove }}?data={{ settimana_dopo }}{{ filtro }}">Dopo ›</a>
         </nav>
         {% endif %}
 
@@ -94,7 +110,8 @@
     {% endif %}
 
     <div class="agenda-scorre">
-        <div class="agenda" style="--righe: {{ agenda.righe }}; --colonne: {{ agenda.colonne | length }};">
+        <div class="agenda{{ ' agenda-stretta' if agenda.colonne | length == 1 }}"
+             style="--righe: {{ agenda.righe }}; --colonne: {{ agenda.colonne | length }};">
             <div class="agenda-testata">
                 <div class="agenda-angolo"></div>
                 {% for c in agenda.colonne %}
@@ -106,6 +123,8 @@
                     <small>
                         {%- if c.aperto is defined and not c.aperto -%}
                             chiuso
+                        {%- elif c.liberi | length == 1 -%}
+                            1 libero
                         {%- else -%}
                             {{ c.liberi | length }} liberi
                         {%- endif -%}
@@ -130,11 +149,12 @@
                     {# Con una settimana davanti l'intestazione è un giorno, non
                        una persona: chi riceve resta quello scelto in cima. #}
                     {% set chi = operatore_scelto or c.nome %}
+                    {% set col_giorno = vista_settimana %}
                     {% for l in c.liberi %}
                     <button type="button" class="agenda-libero"
                             style="--da: {{ l.da }};"
                             data-slot="{{ l.slot }}" data-operatore="{{ chi }}"
-                            data-etichetta="{% if operatore_scelto %}{{ c.nome }} · {% endif %}{{ l.ora }} con {{ chi }}"
+                            data-etichetta="{% if col_giorno %}{{ c.nome }} · {% endif %}{{ l.ora }} con {{ chi }}"
                             title="Prenota alle {{ l.ora }} con {{ chi }}">
                         <span>{{ l.ora }}</span>
                     </button>
