@@ -603,9 +603,20 @@ luminosità per poterci scrivere sopra, ma la tinta è quella. Stanno tutti in
 `--arancio`): chi cambia una tinta la cambia lì, non nelle duemila righe
 sotto. Due regole che tengono: **il rosso resta solo per gli errori**, perché
 è l'unico colore che qui vuol dire "attenzione" e usarlo per il marchio lo
-renderebbe muto; e **l'arancio dice "adesso" e "quanto"** — linea dell'ora
-corrente, giorno di oggi, barrette del carico, voce di menù dove si è. Speso
-anche per altro smetterebbe di significare qualcosa. Il `theme_color` del
+renderebbe muto; e **il verde è la struttura, l'arancio è quello che si
+tocca** — barra, intestazioni e stato in verde; bottoni, voce di menù dove si
+è, linea dell'ora corrente e barrette del carico in arancio. Divisi così si
+riconoscono senza leggere.
+
+La prima versione teneva l'arancio per tre filetti sottili e il resto tutto
+verde scuro: sullo schermo somigliava al blu di prima e il cambio **non si
+vedeva**. Da lì una regola che vale oltre questo pannello: un colore usato
+solo nei dettagli non cambia niente, perché quello che decide di che colore
+sembra una schermata sono le due o tre superfici più grandi — qui il fondo
+della pagina e la barra. L'arancio dei bottoni è più scuro di quello delle
+foto per un motivo misurabile: sul chiaro il bianco sopra stava a 2,9 contro
+1, sotto la soglia di leggibilità; così sta a 4,9, e la tinta è la stessa. Il
+`theme_color` del
 manifest è lo stesso verde: installata sul telefono, la cornice la disegna il
 sistema, e un blu rimasto indietro si vedrebbe attaccato al menù.
 
