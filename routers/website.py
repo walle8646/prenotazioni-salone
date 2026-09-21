@@ -205,7 +205,7 @@ async def manifest():
             # Lo stesso verde della barra: installata sul telefono, la cornice
             # dell'applicazione la disegna il sistema con questo colore, e un
             # blu rimasto indietro si vedrebbe attaccato al verde del menù.
-            "theme_color": "#0f3f49",
+            "theme_color": "#0f5746",
             "lang": "it",
             "icons": [
                 {"src": "/static/img/app-192.png", "sizes": "192x192", "type": "image/png"},

@@ -7,11 +7,15 @@
        e' luce: qui e' portato a meta' luminosita' per poterci scrivere sopra,
        ma la tinta e' la stessa. Chi cambia una tinta la cambia qui, non nelle
        duemila righe sotto. */
-    --verde-scuro: #0e4a56;
-    --verde: #1b6675;
-    --verde-vivo: #2a8496;
-    --verde-tenue: #e4f0f1;
-    --verde-fondo: #eef4f4;
+    /* Tinta 166 e non 190: la pelle delle poltrone, misurata, sta sul verde
+       petrolio, che a schermo pende dal lato del blu. Spostata di due dozzine
+       di gradi verso il verde resta la stessa famiglia — e si riconosce per
+       quello che e'. Bianco su verde scuro: 8,5 contro 1. */
+    --verde-scuro: #0f5746;
+    --verde: #1d725e;
+    --verde-vivo: #2d957d;
+    --verde-tenue: #e5f0ed;
+    --verde-fondo: #f0f4f3;
 
     /* L'arancio dei bottoni e' piu' scuro di quello delle foto per un motivo
        misurabile: sul chiaro il bianco sopra non si leggeva (2,9 contro 1).
