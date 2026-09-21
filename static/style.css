@@ -7,18 +7,23 @@
        e' luce: qui e' portato a meta' luminosita' per poterci scrivere sopra,
        ma la tinta e' la stessa. Chi cambia una tinta la cambia qui, non nelle
        duemila righe sotto. */
-    --verde-scuro: #0f3f49;
-    --verde: #1b5c69;
-    --verde-vivo: #2a7d8d;
-    --verde-tenue: #e7f1f2;
+    --verde-scuro: #0e4a56;
+    --verde: #1b6675;
+    --verde-vivo: #2a8496;
+    --verde-tenue: #e4f0f1;
+    --verde-fondo: #eef4f4;
 
-    --arancio: #d98b3f;
-    --arancio-scuro: #b26e2a;
+    /* L'arancio dei bottoni e' piu' scuro di quello delle foto per un motivo
+       misurabile: sul chiaro il bianco sopra non si leggeva (2,9 contro 1).
+       Cosi' sta a 4,9 contro 1, sopra la soglia. La tinta e' la stessa. */
+    --arancio: #d9822b;
+    --arancio-scuro: #b0631f;
+    --arancio-cupo: #8f4f16;
     --arancio-tenue: #fbefe2;
 
     /* Il rosso resta rosso: e' l'unico colore che in questo pannello vuol
        dire "attenzione", e riusarlo per il marchio lo renderebbe muto. */
-    --allarme: var(--allarme);
+    --allarme: #c0392b;
 
     --barra: 15rem;
     --barra-stretta: 4.25rem;
@@ -32,7 +37,9 @@
 
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #f5f7fa;
+    /* Grigio con una punta di verde invece che di blu: e' la superficie piu'
+       grande della schermata, e da sola decide di che colore sembra tutto. */
+    background: var(--verde-fondo);
     color: var(--verde-scuro);
     line-height: 1.6;
 }
@@ -143,9 +150,8 @@ body.barra-ridotta .barra {
 /* Dov'è chi guarda: il verde da solo si confonde col fondo della barra, e
    l'arancio sul bordo si vede anche quando le voci sono solo icone. */
 .barra-voci a[aria-current="page"] {
-    background: var(--verde);
+    background: var(--arancio-scuro);
     color: white;
-    box-shadow: inset 3px 0 0 var(--arancio);
 }
 
 .barra-fondo {
@@ -230,7 +236,7 @@ body.barra-ridotta .barra-stringi .ic {
 .btn-primary {
     width: 100%;
     padding: 0.8rem;
-    background: var(--verde);
+    background: var(--arancio-scuro);
     color: white;
     border: none;
     border-radius: 4px;
@@ -245,7 +251,7 @@ body.barra-ridotta .barra-stringi .ic {
 
 .btn-small {
     padding: 0.4rem 0.8rem;
-    background: var(--verde-vivo);
+    background: var(--arancio-scuro);
     color: white;
     border: none;
     border-radius: 4px;
@@ -255,7 +261,7 @@ body.barra-ridotta .barra-stringi .ic {
 }
 
 .btn-small:hover {
-    background: #2980b9;
+    background: var(--arancio-cupo);
 }
 
 .error {
@@ -1516,7 +1522,7 @@ body.barra-ridotta .barra-stringi .ic {
     .risposta {
         position: sticky;
         bottom: 0;
-        background: #f5f7fa;
+        background: var(--verde-fondo);
         padding: 0.6rem 0 calc(0.6rem + env(safe-area-inset-bottom));
         margin: 0 0 0.6rem;
         box-shadow: 0 -8px 12px -8px rgba(0, 0, 0, 0.18);
