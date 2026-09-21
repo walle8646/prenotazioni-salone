@@ -580,6 +580,35 @@ ripensata; oggi il processo è uno solo.
 operatore a riposo spariscono dalle scelte del bot ma restano negli
 appuntamenti già fatti, che altrimenti diventerebbero illeggibili.
 
+**Il menù sta a sinistra e si riduce a icone** (`templates/base.html`,
+`.barra` nel foglio di stile). In cima rubava una fascia a tutta larghezza per
+dieci parole, e la cosa che su questo pannello serve di più è lo spazio in
+verticale: la griglia della giornata ci sta dentro per intero. Ridotto resta
+largo quattro dita e le voci restano raggiungibili — nascosto del tutto
+costringerebbe ad aprirlo a ogni passaggio. La scelta si ricorda in
+`localStorage` e **si applica prima che la pagina si disegni**, con lo script
+in cima al `<body>`: messa dopo, la barra si stringerebbe sotto gli occhi di
+chi sta già leggendo. Sul telefono la barra esce dallo schermo e si richiama
+col bottone: una colonna fissa larga quattro dita su 375 pixel lascerebbe al
+contenuto meno della metà. Le icone sono un foglio di `<symbol>` solo,
+richiamate per nome: disegnate dentro ogni voce sarebbero dieci copie da
+ritrovare una per una.
+
+**I colori vengono dalle fotografie del salone, non dal gusto di nessuno.**
+Il verde è quello della pelle delle poltrone — tinta 190°, misurata su
+`poltrona-1600.jpg` — e l'arancio è la luce calda dietro, tinta 32°. Nelle
+foto l'arancio è chiaro perché è luce: nella tavolozza è portato a metà
+luminosità per poterci scrivere sopra, ma la tinta è quella. Stanno tutti in
+`:root` come variabili (`--verde-scuro`, `--verde`, `--verde-vivo`,
+`--arancio`): chi cambia una tinta la cambia lì, non nelle duemila righe
+sotto. Due regole che tengono: **il rosso resta solo per gli errori**, perché
+è l'unico colore che qui vuol dire "attenzione" e usarlo per il marchio lo
+renderebbe muto; e **l'arancio dice "adesso" e "quanto"** — linea dell'ora
+corrente, giorno di oggi, barrette del carico, voce di menù dove si è. Speso
+anche per altro smetterebbe di significare qualcosa. Il `theme_color` del
+manifest è lo stesso verde: installata sul telefono, la cornice la disegna il
+sistema, e un blu rimasto indietro si vedrebbe attaccato al menù.
+
 Le righe di modifica non sono in una tabella: ogni riga è un form a sé, e un
 `<form>` dentro un `<tr>` non è HTML valido — il browser lo sposta fuori dalla
 tabella e i campi smettono di essere inviati. Le colonne le fa una griglia CSS.

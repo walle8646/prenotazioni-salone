@@ -6,7 +6,7 @@
        in fondo finisce sotto la tacca dell'iPhone. #}
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <link rel="manifest" href="/manifest.webmanifest">
-    <meta name="theme-color" content="#2c3e50">
+    <meta name="theme-color" content="#0f3f49">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Acconciature Simone">
@@ -15,24 +15,160 @@
     <link rel="stylesheet" href="/static/style.css?v={{ v }}">
 </head>
 <body>
-    <nav class="admin-nav">
-        <div class="nav-brand">Acconciature Simone — Pannello Admin</div>
-        <div class="nav-links">
-            <a href="/admin/dashboard">Appuntamenti</a>
-            <a href="/admin/prenota">Prenota</a>
-            <a href="/admin/conversazioni">Conversazioni</a>
-            <a href="/admin/clienti">Clienti</a>
-            <a href="/admin/servizi">Listino</a>
-            <a href="/admin/operatori">Operatori</a>
-            <a href="/admin/presenze">Presenze</a>
-            <a href="/admin/assenze">Assenze</a>
-            <a href="/admin/guida">Guida</a>
-            <a href="/admin/login">Logout</a>
+<script>
+    // Prima che si disegni qualcosa: la barra ridotta applicata dopo farebbe
+    // saltare la pagina di dieci centimetri sotto gli occhi di chi legge.
+    try {
+        if (localStorage.getItem("barra") === "stretta") {
+            document.body.classList.add("barra-ridotta");
+        }
+    } catch (e) { /* in incognito localStorage può non esserci: pazienza */ }
+</script>
+
+{# Le icone stanno in un foglio solo e si richiamano per nome: disegnate
+   dentro ogni voce sarebbero dieci volte lo stesso codice, e cambiarne una
+   vorrebbe dire ritrovarla. #}
+<svg class="icone-sorgente" aria-hidden="true" focusable="false">
+    <symbol id="ic-appuntamenti" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/>
+    </symbol>
+    <symbol id="ic-prenota" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="16" rx="2"/>
+        <path d="M8 3v4M16 3v4M3 10h18M12 13.5v5M9.5 16h5"/>
+    </symbol>
+    <symbol id="ic-conversazioni" viewBox="0 0 24 24">
+        <path d="M20.5 12a7.5 7.5 0 0 1-7.5 7.5H8l-4.5 3v-3.9A7.5 7.5 0 0 1 3.5 12 7.5 7.5 0 0 1 11 4.5h2A7.5 7.5 0 0 1 20.5 12Z"/>
+    </symbol>
+    <symbol id="ic-clienti" viewBox="0 0 24 24">
+        <circle cx="9" cy="8" r="3.2"/><path d="M2.8 20c0-3.4 2.8-5.6 6.2-5.6s6.2 2.2 6.2 5.6"/>
+        <path d="M16.2 5.3a3.2 3.2 0 0 1 0 5.9M17.8 14.9c2 .7 3.4 2.5 3.4 5.1"/>
+    </symbol>
+    <symbol id="ic-listino" viewBox="0 0 24 24">
+        <path d="M20.4 13.4 13 20.8a2 2 0 0 1-2.8 0l-6.6-6.6a2 2 0 0 1-.6-1.4V4.8a2 2 0 0 1 2-2h7.8a2 2 0 0 1 1.4.6l6.2 6.2a2 2 0 0 1 0 2.8Z"/>
+        <circle cx="7.6" cy="7.6" r="1.3"/>
+    </symbol>
+    <symbol id="ic-operatori" viewBox="0 0 24 24">
+        <circle cx="6" cy="6" r="2.6"/><circle cx="6" cy="18" r="2.6"/>
+        <path d="M8.2 7.7 20.5 18.4M20.5 5.6 8.2 16.3"/>
+    </symbol>
+    <symbol id="ic-presenze" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="8.6"/><path d="M12 6.8v5.4l3.4 2.1"/>
+    </symbol>
+    <symbol id="ic-assenze" viewBox="0 0 24 24">
+        <rect x="3" y="5" width="18" height="16" rx="2"/>
+        <path d="M8 3v4M16 3v4M3 10h18M9.6 14.6l4.8 4.8M14.4 14.6l-4.8 4.8"/>
+    </symbol>
+    <symbol id="ic-guida" viewBox="0 0 24 24">
+        <path d="M4 4.8A2 2 0 0 1 6 2.8h13.2v15.4H6a2 2 0 0 0-2 2Z"/>
+        <path d="M19.2 18.2v3H6a2 2 0 0 1 0-4"/>
+    </symbol>
+    <symbol id="ic-logout" viewBox="0 0 24 24">
+        <path d="M15 3.5h3.2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H15"/>
+        <path d="M9.8 8.2 6 12l3.8 3.8M6 12h10"/>
+    </symbol>
+    <symbol id="ic-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="ic-stringi" viewBox="0 0 24 24"><path d="M14 6.5 8.5 12l5.5 5.5"/></symbol>
+</svg>
+
+{# Sul telefono la barra sta fuori dallo schermo e si apre col bottone: una
+   colonna fissa larga quattro dita lascerebbe al contenuto meno della metà. #}
+<header class="barra-cima">
+    <button type="button" class="barra-apri" id="apri-barra"
+            aria-label="Apri il menù" aria-expanded="false" aria-controls="barra">
+        <svg class="ic" aria-hidden="true"><use href="#ic-menu"/></svg>
+    </button>
+    <span>Acconciature Simone</span>
+</header>
+
+<div class="guscio">
+    {% set qui = request.url.path if request else '' %}
+    {% set voci = [
+        ('/admin/dashboard', 'Appuntamenti', 'appuntamenti'),
+        ('/admin/prenota', 'Prenota', 'prenota'),
+        ('/admin/conversazioni', 'Conversazioni', 'conversazioni'),
+        ('/admin/clienti', 'Clienti', 'clienti'),
+        ('/admin/servizi', 'Listino', 'listino'),
+        ('/admin/operatori', 'Operatori', 'operatori'),
+        ('/admin/presenze', 'Presenze', 'presenze'),
+        ('/admin/assenze', 'Assenze', 'assenze'),
+        ('/admin/guida', 'Guida', 'guida'),
+    ] %}
+
+    <aside class="barra" id="barra">
+        <a class="barra-marchio" href="/admin/dashboard" title="Acconciature Simone">
+            <img src="/static/img/logo-piccolo.png?v={{ v }}" alt="" width="18" height="33">
+            <span>Acconciature Simone</span>
+        </a>
+
+        <nav class="barra-voci" aria-label="Sezioni del pannello">
+            {% for href, testo, icona in voci %}
+            <a href="{{ href }}" title="{{ testo }}"
+               {% if qui.startswith(href) %}aria-current="page"{% endif %}>
+                <svg class="ic" aria-hidden="true"><use href="#ic-{{ icona }}"/></svg>
+                <span>{{ testo }}</span>
+            </a>
+            {% endfor %}
+        </nav>
+
+        <div class="barra-fondo">
+            <a href="/admin/login" title="Esci">
+                <svg class="ic" aria-hidden="true"><use href="#ic-logout"/></svg>
+                <span>Esci</span>
+            </a>
+            <button type="button" class="barra-stringi" id="stringi-barra"
+                    aria-label="Riduci il menù a icone" aria-expanded="true">
+                <svg class="ic" aria-hidden="true"><use href="#ic-stringi"/></svg>
+                <span>Riduci</span>
+            </button>
         </div>
-    </nav>
+    </aside>
+
+    <div class="barra-velo" id="velo-barra" hidden></div>
+
     <main class="container">
         {% block content %}{% endblock %}
     </main>
-    {% block scripts %}{% endblock %}
+</div>
+
+<script>
+(function () {
+    var corpo = document.body;
+
+    // Ridotta o larga: la scelta resta, perché è una preferenza di chi lavora
+    // e rifarla a ogni pagina sarebbe peggio che non poterla fare.
+    var stringi = document.getElementById("stringi-barra");
+    stringi.addEventListener("click", function () {
+        var ridotta = corpo.classList.toggle("barra-ridotta");
+        stringi.setAttribute("aria-expanded", ridotta ? "false" : "true");
+        stringi.setAttribute("aria-label", ridotta ? "Allarga il menù" : "Riduci il menù a icone");
+        try {
+            localStorage.setItem("barra", ridotta ? "stretta" : "larga");
+        } catch (e) { /* niente memoria, niente danno */ }
+    });
+    if (corpo.classList.contains("barra-ridotta")) {
+        stringi.setAttribute("aria-expanded", "false");
+        stringi.setAttribute("aria-label", "Allarga il menù");
+    }
+
+    // Sul telefono si apre sopra la pagina e si richiude toccando fuori.
+    var apri = document.getElementById("apri-barra");
+    var velo = document.getElementById("velo-barra");
+
+    function mostra(aperta) {
+        corpo.classList.toggle("barra-aperta", aperta);
+        velo.hidden = !aperta;
+        apri.setAttribute("aria-expanded", aperta ? "true" : "false");
+    }
+
+    apri.addEventListener("click", function () {
+        mostra(!corpo.classList.contains("barra-aperta"));
+    });
+    velo.addEventListener("click", function () { mostra(false); });
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") mostra(false);
+    });
+})();
+</script>
+{% block scripts %}{% endblock %}
 </body>
 </html>

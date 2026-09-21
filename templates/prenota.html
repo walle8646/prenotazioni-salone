@@ -30,12 +30,16 @@
        portare da qualche parte, ma non dove conveniva andare. Per trovare il
        primo giorno scarico si tiravano a indovinare date una per volta, mentre
        qui la distribuzione si vede prima di scegliere. #}
-    <details class="mesi-scatola" id="mesi" open>
-        {# Sul telefono quattro mesi impilati sono novecento pixel prima di
-           arrivare alla griglia: lì partono chiusi, e li apre chi li cerca.
-           Sul monitor stanno in riga e restano aperti — sono lì apposta per
-           essere confrontati a colpo d'occhio. #}
-        <summary>Calendario dei prossimi quattro mesi</summary>
+    {# Sul telefono quattro mesi impilati sono novecento pixel prima di
+       arrivare alla griglia: lì partono chiusi e li apre chi li cerca. Sul
+       monitor stanno in riga e sono sempre aperti — il bottone non esiste
+       proprio, e la regola che li nasconde vive dentro la media query. Con un
+       <details> bastava una finestra stretta al caricamento per ritrovarseli
+       chiusi sul monitor, senza niente da toccare per riaprirli. #}
+    <div class="mesi-scatola" id="mesi">
+        <button type="button" class="mesi-mostra" id="mesi-mostra" aria-expanded="false">
+            Calendario dei prossimi quattro mesi
+        </button>
     <div class="mesi">
         {% for m in mesi %}
         <div class="mese">
@@ -68,14 +72,7 @@
         </div>
         {% endfor %}
     </div>
-    </details>
-
-    <script>
-        // Prima che si veda: aperto e poi richiuso farebbe saltare la pagina.
-        if (window.innerWidth <= 760) {
-            document.getElementById("mesi").open = false;
-        }
-    </script>
+    </div>
 
     <div class="barra-giornata">
         {% if operatore_scelto %}
@@ -278,6 +275,16 @@
 {% block scripts %}
 <script>
 (function () {
+    // I quattro mesi sul telefono: aperti solo se si chiedono.
+    var scatola = document.getElementById("mesi");
+    var mostra = document.getElementById("mesi-mostra");
+    if (scatola && mostra) {
+        mostra.addEventListener("click", function () {
+            var aperti = scatola.classList.toggle("mesi-aperti");
+            mostra.setAttribute("aria-expanded", aperti ? "true" : "false");
+        });
+    }
+
     // Toccando un'ora libera si apre il modulo già compilato con quando e con
     // chi: al telefono quei due dati si sono appena detti, e riscriverli è il
     // modo più facile di sbagliarli.
