@@ -204,6 +204,22 @@ l'operatore ha davanti quando il cliente entra. E l'email di conferma va
 sempre al titolare — un figlio non ne ha una — ma dice **per chi è**, o chi la
 riceve la legge come propria e si presenta il martedì mattina.
 
+**Le persone si correggono dalla scheda del cliente** (`/admin/cliente/{id}`,
+rotte `persone*` in `routers/admin.py`). Il nome l'ha dettato qualcuno a
+voce: "Lucca" al posto di "Luca" è un posto bruciato su tre, e senza una
+schermata non tornava più indietro. Da lì si rinomina, si aggiunge — il
+cliente al telefono dice "e anche per mio figlio" — e si toglie. **Togliere
+non è cancellare**, e la scelta la fa `cosa_fare_del_familiare()`, logica pura
+coi suoi test perché sbagliarla costa: chi ha un appuntamento **in programma**
+non si tocca (la scheda sparirebbe e il cliente si presenterebbe lo stesso,
+con nessuno in salone che sa chi è); chi ha solo **storico** esce dal contatto
+e libera il posto ma la scheda resta (buttare via gli appuntamenti già fatti
+per correggere un nome sarebbe il rimedio peggiore del male); chi non ha
+**niente** si cancella, perché è un nome scritto male e terrebbe occupato uno
+dei tre posti per sempre. La persona si tocca solo passando dal suo titolare
+(`_familiare_di()`): senza quel controllo basterebbe cambiare un numero
+nell'indirizzo per rinominare il familiare di un altro cliente.
+
 **Disdette e spostamenti valgono solo sui propri appuntamenti, e su quelli
 della propria famiglia.** Gli id sono progressivi: senza il controllo
 basterebbe dire "cancella il numero 3". Chi prenota per il figlio è però

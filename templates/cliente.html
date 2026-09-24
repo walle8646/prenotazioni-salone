@@ -5,17 +5,16 @@
 <div class="cliente-scheda">
     <h2>{{ cliente.nome or '' }} {{ cliente.cognome or '' }}</h2>
 
+    {% if errore %}
+    <p class="avviso-grave">{{ errore }}</p>
+    {% endif %}
+
     {# Un "Luca Rossi" senza telefono né email sembra una scheda sbagliata da
        cancellare, e invece è il figlio di qualcuno: qui si dice di chi. #}
     {% if titolare %}
     <p class="nota-liberi">
         Prenota attraverso <a href="/admin/cliente/{{ titolare.id }}">{{ titolare.nome or '' }} {{ titolare.cognome or '' }}</a>,
         che è il contatto di questa persona.
-    </p>
-    {% elif familiari %}
-    <p class="nota-liberi">
-        Prenota anche per:
-        {% for f in familiari %}<a href="/admin/cliente/{{ f.id }}">{{ f.nome or '' }} {{ f.cognome or '' }}</a>{{ ", " if not loop.last }}{% endfor %}.
     </p>
     {% endif %}
 
@@ -68,6 +67,64 @@
     </table>
     {% else %}
     <p class="empty-state">Nessun appuntamento registrato.</p>
+    {% endif %}
+
+    {# Le persone che prenotano attraverso questo contatto: figli, genitori,
+       chi non ha un telefono suo. Si correggono e si tolgono da qui, perché
+       il nome l'ha dettato qualcuno a voce e "Lucca" al posto di "Luca" è un
+       posto bruciato su tre. Ogni riga è un form a sé: un <form> dentro un
+       <tr> non è HTML valido e il browser lo sposta fuori dalla tabella. #}
+    {% if not titolare %}
+    <h3>Prenota anche per</h3>
+
+    {% if familiari %}
+    {% for f in familiari %}
+    {% set stato = stato_familiari.get(f.id) or {} %}
+    <div class="riga-gestione">
+        <form method="POST" action="/admin/cliente/{{ cliente.id }}/persone/{{ f.id }}"
+              class="griglia-persone">
+            <input type="text" name="nome" value="{{ f.nome or '' }}" required aria-label="Nome">
+            <input type="text" name="cognome" value="{{ f.cognome or '' }}" aria-label="Cognome">
+            <span class="nota">
+                {%- if stato.get('futuri') -%}
+                    ha un appuntamento in programma
+                {%- elif stato.get('quanti') -%}
+                    {{ stato['quanti'] }} appuntament{{ 'o' if stato['quanti'] == 1 else 'i' }} passat{{ 'o' if stato['quanti'] == 1 else 'i' }}
+                {%- else -%}
+                    nessun appuntamento
+                {%- endif -%}
+            </span>
+            <a class="btn-small btn-neutro" href="/admin/cliente/{{ f.id }}">Scheda</a>
+            <button type="submit" class="btn-small">Salva</button>
+        </form>
+        <form method="POST" action="/admin/cliente/{{ cliente.id }}/persone/{{ f.id }}/togli"
+              class="azione-secondaria"
+              onsubmit="return confirm('Tolgo {{ f.nome }} da questo contatto?{{ ' Gli appuntamenti gia fatti restano in archivio.' if stato.get('quanti') }}');">
+            <button type="submit" class="btn-small btn-neutro">Togli</button>
+        </form>
+    </div>
+    {% endfor %}
+    {% else %}
+    <p class="empty-state">Nessuna: questo contatto prenota solo per sé.</p>
+    {% endif %}
+
+    {% if posti_liberi %}
+    <div class="riga-gestione">
+        <form method="POST" action="/admin/cliente/{{ cliente.id }}/persone" class="griglia-persone">
+            <input type="text" name="nome" placeholder="Nome" required aria-label="Nome">
+            <input type="text" name="cognome" placeholder="Cognome" aria-label="Cognome">
+            <span class="nota">
+                se ne possono aggiungere ancora {{ posti_liberi }}
+            </span>
+            <span></span>
+            <button type="submit" class="btn-small">Aggiungi</button>
+        </form>
+    </div>
+    {% else %}
+    <p class="nota-liberi">
+        Sono già tre, il massimo. Per aggiungerne un'altra togli una di queste.
+    </p>
+    {% endif %}
     {% endif %}
 
     <a href="/admin/dashboard" class="btn-small">← Torna alla dashboard</a>

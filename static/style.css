@@ -2177,6 +2177,22 @@ a.mese-giorno:hover {
     box-shadow: inset 0 -2px 0 var(--verde-vivo);
 }
 
+/* Le persone di un contatto: nome, cognome, com'e' messa, e cosa farci.
+   Griglia e non tabella, perche' ogni riga e' un form. */
+.griglia-persone {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto auto auto;
+    gap: 0.5rem;
+    align-items: center;
+    flex: 1;
+}
+
+@media (max-width: 760px) {
+    .griglia-persone {
+        grid-template-columns: 1fr;
+    }
+}
+
 .nota-liberi {
     display: flex;
     align-items: center;

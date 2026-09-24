@@ -257,3 +257,63 @@ async def test_dal_sito_non_verificato_i_familiari_non_si_elencano(backends):
     assert errore is None
     assert persona["nuova"] is True, "non si conferma che Luca esiste già"
     assert persona["cliente_id"] is None
+
+
+# ------------------------------------------------- correggerle e toglierle
+#
+# Il nome l'ha dettato qualcuno a voce: "Lucca" al posto di "Luca" è un posto
+# bruciato su tre, e senza una schermata non tornava più indietro. Togliere
+# però non è sempre cancellare, ed è lì che si fa il danno.
+
+
+def test_chi_ha_un_appuntamento_in_programma_non_si_tocca():
+    """Sparirebbe la scheda e il cliente si presenterebbe lo stesso, con
+    nessuno in salone che sa chi è."""
+    from services.persone import TIENI, cosa_fare_del_familiare
+
+    assert cosa_fare_del_familiare(quanti=3, futuri=1) == TIENI
+    assert cosa_fare_del_familiare(quanti=1, futuri=1) == TIENI
+
+
+def test_chi_ha_solo_storico_esce_dal_contatto_ma_resta_in_anagrafica():
+    """Buttare via gli appuntamenti già fatti per correggere un nome sarebbe
+    il rimedio peggiore del male."""
+    from services.persone import STACCA, cosa_fare_del_familiare
+
+    assert cosa_fare_del_familiare(quanti=4, futuri=0) == STACCA
+
+
+def test_un_nome_scritto_male_si_cancella():
+    """Non ha niente attaccato, e lasciarlo terrebbe occupato uno dei tre
+    posti per sempre."""
+    from services.persone import CANCELLA, cosa_fare_del_familiare
+
+    assert cosa_fare_del_familiare(quanti=0, futuri=0) == CANCELLA
+
+
+@pytest.mark.asyncio
+async def test_non_si_rinomina_il_familiare_di_un_altro_contatto():
+    """Senza il controllo basterebbe cambiare un numero nell'indirizzo per
+    rinominare o cancellare la persona di un altro cliente."""
+    from types import SimpleNamespace
+
+    from routers.admin import _familiare_di
+
+    class FintoDb:
+        def __init__(self, riga):
+            self.riga = riga
+
+        async def execute(self, query):
+            riga = self.riga
+
+            class Risultato:
+                def scalar_one_or_none(self):
+                    return riga
+
+            return Risultato()
+
+    di_un_altro = SimpleNamespace(id=9, nome="Luca", titolare_id=77)
+
+    assert await _familiare_di(FintoDb(di_un_altro), 5, 9) is None
+    assert await _familiare_di(FintoDb(di_un_altro), 77, 9) is di_un_altro
+    assert await _familiare_di(FintoDb(None), 77, 9) is None

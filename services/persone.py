@@ -62,3 +62,29 @@ def stessa_persona(uno: str | None, altro: str | None) -> bool:
     trattarli come due persone diverse brucerebbe uno dei tre posti.
     """
     return (uno or "").strip().casefold() == (altro or "").strip().casefold()
+
+
+# Cosa farne di una persona che si vuole togliere da un contatto. Tre casi, e
+# uno solo e' una cancellazione: la decisione sta qui, fuori dalla rotta,
+# perche' sbagliarla vuol dire o perdere uno storico o lasciare in agenda un
+# appuntamento senza piu' nessuno a cui farlo risalire.
+TIENI = "tieni"
+STACCA = "stacca"
+CANCELLA = "cancella"
+
+
+def cosa_fare_del_familiare(quanti: int, futuri: int) -> str:
+    """Se una persona si può togliere dal contatto, e come.
+
+    - **tieni**: ha un appuntamento in programma. Non si tocca: la scheda
+      sparirebbe e il cliente si presenterebbe lo stesso, con nessuno in
+      salone che sa chi è.
+    - **stacca**: ha solo appuntamenti passati. Esce dal contatto e libera il
+      posto, ma la scheda resta: buttare via lo storico per correggere un nome
+      sarebbe il rimedio peggiore del male.
+    - **cancella**: non ha proprio niente. È un nome scritto male, e lasciarlo
+      terrebbe occupato uno dei tre posti per sempre.
+    """
+    if futuri:
+        return TIENI
+    return STACCA if quanti else CANCELLA

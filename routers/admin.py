@@ -19,7 +19,7 @@ templates = Jinja2Templates(directory="templates")
 
 # Appesa agli indirizzi dei file statici: senza, dopo un deploy il browser
 # continua a usare il foglio di stile che ha in cache.
-from services.persone import telefono_da_mostrare  # noqa: E402
+from services.persone import posti_liberi, telefono_da_mostrare  # noqa: E402
 from services.statici import VERSIONE as _VERSIONE_STATICI  # noqa: E402
 
 templates.env.globals["v"] = _VERSIONE_STATICI
@@ -577,7 +577,9 @@ async def _settimana(db, dal: date) -> list[dict]:
 
 
 @router.get("/cliente/{cliente_id}", response_class=HTMLResponse)
-async def scheda_cliente(request: Request, cliente_id: int, db=Depends(get_db)):
+async def scheda_cliente(
+    request: Request, cliente_id: int, errore: str = None, db=Depends(get_db)
+):
     user = verify_session(request)
     if not user:
         return RedirectResponse(url="/admin/login")
@@ -599,6 +601,7 @@ async def scheda_cliente(request: Request, cliente_id: int, db=Depends(get_db)):
             select(Cliente).where(Cliente.titolare_id == cliente.id).order_by(Cliente.id)
         )
     ).scalars().all()
+    stato_familiari = await _stato_dei_familiari(db, [f.id for f in familiari])
     titolare = None
     if cliente.titolare_id:
         titolare = (
@@ -611,10 +614,151 @@ async def scheda_cliente(request: Request, cliente_id: int, db=Depends(get_db)):
             "request": request,
             "cliente": cliente,
             "familiari": familiari,
+            "stato_familiari": stato_familiari,
+            "posti_liberi": posti_liberi(len(familiari)),
             "titolare": titolare,
             "telefono": telefono_da_mostrare(cliente.telefono_wa),
+            "errore": errore,
         },
     )
+
+
+async def _stato_dei_familiari(db, ids: list[int]) -> dict:
+    """Quanti appuntamenti ha ciascuno, e se ne ha di futuri.
+
+    Serve a decidere cosa si può togliere: una persona nata da un nome
+    sbagliato si cancella, una che ha già uno storico no — e una che ha un
+    appuntamento in programma non si tocca affatto, perché sparirebbe la
+    scheda mentre il cliente si presenta lo stesso.
+    """
+    if not ids:
+        return {}
+
+    from services.slots import adesso_salone
+
+    adesso = adesso_salone().replace(tzinfo=None)
+    righe = (
+        await db.execute(
+            select(Appuntamento).where(Appuntamento.cliente_id.in_(ids))
+        )
+    ).scalars().all()
+
+    stato = {i: {"quanti": 0, "futuri": 0} for i in ids}
+    for a in righe:
+        voce = stato[a.cliente_id]
+        voce["quanti"] += 1
+        if a.stato == "Confermato" and a.data_ora > adesso:
+            voce["futuri"] += 1
+    return stato
+
+
+@router.post("/cliente/{cliente_id}/persone")
+async def persona_aggiungi(
+    cliente_id: int,
+    nome: str = Form(...),
+    cognome: str = Form(""),
+    utente=Depends(utente_del_pannello),
+):
+    """Aggiunge a mano una persona a questo contatto.
+
+    Il cliente al telefono dice "e anche per mio figlio": senza questa riga
+    l'unico modo di crearlo sarebbe farglielo dire al bot.
+    """
+    from services.db_service import aggiungi_familiare
+
+    aggiunto = await aggiungi_familiare(cliente_id, nome, cognome)
+    if aggiunto is None:
+        return _torna_alla_scheda(
+            cliente_id, "A questo contatto fanno già capo tre persone."
+        )
+    return _torna_alla_scheda(cliente_id)
+
+
+@router.post("/cliente/{cliente_id}/persone/{familiare_id}")
+async def persona_rinomina(
+    cliente_id: int,
+    familiare_id: int,
+    nome: str = Form(...),
+    cognome: str = Form(""),
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Corregge il nome di una persona.
+
+    Serve perché il nome l'ha dettato qualcuno a voce: "Lucca" al posto di
+    "Luca" è un posto bruciato su tre, e senza questa schermata non tornava
+    più indietro.
+    """
+    familiare = await _familiare_di(db, cliente_id, familiare_id)
+    if familiare is None:
+        return _torna_alla_scheda(cliente_id, "Quella persona non è di questo contatto.")
+
+    familiare.nome = (nome or "").strip() or familiare.nome
+    familiare.cognome = (cognome or "").strip()
+    await db.commit()
+    return _torna_alla_scheda(cliente_id)
+
+
+@router.post("/cliente/{cliente_id}/persone/{familiare_id}/togli")
+async def persona_togli(
+    cliente_id: int,
+    familiare_id: int,
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Toglie una persona dal contatto, liberando il posto.
+
+    Tre casi diversi, e uno solo è una cancellazione. Chi ha un appuntamento
+    **in programma** non si tocca: la scheda sparirebbe e il cliente si
+    presenterebbe lo stesso, con nessuno che sa chi è. Chi ha solo storico
+    resta in anagrafica ma esce dal contatto — buttare via gli appuntamenti
+    già fatti per correggere un nome sarebbe il rimedio peggiore del male.
+    Solo chi non ha proprio niente si cancella: quello è un nome scritto male,
+    e lasciarlo terrebbe occupato uno dei tre posti per sempre.
+    """
+    familiare = await _familiare_di(db, cliente_id, familiare_id)
+    if familiare is None:
+        return _torna_alla_scheda(cliente_id, "Quella persona non è di questo contatto.")
+
+    from services.persone import CANCELLA, TIENI, cosa_fare_del_familiare
+
+    stato = (await _stato_dei_familiari(db, [familiare_id])).get(familiare_id, {})
+    scelta = cosa_fare_del_familiare(stato.get("quanti", 0), stato.get("futuri", 0))
+
+    if scelta == TIENI:
+        return _torna_alla_scheda(
+            cliente_id,
+            f"{familiare.nome} ha un appuntamento in programma: disdicilo prima, "
+            "altrimenti resta in agenda senza più nessuno a cui farlo risalire.",
+        )
+
+    if scelta == CANCELLA:
+        await db.delete(familiare)
+    else:
+        familiare.titolare_id = None
+    await db.commit()
+    return _torna_alla_scheda(cliente_id)
+
+
+async def _familiare_di(db, cliente_id: int, familiare_id: int):
+    """La persona, ma solo se è davvero di questo contatto.
+
+    Senza il controllo basterebbe cambiare un numero nell'indirizzo per
+    rinominare o cancellare il familiare di un altro cliente.
+    """
+    familiare = (
+        await db.execute(select(Cliente).where(Cliente.id == familiare_id))
+    ).scalar_one_or_none()
+    if familiare is None or familiare.titolare_id != cliente_id:
+        return None
+    return familiare
+
+
+def _torna_alla_scheda(cliente_id: int, errore: str | None = None):
+    indirizzo = f"/admin/cliente/{cliente_id}"
+    if errore:
+        indirizzo += f"?errore={quote(errore)}"
+    return RedirectResponse(indirizzo, 303)
 
 
 # --------------------------------------------------------------------- listino
