@@ -1008,14 +1008,139 @@ def _primo_appuntamento_futuro(appuntamenti: list[dict] | None) -> dict | None:
     return min(futuri, key=lambda a: a["data_ora"])
 
 
+def _prossimi_per_persona(appuntamenti: list | None, id_titolare=None) -> list[dict]:
+    """Il prossimo appuntamento di ciascuno, uno per persona.
+
+    Non il primo della famiglia: se il figlio ha un posto giovedì e il padre
+    non ne ha nessuno, dire "hai già un appuntamento" al padre lo manderebbe
+    via convinto di non poter prenotare.
+    """
+    righe = appuntamenti or []
+    per_persona: dict = {}
+    for riga in righe:
+        chi = riga.get("cliente_id")
+        per_persona.setdefault(chi, []).append(riga)
+
+    prossimi = []
+    for chi, sue in per_persona.items():
+        futuro = _primo_appuntamento_futuro(sue)
+        if not futuro:
+            continue
+        prossimi.append(
+            {
+                "app_id": futuro.get("app_id"),
+                "data_ora": futuro.get("data_ora"),
+                "servizi": futuro.get("servizi"),
+                "parrucchiere": futuro.get("parrucchiere"),
+                "gcal_event_id": futuro.get("gcal_event_id"),
+                "per": futuro.get("per") or "",
+                # Senza id — anagrafica di prima della famiglia — l'unica
+                # persona possibile è il titolare.
+                "e_titolare": chi is None or chi == id_titolare,
+            }
+        )
+    return sorted(prossimi, key=lambda a: a.get("data_ora") or "")
+
+
+def _appuntamenti_di_persona(
+    appuntamenti: list | None, persona: dict, id_titolare=None
+) -> list:
+    """Solo quelli di questa persona, quando si sa distinguerli.
+
+    Le righe portano `cliente_id` da quando lo stesso contatto può coprire più
+    persone. Se non lo portano — anagrafica vecchia, o ricerca fatta col
+    contatto che il cliente sta scrivendo adesso, senza identità provata — si
+    torna al comportamento di prima: valgono tutti, e il doppione resta
+    impossibile. Sbagliare in questa direzione rifiuta una prenotazione buona;
+    sbagliare nell'altra ne accetta una doppia, e quella si scopre in salone.
+    """
+    righe = appuntamenti or []
+    atteso = persona.get("cliente_id") or (id_titolare if persona.get("titolare") else None)
+    if not atteso or not any(a.get("cliente_id") for a in righe):
+        return righe
+    return [a for a in righe if a.get("cliente_id") == atteso]
+
+
+async def _per_chi_si_prenota(
+    action: dict, phone: str, session: dict, backends, nome: str, email: str,
+    telefono: str | None,
+) -> tuple[dict, dict | None]:
+    """Chi si siede sulla poltrona: chi scrive, o una persona che gli fa capo.
+
+    Un contatto solo copre fino a quattro persone — il titolare e tre
+    familiari — perché chi prenota per i figli non ha un telefono per ciascuno.
+    Il nome arriva dal modello, ma **non è mai un contatto**: vale solo dentro
+    la famiglia di chi sta scrivendo, e chi non c'è viene creato lì dentro. Se
+    fosse un'email o un numero, basterebbe scrivere quello di un conoscente per
+    prenotare a suo nome — o per scoprire quando va dal barbiere.
+
+    Dal sito prima della verifica si può **aggiungere** una persona nuova ma
+    non sceglierne una che c'è già: aggiungere non rivela niente, mentre
+    riconoscere "Luca" direbbe a chiunque abbia indovinato un indirizzo email
+    chi c'è dentro quella famiglia.
+    """
+    from services.persone import stessa_persona
+
+    per = (action.get("per") or "").strip()
+    io_stesso = {"per": nome, "cliente_id": None, "titolare": True, "nuova": False}
+    if not per or stessa_persona(per, nome):
+        return io_stesso, None
+
+    identificato = _identita_provata(phone, session)
+    trovato = await _appuntamenti_del_richiedente(phone, session, backends)
+    familiari = (trovato or {}).get("familiari") or []
+
+    if identificato:
+        for familiare in familiari:
+            if stessa_persona(familiare.get("nome"), per):
+                return (
+                    {
+                        "per": familiare.get("nome") or per,
+                        "cliente_id": familiare.get("id"),
+                        "titolare": False,
+                        "nuova": False,
+                    },
+                    None,
+                )
+        # Anche il titolare può essere chiamato per nome dal modello.
+        suo = (trovato or {}).get("cliente") or {}
+        if stessa_persona(suo.get("nome"), per):
+            return io_stesso, None
+
+    from services.persone import MASSIMO_FAMILIARI, posti_liberi
+
+    if posti_liberi(len(familiari)) <= 0:
+        elenco = ", ".join(f.get("nome") or "?" for f in familiari)
+        return io_stesso, {
+            "errore": (
+                f"A questo contatto fanno già capo {MASSIMO_FAMILIARI} persone"
+                + (f" ({elenco})" if identificato else "")
+                + ". Non se ne possono aggiungere altre: di' al cliente che per "
+                "una persona in più serve un contatto suo, oppure che può "
+                "prenotare per una di quelle."
+            )
+        }
+
+    return (
+        {"per": per, "cliente_id": None, "titolare": False, "nuova": True},
+        None,
+    )
+
+
 async def _appuntamento_futuro_di_chi_prenota(
-    phone: str, session: dict, backends, email: str, telefono: str | None
+    phone: str, session: dict, backends, email: str, telefono: str | None,
+    persona: dict | None = None,
 ) -> dict | None:
     """Il risultato da restituire se questo cliente ha già un appuntamento.
 
     Chi ne ha uno non ne prende un altro: lo sposta. Prima non c'era nessun
     controllo e la stessa persona è finita due volte sulla stessa mezz'ora, con
     due operatori diversi — due poltrone occupate per un cliente solo.
+
+    Vale **per persona e non per contatto**: un padre che ha già il suo
+    appuntamento può prenotare per il figlio, altrimenti la famiglia non
+    servirebbe a niente. Quello che resta impossibile è lo stesso nome due
+    volte.
 
     Quanto si può raccontare dipende da chi sta scrivendo. Su WhatsApp il
     numero è verificato dal gestore, quindi si dice quando e con chi. Dal sito
@@ -1024,6 +1149,10 @@ async def _appuntamento_futuro_di_chi_prenota(
     di un conoscente per sapere quando va dal barbiere.
     """
     identificato = _identita_provata(phone, session)
+    persona = persona or {"titolare": True, "cliente_id": None, "nuova": False}
+    if persona.get("nuova"):
+        # Una persona che nasce adesso non può avere appuntamenti.
+        return None
 
     trovato = await _appuntamenti_del_richiedente(phone, session, backends)
     if trovato is None and _dal_sito(phone):
@@ -1040,7 +1169,12 @@ async def _appuntamento_futuro_di_chi_prenota(
             if trovato:
                 break
 
-    prossimo = _primo_appuntamento_futuro((trovato or {}).get("appuntamenti"))
+    suoi = _appuntamenti_di_persona(
+        (trovato or {}).get("appuntamenti"),
+        persona,
+        ((trovato or {}).get("cliente") or {}).get("id"),
+    )
+    prossimo = _primo_appuntamento_futuro(suoi)
     if prossimo is None:
         return None
 
@@ -1107,12 +1241,21 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     # Dal sito il numero lo lascia il cliente, se vuole; da WhatsApp è il mittente.
     telefono = _normalizza_telefono(action.get("telefono") or dati.get("telefono"))
 
-    # Un cliente per volta ha un appuntamento solo. Il controllo sta qui e non
+    # Per chi è: chi scrive, o una delle persone che gli fanno capo. Si decide
+    # prima di tutto il resto perché da qui dipende sia il nome sul calendario
+    # sia a chi si applica la regola dell'appuntamento unico.
+    persona, rifiuto = await _per_chi_si_prenota(
+        action, phone, session, backends, nome=nome, email=email, telefono=telefono
+    )
+    if rifiuto:
+        return rifiuto
+
+    # Una persona per volta ha un appuntamento solo. Il controllo sta qui e non
     # nel prompt: è una regola che non può dipendere da quanto bene il modello
     # se la ricorda, e il doppione l'abbiamo visto succedere — stessa persona,
     # stessa ora, due operatori diversi.
     gia_prenotato = await _appuntamento_futuro_di_chi_prenota(
-        phone, session, backends, email=email, telefono=telefono
+        phone, session, backends, email=email, telefono=telefono, persona=persona
     )
     if gia_prenotato:
         return gia_prenotato
@@ -1123,7 +1266,12 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     durata = durata or action.get("durata_min") or catalogo.DURATA_PREDEFINITA_MIN
     prezzo = catalogo.prezzo_formattato(servizi)
 
-    nome_completo = f"{nome} {cognome}".strip() or "Cliente"
+    # Sul calendario dell'operatore va il nome di chi si siede, non di chi ha
+    # telefonato: è l'unica cosa che ha davanti quando il cliente entra.
+    if persona["titolare"]:
+        nome_completo = f"{nome} {cognome}".strip() or "Cliente"
+    else:
+        nome_completo = f"{persona['per']} {cognome}".strip()
 
     descrizione_parts = []
     if prezzo:
@@ -1136,6 +1284,12 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     contatto = telefono or (None if da_web else phone)
     if contatto:
         descrizione_parts.append(f"Telefono: {contatto}")
+    if not persona["titolare"]:
+        # Chi chiamare se l'appuntamento è di un figlio: il numero è del padre,
+        # e senza questa riga chi legge il calendario non sa di chi sia.
+        descrizione_parts.append(
+            f"Prenotato da {f'{nome} {cognome}'.strip() or 'un familiare'}"
+        )
 
     # Il calendario si ricava dal nome dell'operatore; l'id esplicito resta
     # accettato per retrocompatibilità con le sessioni già in corso.
@@ -1198,6 +1352,27 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
         canale="web" if da_web else "whatsapp",
     )
 
+    # La riga in agenda è della persona. Il familiare nasce adesso se è la
+    # prima volta: non prima, perché un contatto che abbandona a metà non deve
+    # lasciarsi dietro delle persone mai esistite.
+    intestatario = client["id"]
+    if not persona["titolare"]:
+        if persona["cliente_id"]:
+            intestatario = persona["cliente_id"]
+        else:
+            aggiunto = await backends.aggiungi_familiare(
+                client["id"], persona["per"], cognome
+            )
+            if aggiunto is None:
+                return {
+                    "errore": (
+                        "A questo contatto fanno già capo tre persone e non se "
+                        "ne possono aggiungere altre. Dillo al cliente."
+                    )
+                }
+            intestatario = aggiunto["id"]
+            persona["cliente_id"] = aggiunto["id"]
+
     foto_url = None
     if dati.get("foto_media_id"):
         try:
@@ -1210,7 +1385,7 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
             logger.exception("Salvataggio della foto fallito")
 
     await backends.create_appointment(
-        client_id=client["id"],
+        client_id=intestatario,
         data_ora=action["slot"],
         servizi=servizi,
         parrucchiere=action.get("parrucchiere"),
@@ -1221,6 +1396,9 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
         prezzo=catalogo.prezzo_totale(servizi) or None,
     )
 
+    # L'email va sempre a chi ha un indirizzo, cioè al titolare: un figlio non
+    # ne ha uno. Ma deve dire per chi è l'appuntamento, o chi la riceve crede
+    # sia il suo e si presenta il giorno sbagliato.
     destinatario = email or client.get("email")
     if destinatario:
         await backends.send_confirmation_email(
@@ -1229,14 +1407,19 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
             data_ora=action["slot"],
             parrucchiere=action.get("parrucchiere", ""),
             servizi=servizi,
+            per=None if persona["titolare"] else persona["per"],
         )
 
     session["stato_flusso"] = "confermato"
+    # Chi ha appena prenotato per il figlio può prenotare anche per sé: la
+    # sessione ricomincia dalla scelta, ma il nome del titolare resta.
+    session.pop("prossimo_appuntamento", None)
     return {
         "prenotazione_creata": True,
         "event_id": event_id,
         "durata_min": durata,
         "prezzo": prezzo or "da definire",
+        "per": persona["per"],
     }
 
 
@@ -1358,10 +1541,25 @@ async def _riconosci_cliente(phone: str, session: dict, backends) -> None:
     if ultimo:
         session["ultimo_operatore"] = ultimo
 
-    # Se ne ha già uno in programma il bot deve saperlo subito, non scoprirlo
-    # al momento di creare: avvisare dopo avergli fatto scegliere servizio,
-    # giorno, ora e operatore è il modo peggiore di dirglielo.
-    prossimo = _primo_appuntamento_futuro(trovato.get("appuntamenti"))
+    # Chi altro c'è sotto questo contatto: i figli, il padre, chiunque non
+    # abbia un telefono suo. Serve al prompt per proporli invece di chiedere
+    # ogni volta "per chi?" a chi ha già detto tutto le altre volte.
+    session["famiglia"] = [
+        {"nome": f.get("nome"), "cognome": f.get("cognome")}
+        for f in (trovato.get("familiari") or [])
+    ]
+
+    # Se qualcuno ha già un appuntamento il bot deve saperlo subito, non
+    # scoprirlo al momento di creare: avvisare dopo avergli fatto scegliere
+    # servizio, giorno, ora e operatore è il modo peggiore di dirglielo. Uno
+    # per persona, perché la regola è per persona: il padre che ha il suo può
+    # comunque prenotare per il figlio.
+    session["appuntamenti_futuri"] = _prossimi_per_persona(
+        trovato.get("appuntamenti"), cliente.get("id")
+    )
+    prossimo = next(
+        (a for a in session["appuntamenti_futuri"] if a.get("e_titolare")), None
+    )
     if prossimo:
         session["prossimo_appuntamento"] = {
             "app_id": prossimo.get("app_id"),

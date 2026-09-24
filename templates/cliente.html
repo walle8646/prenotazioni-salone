@@ -5,10 +5,24 @@
 <div class="cliente-scheda">
     <h2>{{ cliente.nome or '' }} {{ cliente.cognome or '' }}</h2>
 
+    {# Un "Luca Rossi" senza telefono né email sembra una scheda sbagliata da
+       cancellare, e invece è il figlio di qualcuno: qui si dice di chi. #}
+    {% if titolare %}
+    <p class="nota-liberi">
+        Prenota attraverso <a href="/admin/cliente/{{ titolare.id }}">{{ titolare.nome or '' }} {{ titolare.cognome or '' }}</a>,
+        che è il contatto di questa persona.
+    </p>
+    {% elif familiari %}
+    <p class="nota-liberi">
+        Prenota anche per:
+        {% for f in familiari %}<a href="/admin/cliente/{{ f.id }}">{{ f.nome or '' }} {{ f.cognome or '' }}</a>{{ ", " if not loop.last }}{% endfor %}.
+    </p>
+    {% endif %}
+
     <div class="info-grid">
         <div class="info-item">
             <label>Telefono WhatsApp</label>
-            <span>{{ cliente.telefono_wa }}</span>
+            <span>{{ telefono or '—' }}</span>
         </div>
         <div class="info-item">
             <label>Email</label>

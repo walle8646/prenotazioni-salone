@@ -19,9 +19,13 @@ templates = Jinja2Templates(directory="templates")
 
 # Appesa agli indirizzi dei file statici: senza, dopo un deploy il browser
 # continua a usare il foglio di stile che ha in cache.
+from services.persone import telefono_da_mostrare  # noqa: E402
 from services.statici import VERSIONE as _VERSIONE_STATICI  # noqa: E402
 
 templates.env.globals["v"] = _VERSIONE_STATICI
+# Lo stesso filtro in tutte le schermate: un segnaposto mostrato come numero
+# manda la receptionist a comporre cifre che non chiamano nessuno.
+templates.env.globals["telefono_da_mostrare"] = telefono_da_mostrare
 
 
 @router.get("/", include_in_schema=False)
@@ -587,9 +591,29 @@ async def scheda_cliente(request: Request, cliente_id: int, db=Depends(get_db)):
     if not cliente:
         return HTMLResponse("Cliente non trovato", status_code=404)
 
+    # Le persone che fanno capo a questo contatto, o il contatto a cui questa
+    # persona fa capo: senza, un "Luca Rossi" senza telefono né email sembra
+    # una scheda sbagliata da cancellare, e invece è il figlio di qualcuno.
+    familiari = (
+        await db.execute(
+            select(Cliente).where(Cliente.titolare_id == cliente.id).order_by(Cliente.id)
+        )
+    ).scalars().all()
+    titolare = None
+    if cliente.titolare_id:
+        titolare = (
+            await db.execute(select(Cliente).where(Cliente.id == cliente.titolare_id))
+        ).scalar_one_or_none()
+
     return templates.TemplateResponse(
         "cliente.html",
-        {"request": request, "cliente": cliente},
+        {
+            "request": request,
+            "cliente": cliente,
+            "familiari": familiari,
+            "titolare": titolare,
+            "telefono": telefono_da_mostrare(cliente.telefono_wa),
+        },
     )
 
 
@@ -1731,6 +1755,19 @@ async def clienti_cerca(q: str = "", utente=Depends(utente_del_pannello), db=Dep
         .order_by(Cliente.ultima_visita.desc().nullslast())
         .limit(8)
     )
+    trovati = risultato.scalars().all()
+
+    # Una query sola per tutti i titolari dei trovati, non una per riga.
+    da_risolvere = {c.titolare_id for c in trovati if c.titolare_id}
+    nomi_titolari = {}
+    if da_risolvere:
+        nomi_titolari = {
+            t.id: " ".join(p for p in (t.nome, t.cognome) if p)
+            for t in (
+                await db.execute(select(Cliente).where(Cliente.id.in_(da_risolvere)))
+            ).scalars().all()
+        }
+
     return {
         "clienti": [
             {
@@ -1738,12 +1775,15 @@ async def clienti_cerca(q: str = "", utente=Depends(utente_del_pannello), db=Dep
                 "nome": c.nome or "",
                 "cognome": c.cognome or "",
                 # Chi è nato dal sito ha come telefono un identificativo di
-                # sessione: metterlo nel modulo farebbe prenotare su un numero
-                # che non esiste.
-                "telefono": "" if (c.telefono_wa or "").startswith("web_") else (c.telefono_wa or ""),
+                # sessione, e un familiare un segnaposto: metterli nel modulo
+                # farebbe prenotare su un numero che non esiste.
+                "telefono": telefono_da_mostrare(c.telefono_wa),
+                # Di chi è figlio: due "Luca" in elenco non si distinguono, e
+                # scegliere quello sbagliato mette in agenda il cliente sbagliato.
+                "titolare": nomi_titolari.get(c.titolare_id, ""),
                 "email": c.email or "",
             }
-            for c in risultato.scalars().all()
+            for c in trovati
         ]
     }
 

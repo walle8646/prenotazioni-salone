@@ -16,6 +16,15 @@ class Cliente(Base):
     telefono_wa = Column(String(20), unique=True, nullable=False, index=True)
     email = Column(String(255), nullable=True)
     canale_origine = Column(String(20), default="whatsapp")  # whatsapp | web
+    # Chi prenota anche per i figli: i familiari sono clienti a tutti gli
+    # effetti — storico, appuntamenti, nome sul calendario — ma senza un
+    # contatto proprio, e si raggiungono solo attraverso il titolare. Niente
+    # relationship apposta: una relazione caricata pigramente dentro una
+    # sessione asincrona solleva MissingGreenlet in produzione con la suite
+    # tutta verde, e qui la si interroga sempre per colonna.
+    titolare_id = Column(
+        Integer, ForeignKey("clienti.id"), nullable=True, index=True
+    )
     note_private = Column(Text)  # allergie, preferenze, note parrucchiere
     parrucchiere_pref_id = Column(Integer, ForeignKey("parrucchieri.id"), nullable=True)
     prima_visita = Column(Date, default=datetime.now)

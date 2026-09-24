@@ -315,6 +315,16 @@ async def get_appuntamenti_per_email(email: str, limite: int = 10) -> dict | Non
 
 
 async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
+    """Gli appuntamenti di chi scrive **e delle persone che gli fanno capo**.
+
+    Un contatto solo può coprire fino a quattro persone: il titolare e tre
+    familiari. Tenerli separati vorrebbe dire che chi prenota per il figlio
+    non può poi spostargli l'appuntamento, perché "non è suo" — ed è invece
+    l'unico che può farlo, visto che il figlio un telefono non ce l'ha.
+
+    Ogni riga porta `per`, cioè di chi è: senza, un padre che chiede lo
+    storico si vede tre tagli nello stesso pomeriggio senza capire di chi.
+    """
     from sqlalchemy.orm import selectinload
 
     adesso = datetime.now()
@@ -326,12 +336,37 @@ async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
         if cliente is None:
             return None
 
+        # Chi scrive è sempre il titolare: se la condizione ha pescato un
+        # familiare — non dovrebbe, non ha contatti — si risale a chi comanda.
+        if cliente.titolare_id:
+            titolare = (
+                await db.execute(select(Cliente).where(Cliente.id == cliente.titolare_id))
+            ).scalar_one_or_none()
+            if titolare is not None:
+                cliente = titolare
+
+        familiari = (
+            (
+                await db.execute(
+                    select(Cliente)
+                    .where(Cliente.titolare_id == cliente.id)
+                    .order_by(Cliente.id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        nomi = {cliente.id: _nome_intero(cliente)}
+        nomi.update({f.id: _nome_intero(f) for f in familiari})
+
         risultato = await db.execute(
             select(Appuntamento)
             .options(selectinload(Appuntamento.parrucchiere))
-            .where(Appuntamento.cliente_id == cliente.id)
+            .where(Appuntamento.cliente_id.in_(list(nomi)))
             .order_by(Appuntamento.data_ora.desc())
-            .limit(limite)
+            # Il limite vale per persona, non per contatto: con tre familiari
+            # lo storico del titolare sparirebbe dietro quello dei figli.
+            .limit(limite * len(nomi))
         )
         appuntamenti = [
             {
@@ -344,6 +379,8 @@ async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
                 "stato": a.stato,
                 "gcal_event_id": a.gcal_event_id,
                 "passato": a.data_ora < adesso,
+                "cliente_id": a.cliente_id,
+                "per": nomi.get(a.cliente_id) or "",
             }
             for a in risultato.scalars().all()
         ]
@@ -355,8 +392,87 @@ async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
             "cognome": cliente.cognome,
             "email": cliente.email,
         },
+        "familiari": [
+            {"id": f.id, "nome": f.nome, "cognome": f.cognome} for f in familiari
+        ],
         "appuntamenti": appuntamenti,
     }
+
+
+def _nome_intero(cliente) -> str:
+    return " ".join(p for p in (cliente.nome, cliente.cognome) if p) or "Cliente"
+
+
+async def familiari_di(titolare_id: int) -> list[dict]:
+    """Le persone che fanno capo a questo contatto, nell'ordine in cui sono nate."""
+    async with async_session() as db:
+        righe = (
+            await db.execute(
+                select(Cliente)
+                .where(Cliente.titolare_id == titolare_id)
+                .order_by(Cliente.id)
+            )
+        ).scalars().all()
+        return [
+            {"id": c.id, "nome": c.nome, "cognome": c.cognome} for c in righe
+        ]
+
+
+async def aggiungi_familiare(
+    titolare_id: int, nome: str, cognome: str = ""
+) -> dict | None:
+    """Aggiunge una persona a questo contatto. None se sono già tre.
+
+    Il tetto sta qui e non nel prompt: è il genere di regola che non può
+    dipendere da quanto bene il modello se la ricorda in fondo a una
+    conversazione lunga, e senza tetto un contatto solo potrebbe prendersi
+    mezza giornata di poltrone aggirando "un appuntamento per volta".
+
+    Chi c'è già non si duplica: "Luca" e "luca " sono lo stesso figlio, e
+    trattarli come due persone brucerebbe un posto per niente.
+    """
+    from services.persone import MASSIMO_FAMILIARI, segnaposto, stessa_persona
+
+    async with async_session() as db:
+        esistenti = (
+            await db.execute(
+                select(Cliente)
+                .where(Cliente.titolare_id == titolare_id)
+                .order_by(Cliente.id)
+            )
+        ).scalars().all()
+
+        for c in esistenti:
+            if stessa_persona(c.nome, nome):
+                return {"id": c.id, "nome": c.nome, "cognome": c.cognome, "nuovo": False}
+
+        if len(esistenti) >= MASSIMO_FAMILIARI:
+            return None
+
+        titolare = (
+            await db.execute(select(Cliente).where(Cliente.id == titolare_id))
+        ).scalar_one_or_none()
+        if titolare is None:
+            return None
+
+        familiare = Cliente(
+            nome=(nome or "").strip() or "Senza nome",
+            # Il cognome del titolare se non ne dichiara uno: sul calendario
+            # dell'operatore "Luca" da solo non dice di chi è figlio.
+            cognome=(cognome or "").strip() or (titolare.cognome or ""),
+            telefono_wa=segnaposto(titolare_id, len(esistenti) + 1),
+            canale_origine=titolare.canale_origine,
+            titolare_id=titolare_id,
+        )
+        db.add(familiare)
+        await db.commit()
+        await db.refresh(familiare)
+        return {
+            "id": familiare.id,
+            "nome": familiare.nome,
+            "cognome": familiare.cognome,
+            "nuovo": True,
+        }
 
 
 async def sposta_appuntamento(

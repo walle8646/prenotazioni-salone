@@ -64,6 +64,16 @@ class Backends:
         """Come sopra ma per email: è la strada del sito, dopo la verifica."""
         raise NotImplementedError
 
+    async def familiari_di(self, titolare_id: int) -> list[dict]:
+        """Le persone che fanno capo a questo contatto."""
+        raise NotImplementedError
+
+    async def aggiungi_familiare(
+        self, titolare_id: int, nome: str, cognome: str = ""
+    ) -> dict | None:
+        """Ne aggiunge una; None se sono gia' al massimo."""
+        raise NotImplementedError
+
     async def send_verification_code(self, to: str, codice: str) -> None:
         raise NotImplementedError
 
@@ -94,7 +104,8 @@ class Backends:
         raise NotImplementedError
 
     async def send_confirmation_email(
-        self, to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list
+        self, to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list,
+        per: str | None = None,
     ) -> None:
         raise NotImplementedError
 
@@ -185,6 +196,16 @@ class RealBackends(Backends):
 
         return await get_appuntamenti_per_email(email)
 
+    async def familiari_di(self, titolare_id):
+        from services.db_service import familiari_di
+
+        return await familiari_di(titolare_id)
+
+    async def aggiungi_familiare(self, titolare_id, nome, cognome=""):
+        from services.db_service import aggiungi_familiare
+
+        return await aggiungi_familiare(titolare_id, nome, cognome)
+
     async def send_verification_code(self, to, codice):
         from services.email_service import send_verification_code
 
@@ -234,7 +255,9 @@ class RealBackends(Backends):
 
         return salva_foto(contenuto, prefisso)
 
-    async def send_confirmation_email(self, to, nome, data_ora, parrucchiere, servizi):
+    async def send_confirmation_email(
+        self, to, nome, data_ora, parrucchiere, servizi, per=None
+    ):
         from services.email_service import send_confirmation_email
 
         await send_confirmation_email(
@@ -243,6 +266,7 @@ class RealBackends(Backends):
             data_ora=data_ora,
             parrucchiere=parrucchiere,
             servizi=servizi,
+            per=per,
         )
 
     async def conversazione_operatore_aperta(self, telefono):

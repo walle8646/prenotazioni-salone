@@ -355,8 +355,13 @@
                     var bottone = document.createElement("button");
                     bottone.type = "button";
                     // textContent: il nome l'ha scritto un cliente.
-                    bottone.textContent =
-                        (c.nome + " " + c.cognome).trim() + (c.telefono ? " · " + c.telefono : "");
+                    // Chi prenota attraverso un altro non ha un numero suo: al
+                    // suo posto si dice di chi è, o due "Luca" in elenco sono
+                    // indistinguibili e si mette in agenda quello sbagliato.
+                    var coda = c.telefono
+                        ? " · " + c.telefono
+                        : (c.titolare ? " · tramite " + c.titolare : "");
+                    bottone.textContent = (c.nome + " " + c.cognome).trim() + coda;
                     bottone.addEventListener("click", function () { scegli(c); });
                     voce.appendChild(bottone);
                     elenco.appendChild(voce);

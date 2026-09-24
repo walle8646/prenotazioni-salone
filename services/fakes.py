@@ -215,6 +215,44 @@ class FakeBackends(Backends):
             if app["id"] == app_id:
                 app["stato"] = status
 
+    async def familiari_di(self, titolare_id):
+        return [
+            {"id": c["id"], "nome": c.get("nome"), "cognome": c.get("cognome")}
+            for c in self.clienti
+            if c.get("titolare_id") == titolare_id
+        ]
+
+    async def aggiungi_familiare(self, titolare_id, nome, cognome=""):
+        from services.persone import MASSIMO_FAMILIARI, segnaposto, stessa_persona
+
+        suoi = [c for c in self.clienti if c.get("titolare_id") == titolare_id]
+        for c in suoi:
+            if stessa_persona(c.get("nome"), nome):
+                return {
+                    "id": c["id"], "nome": c.get("nome"),
+                    "cognome": c.get("cognome"), "nuovo": False,
+                }
+        if len(suoi) >= MASSIMO_FAMILIARI:
+            return None
+
+        titolare = next((c for c in self.clienti if c["id"] == titolare_id), None)
+        if titolare is None:
+            return None
+
+        familiare = {
+            "id": len(self.clienti) + 1,
+            "nome": (nome or "").strip() or "Senza nome",
+            "cognome": (cognome or "").strip() or (titolare.get("cognome") or ""),
+            "email": None,
+            "telefono": segnaposto(titolare_id, len(suoi) + 1),
+            "titolare_id": titolare_id,
+        }
+        self.clienti.append(familiare)
+        return {
+            "id": familiare["id"], "nome": familiare["nome"],
+            "cognome": familiare["cognome"], "nuovo": True,
+        }
+
     async def get_appuntamenti_per_telefono(self, telefono):
         return self._appuntamenti_di(
             next((c for c in self.clienti if c.get("telefono") == telefono), None)
@@ -226,11 +264,26 @@ class FakeBackends(Backends):
         )
 
     def _appuntamenti_di(self, cliente):
+        """Come il database vero: quelli suoi e quelli dei suoi familiari."""
         if cliente is None:
             return None
 
+        # Chi scrive e' sempre il titolare; se si e' pescato un familiare si
+        # risale, perche' e' il titolare l'unico che ha un contatto.
+        if cliente.get("titolare_id"):
+            cliente = next(
+                (c for c in self.clienti if c["id"] == cliente["titolare_id"]), cliente
+            )
+
         adesso = datetime.now()
-        suoi = [a for a in self.appuntamenti if a.get("client_id") == cliente["id"]]
+        familiari = [c for c in self.clienti if c.get("titolare_id") == cliente["id"]]
+        nomi = {
+            c["id"]: " ".join(
+                p for p in (c.get("nome"), c.get("cognome")) if p
+            ) or "Cliente"
+            for c in [cliente, *familiari]
+        }
+        suoi = [a for a in self.appuntamenti if a.get("client_id") in nomi]
         return {
             "cliente": {
                 "id": cliente["id"],
@@ -238,6 +291,10 @@ class FakeBackends(Backends):
                 "cognome": cliente.get("cognome"),
                 "email": cliente.get("email"),
             },
+            "familiari": [
+                {"id": c["id"], "nome": c.get("nome"), "cognome": c.get("cognome")}
+                for c in familiari
+            ],
             "appuntamenti": [
                 {
                     "app_id": a["id"],
@@ -252,6 +309,8 @@ class FakeBackends(Backends):
                         a.get("data_ora")
                         and datetime.strptime(a["data_ora"], "%Y-%m-%dT%H:%M") < adesso
                     ),
+                    "cliente_id": a.get("client_id"),
+                    "per": nomi.get(a.get("client_id")) or "",
                 }
                 for a in sorted(suoi, key=lambda a: a.get("data_ora") or "", reverse=True)
             ],
@@ -269,7 +328,9 @@ class FakeBackends(Backends):
         self.foto_salvate.append(prefisso)
         return f"/static/foto/{prefisso}_finta.jpg"
 
-    async def send_confirmation_email(self, to, nome, data_ora, parrucchiere, servizi):
+    async def send_confirmation_email(
+        self, to, nome, data_ora, parrucchiere, servizi, per=None
+    ):
         self.email_inviate.append(
             {
                 "to": to,
@@ -277,6 +338,7 @@ class FakeBackends(Backends):
                 "data_ora": data_ora,
                 "parrucchiere": parrucchiere,
                 "servizi": servizi,
+                "per": per,
             }
         )
 

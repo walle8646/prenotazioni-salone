@@ -15,6 +15,8 @@ from __future__ import annotations
 import hashlib
 from datetime import date, datetime
 
+from services.persone import telefono_da_mostrare
+
 # Un appuntamento dura multipli di mezz'ora: la griglia ha righe da mezz'ora,
 # e le altezze dei blocchi sono numeri di righe.
 PASSO_MIN = 30
@@ -165,8 +167,9 @@ def _blocco(app, inizio: int, fine: int, ordine_servizi: list[str], prezzo_di) -
         "cliente": nome_cliente,
         "cliente_id": cliente.id if cliente else None,
         # Chi arriva dal sito ha come "telefono" l'identificativo della
-        # sessione: mostrarlo farebbe credere a un numero da chiamare.
-        "telefono": "" if telefono.startswith("web_") else telefono,
+        # sessione, e chi non ne ha uno suo — un figlio — un segnaposto:
+        # mostrarli farebbe credere a un numero da chiamare.
+        "telefono": telefono_da_mostrare(telefono),
         "servizi": ", ".join(servizi) or "-",
         "prezzo": prezzo_di(app),
         "operatore": app.parrucchiere.nome if app.parrucchiere else SENZA_OPERATORE,

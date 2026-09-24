@@ -185,16 +185,30 @@ Negli elenchi qui sotto usa sempre il nome esatto dell'operatore, così com'è s
     uno solo. In CREA_APPUNTAMENTO ricopia "slot" esattamente com'è.
 12. Prima di creare l'appuntamento ricapitola servizio, prezzo, data, ora e
     operatore, e chiedi conferma.
-13. Un cliente alla volta ha UN appuntamento solo. Se ne ha già uno in
-    programma non se ne aggiunge un altro: diglielo, ricordagli quando è, e
-    chiedi se vuole spostarlo (SPOSTA_APPUNTAMENTO) o disdirlo
-    (CANCELLA_APPUNTAMENTO). Non proporre mai di prenderne un secondo, e non
+13. Una PERSONA alla volta ha UN appuntamento solo. Se quella persona ne ha
+    già uno in programma non se ne aggiunge un altro: diglielo, ricordagli
+    quando è, e offri tre strade —
+    spostarlo (SPOSTA_APPUNTAMENTO), disdirlo (CANCELLA_APPUNTAMENTO),
+    oppure prenotare PER UN'ALTRA PERSONA.
+    Non proporre mai un secondo appuntamento per la stessa persona, e non
     riprovare CREA_APPUNTAMENTO: il sistema lo rifiuta comunque.
-14. Se il cliente ha cambiato idea su tutto, o si è impigliato in una richiesta
+14. Lo stesso contatto può prenotare per sé e per altre TRE persone al
+    massimo — i figli, un genitore, chi non ha un telefono suo. Per farlo
+    aggiungi "per": "Luca" a CREA_APPUNTAMENTO, col NOME della persona che si
+    siede sulla poltrona; senza "per" l'appuntamento è di chi scrive.
+    - Le persone già note sono elencate in LE PERSONE DI QUESTO CONTATTO: se
+      ce ne sono, chiedi PER CHI è l'appuntamento offrendo quei nomi più
+      "un'altra persona", invece di far raccontare tutto da capo.
+    - Un nome che non è nell'elenco è una persona nuova e viene creata: prima
+      di usarlo ricontrolla come si scrive, perché i posti sono tre e uno
+      speso per un nome sbagliato non torna indietro.
+    - Quando i posti sono finiti il sistema rifiuta: allora si può solo
+      spostare o disdire uno degli appuntamenti che ci sono.
+15. Se il cliente ha cambiato idea su tutto, o si è impigliato in una richiesta
     che non sta andando da nessuna parte, ricordagli che può scrivere
     "ricominciamo da capo" per buttare via la conversazione e ripartire. Non
     proporlo per una correzione singola: lì basta cambiare il dato.
-15. Scrivi in testo semplice, senza markdown. Né WhatsApp né il widget del sito
+16. Scrivi in testo semplice, senza markdown. Né WhatsApp né il widget del sito
     interpretano gli asterischi: al cliente arriverebbe "**Taglio** — 13,50 €"
     con gli asterischi in bella vista.
 
@@ -262,6 +276,7 @@ Con operatore specifico:
 Per creare l'appuntamento passa TUTTI i dati raccolti, usando per "servizi" i
 nomi esatti del listino:
 {{"action": "CREA_APPUNTAMENTO", "slot": "2026-08-11T09:00", "parrucchiere": "Francesco", "servizi": ["Taglio + Barba"], "durata_min": 30, "nome": "Valerio", "cognome": "Rossi", "email": "valerio@email.it", "telefono": "+393471234567", "richieste_spec": "Corto ai lati"}}
+Per un'altra persona dello stesso contatto, in più: "per": "Luca"
 
 I campi "email" e "telefono" si omettono se il cliente non li ha lasciati.
 
@@ -336,6 +351,69 @@ Francesco".
 """
 
 
+def _blocco_famiglia(session: dict) -> str:
+    """Le persone che fanno capo a questo contatto, e quanti posti restano.
+
+    Elencarle serve a non far ricominciare da capo chi prenota per il figlio
+    ogni mese: il nome ce l'abbiamo, chiederlo di nuovo è una domanda di cui
+    sappiamo la risposta.
+    """
+    from services.persone import MASSIMO_FAMILIARI, posti_liberi
+
+    famiglia = session.get("famiglia") or []
+    if not famiglia:
+        return ""
+
+    righe = "\n".join(f"- {f.get('nome')}" for f in famiglia)
+    liberi = posti_liberi(len(famiglia))
+    coda = (
+        f"Se ne possono aggiungere ancora {liberi}."
+        if liberi
+        else (
+            f"Sono già {MASSIMO_FAMILIARI}, il massimo: non se ne possono "
+            "aggiungere altre."
+        )
+    )
+    return f"""
+## LE PERSONE DI QUESTO CONTATTO
+Oltre a chi scrive, prenota anche per:
+{righe}
+{coda}
+Quando chiede di prenotare, chiedi per chi è offrendo questi nomi, e passa il
+nome scelto in "per" dentro CREA_APPUNTAMENTO.
+"""
+
+
+def _blocco_appuntamenti(session: dict) -> str:
+    """Chi, fra le persone di questo contatto, ha già un appuntamento."""
+    presi = session.get("appuntamenti_futuri")
+    if presi is None:
+        preso = session.get("prossimo_appuntamento")
+        presi = [dict(preso, per="", e_titolare=True)] if preso else []
+    if not presi:
+        return ""
+
+    righe = []
+    for a in presi:
+        chi = "chi scrive" if a.get("e_titolare") else (a.get("per") or "un familiare")
+        servizi = ", ".join(a.get("servizi") or []) or "servizio non indicato"
+        righe.append(
+            f"- {chi}: {a.get('data_ora')} — {servizi} — con "
+            f"{a.get('parrucchiere') or 'operatore non indicato'} "
+            f"(app_id {a.get('app_id')}, gcal_event_id {a.get('gcal_event_id')})"
+        )
+
+    return """
+## APPUNTAMENTI GIÀ IN PROGRAMMA
+{righe}
+
+Ognuna di queste persone ne ha già uno e non può averne un secondo. Se chiede
+di prenotare per una di loro, diglielo subito e ricordagli quando è, poi
+chiedi se vuole spostarlo, disdirlo, o prenotare per un'altra persona. NON
+fargli scegliere servizio, giorno e operatore per poi rifiutare alla fine.
+""".format(righe="\n".join(righe))
+
+
 def parte_variabile(session: dict, canale: str = "whatsapp") -> str:
     """Lo stato di questa conversazione: cambia a ogni messaggio.
 
@@ -365,23 +443,11 @@ RACCOLTI: NON chiederglieli, li sappiamo. Salutalo per nome.
     else:
         blocco_conosciuto = ""
 
-    # Chi ha già un appuntamento non ne prende un altro, e va avvisato subito:
-    # dirglielo dopo avergli fatto scegliere servizio, giorno, ora e operatore
-    # è il modo peggiore di dirglielo.
-    preso = session.get("prossimo_appuntamento")
-    if preso:
-        servizi = ", ".join(preso.get("servizi") or []) or "servizio non indicato"
-        blocco_appuntamento = f"""
-## HA GIÀ UN APPUNTAMENTO
-{preso.get('data_ora')} — {servizi} — con {preso.get('parrucchiere') or 'operatore non indicato'}
-(app_id {preso.get('app_id')}, gcal_event_id {preso.get('gcal_event_id')})
-
-Non se ne può avere più di uno. Se chiede di prenotare, diglielo subito e
-ricordagli quando è, poi chiedi se vuole spostarlo o disdirlo. NON fargli
-scegliere servizio, giorno e operatore per poi rifiutare alla fine.
-"""
-    else:
-        blocco_appuntamento = ""
+    # Chi ha già un appuntamento non ne prende un altro **per la stessa
+    # persona**, e va avvisato subito: dirglielo dopo avergli fatto scegliere
+    # servizio, giorno, ora e operatore è il modo peggiore di dirglielo.
+    blocco_appuntamento = _blocco_appuntamenti(session)
+    blocco_famiglia = _blocco_famiglia(session)
 
     # Il telefono si chiede solo dal sito: su WhatsApp è il mittente, e
     # scrivere "non ancora raccolto" inviterebbe a domandarlo.
@@ -392,7 +458,7 @@ scegliere servizio, giorno e operatore per poi rifiutare alla fine.
     )
 
     return f"""
-{blocco_conosciuto}{blocco_appuntamento}
+{blocco_conosciuto}{blocco_famiglia}{blocco_appuntamento}
 ## FASE CORRENTE: {stato}
 
 ## DATI GIÀ RACCOLTI

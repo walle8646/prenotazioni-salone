@@ -123,10 +123,13 @@ non deve stare. Ciò che sblocca lo storico è `email_verificata` nella sessione
 non l'opinione del modello: dirgli "ho già inserito il codice" non porta da
 nessuna parte.
 
-**Un cliente per volta ha un appuntamento solo**
+**Una persona per volta ha un appuntamento solo**
 (`_appuntamento_futuro_di_chi_prenota()`, dentro `CREA_APPUNTAMENTO`). Senza
 questo controllo la stessa persona è finita due volte sulla stessa mezz'ora con
-due operatori diversi: due poltrone occupate per un cliente solo. Il rifiuto
+due operatori diversi: due poltrone occupate per un cliente solo. **Per
+persona e non per contatto**, da quando lo stesso numero può coprire una
+famiglia: il padre che ha già il suo può comunque prenotare per il figlio, e
+quello che resta impossibile è lo stesso nome due volte. Il rifiuto
 sta nel codice perché "mai" non può dipendere da quanto bene il modello se lo
 ricorda, ma la sessione annota anche l'appuntamento già preso
 (`prossimo_appuntamento`) e il prompt lo mostra dal primo messaggio: avvisare
@@ -163,8 +166,51 @@ qualcun altro. Se il controllo non si può fare — Google irraggiungibile — s
 prenota lo stesso: rifiutare tutto perché una verifica in più non riesce
 sarebbe peggio del rischio che copre.
 
-**Disdette e spostamenti valgono solo sui propri appuntamenti.** Gli id sono
-progressivi: senza il controllo basterebbe dire "cancella il numero 3".
+**Un contatto copre fino a quattro persone: chi scrive e tre familiari**
+(`services/persone.py`, colonna `titolare_id` su `clienti`). Chi prenota per i
+figli non ha un telefono per ciascuno, e prima quelle prenotazioni finivano
+tutte sulla stessa scheda — tre tagli sullo stesso nome — mentre la regola
+dell'appuntamento unico le rendeva addirittura impossibili: prenotato il
+figlio, il padre non poteva più.
+
+Un familiare è un cliente vero: ha il suo storico, il suo appuntamento, il suo
+nome sul calendario dell'operatore. Quello che non ha è un contatto proprio,
+e la colonna del telefono — obbligatoria e unica — prende un segnaposto
+`fam:<titolare>:<n>`. **Nessuna schermata deve mostrarlo**: passa tutto da
+`telefono_da_mostrare()`, perché un segnaposto scambiato per un numero manda
+la receptionist a comporre cifre che non chiamano nessuno.
+
+**Il nome della persona arriva dal modello, ma non è mai un contatto**
+(`_per_chi_si_prenota()`): vale solo dentro la famiglia di chi sta scrivendo,
+e chi non c'è viene creato lì dentro. Se fosse un'email o un numero,
+basterebbe scrivere quello di un conoscente per prenotare a suo nome. Dal sito
+prima della verifica si può **aggiungere** una persona nuova ma non
+sceglierne una che c'è già: aggiungere non rivela niente, mentre riconoscere
+"Luca" direbbe a chiunque abbia indovinato un indirizzo email chi c'è dentro
+quella famiglia.
+
+**Tre e non di più**, e il tetto sta nel codice (`aggiungi_familiare`): un
+contatto che ne dichiara quindici non è una famiglia, è un modo per prendersi
+mezza giornata di poltrone con un telefono solo — e "un appuntamento per
+volta" smetterebbe di valere per chiunque abbia voglia di aggirarlo. I nomi si
+confrontano in modo tollerante (`stessa_persona`): "luca" e "Luca " sono lo
+stesso figlio, e trattarli come due persone brucerebbe un posto per niente.
+Il familiare **nasce al momento di prenotare**, non prima: un contatto che
+abbandona a metà non deve lasciarsi dietro delle persone mai esistite.
+
+Due conseguenze da tenere a mente. Sul calendario va il nome di **chi si
+siede**, con "Prenotato da ..." nella descrizione: è l'unica cosa che
+l'operatore ha davanti quando il cliente entra. E l'email di conferma va
+sempre al titolare — un figlio non ne ha una — ma dice **per chi è**, o chi la
+riceve la legge come propria e si presenta il martedì mattina.
+
+**Disdette e spostamenti valgono solo sui propri appuntamenti, e su quelli
+della propria famiglia.** Gli id sono progressivi: senza il controllo
+basterebbe dire "cancella il numero 3". Chi prenota per il figlio è però
+l'unico che può disdirglielo, visto che il figlio un telefono non ce l'ha:
+`_appuntamenti_del_richiedente` risponde per tutta la famiglia, e ogni riga
+porta `per` — senza, un padre che chiede lo storico si vede tre tagli nello
+stesso pomeriggio senza capire di chi.
 
 **Chi chiede una persona la ottiene, e il bot tace**
 (`services/operatore_umano.py`, schermata **Conversazioni**). Il
