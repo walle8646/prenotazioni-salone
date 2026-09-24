@@ -53,6 +53,27 @@ def _configurato() -> bool:
     return bool(settings.smtp_user and settings.smtp_password)
 
 
+def _connessione():
+    """La connessione al server di posta, cifrata nel modo che vuole la porta.
+
+    **465 e 587 non sono due porte per la stessa cosa.** Sulla 465 il canale è
+    cifrato dal primo byte (SSL implicito); sulla 587 si parte in chiaro e si
+    sale a TLS con STARTTLS. Scambiarle non dà un errore di protocollo che si
+    legge nei log: la connessione resta appesa finché non scade il timeout, e
+    l'email risulta semplicemente non partita.
+
+    Serve perché i due fornitori usati finora vogliono cose diverse: Gmail la
+    587 con STARTTLS, Aruba la 465 con SSL. Decide la porta, così cambiare
+    casella non vuol dire cambiare codice.
+    """
+    if settings.smtp_port == 465:
+        return smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, timeout=30)
+
+    server = smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30)
+    server.starttls()
+    return server
+
+
 def _mittente() -> str:
     return settings.email_from or settings.smtp_user
 
@@ -78,8 +99,7 @@ async def _invia(destinatario: str, oggetto: str, html: str) -> None:
     messaggio.add_alternative(html, subtype="html")
 
     def _spedisci() -> None:
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
-            server.starttls()
+        with _connessione() as server:
             server.login(settings.smtp_user, settings.smtp_password)
             server.send_message(messaggio)
 

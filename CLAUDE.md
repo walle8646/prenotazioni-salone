@@ -34,6 +34,8 @@ python simulate.py --phone 390000000001      # servizi veri, si comporta come Wh
 docker compose up               # app + PostgreSQL + Redis, poi http://localhost:8000
 
 python tools/fake_webhook.py text "vorrei un taglio"   # payload Meta finti al webhook
+
+python tools/prova_email.py            # prova la posta in uscita e spiega cosa non va
 ```
 
 Le migrazioni non si lanciano a mano. All'avvio (`models/database.py`): se il
@@ -695,7 +697,32 @@ mittente: le risposte dei clienti devono arrivare nella casella del salone.
 
 Da qui una regola imparata a caro prezzo: **"funziona in locale" non è "funziona
 in produzione"**, e per l'email la differenza non era una configurazione ma la
-rete della piattaforma.
+rete della piattaforma. `python tools/prova_email.py` manda un messaggio di
+prova e traduce il guasto in italiano: va lanciato **dalla shell di Render** a
+ogni cambio di casella, non solo dal proprio computer.
+
+**465 e 587 non sono due porte per la stessa cosa** (`_connessione()`). Sulla
+465 il canale è cifrato dal primo byte — SSL implicito, `smtplib.SMTP_SSL` —
+mentre sulla 587 si parte in chiaro e si sale a TLS con `starttls()`.
+Scambiarle non dà un errore di protocollo che si legge nei log: la connessione
+resta appesa fino al timeout, l'eccezione viene inghiottita perché un'email non
+deve far fallire una prenotazione, e il risultato è identico alle porte
+bloccate — silenzio. Decide la porta, così cambiare fornitore non vuol dire
+cambiare codice: **Gmail 587 con STARTTLS, Aruba 465 con SSL**.
+
+Con una casella Aruba sul dominio del salone i parametri sono
+`smtps.aruba.it:465`, e l'utente è **l'indirizzo per intero**, non la parte
+prima della chiocciola. La porta 25 resta inutile comunque: Render la blocca
+anche a pagamento.
+
+**Partita non vuol dire consegnata.** Con un mittente sul proprio dominio
+servono tre record nelle DNS, o le conferme finiscono nella posta
+indesiderata: **SPF** (`v=spf1 include:_spf.aruba.it ~all`), **DKIM** — la
+chiave la dà il pannello di chi ospita la casella — e **DMARC**
+(`v=DMARC1; p=none; rua=mailto:...`, che si irrigidisce dopo aver guardato i
+rapporti per qualche settimana). È lo stesso tipo di guasto delle porte
+bloccate: nessun errore da nessuna parte, e il cliente che non ha ricevuto
+niente non lo dice, semplicemente non si presenta.
 
 ## Convenzioni
 
