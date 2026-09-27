@@ -48,10 +48,12 @@ class Settings(BaseSettings):
 
     # Email: si spedisce dalla casella del salone via SMTP, così il mittente è
     # l'indirizzo che i clienti conoscono e le risposte arrivano a qualcuno.
-    # Con Gmail la password NON è quella dell'account ma una "password per le
-    # app", generata dalle impostazioni di sicurezza di Google.
-    smtp_host: str = "smtp.gmail.com"
-    smtp_port: int = 587
+    # In produzione è `info@simoneacconciature.it` su Aruba: server
+    # `smtps.aruba.it`, porta 465, e l'utente è l'indirizzo per intero. Questi
+    # qui sono solo i valori di partenza — con Gmail servirebbe la porta 587 e
+    # una "password per le app", non quella dell'account.
+    smtp_host: str = "smtps.aruba.it"
+    smtp_port: int = 465
     smtp_user: str = ""
     smtp_password: str = ""
     # Se vuoto si usa smtp_user: Gmail riscrive comunque il mittente con
@@ -71,7 +73,7 @@ class Settings(BaseSettings):
     # Serve ai servizi push per sapere chi contattare se qualcosa va storto.
     vapid_subject: str = ""
 
-    # Indirizzo pubblico dell'applicazione, es. https://salone-nadia.onrender.com
+    # Indirizzo pubblico dell'applicazione: https://simoneacconciature.it
     # Serve a WhatsApp: le immagini Meta se le viene a prendere da sé, quindi
     # non basta un percorso, ci vuole un indirizzo raggiungibile da fuori.
     # Vuoto (in locale, dove nessuno può raggiungerci) significa niente

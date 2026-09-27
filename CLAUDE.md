@@ -734,6 +734,36 @@ che il salone non ha mai fatto: adesso quelli scritti in `ORARI_APERTURA` sono
 solo i valori iniziali, e a comandare è la tabella che si modifica da
 **Presenze**.
 
+## Dominio
+
+Il sito e il pannello stanno su **https://simoneacconciature.it** (registrato
+su Aruba il 24 settembre 2026), con `www` che reindirizza al dominio nudo. La
+posta è una casella Aruba sullo stesso dominio, `info@simoneacconciature.it`.
+
+**L'indirizzo `salone-nadia-bot.onrender.com` resta valido e non va
+dismesso**: è quello configurato come webhook su Meta, e cambiarlo è il modo
+classico di restare senza messaggi in arrivo senza capire perché. Sul dominio
+nuovo vanno invece le due URL dell'informativa che Meta controlla, `/privacy`
+e `/cancellazione-dati`.
+
+Nelle DNS si sono toccati **due record soli**: la `A` del dominio nudo verso
+`216.24.57.1` (l'indirizzo del bilanciatore di Render) e il `CNAME` di `www`
+verso il servizio. Tutto il resto è di Aruba e non si tocca — in particolare
+gli `MX`, che fanno arrivare la posta: si cambia il web, la casella resta dov'è.
+SPF e DMARC li aveva già messi Aruba da sé sul dominio con email.
+
+**Il certificato del dominio nudo è arrivato ore dopo quello di `www`**, e il
+perché vale la pena ricordarlo. `www` punta a Render con un CNAME, quindi la
+catena la risolve Render e si vede uguale da tutto il mondo. Il dominio nudo
+dipende invece dalla `A` pubblicata dai name server del registrar, e quelli di
+Aruba sono rimasti **in disaccordo fra loro per ore**: da Google e Cloudflare
+si vedeva l'indirizzo nuovo, interrogandoli direttamente dall'Italia ancora il
+vecchio. Let's Encrypt valida da più punti geografici e li vuole concordi,
+quindi l'emissione falliva mentre tutto sembrava a posto nel pannello. La
+regola che ne resta: **con un dominio nudo, il certificato non dipende da cosa
+vedi tu, ma dal nodo DNS più lento del registrar** — e l'unico modo di capirlo
+è interrogare i server autorevoli uno per uno, non il proprio resolver.
+
 ## Email
 
 Si spedisce via SMTP dalla casella del salone (`SMTP_*`), non da un servizio

@@ -43,7 +43,8 @@ uvicorn main:app --reload
 2. Render → New → Blueprint → collega il repo
 3. Render rileva `render.yaml` e crea web service + Redis + PostgreSQL
 4. Inserisci le variabili d'ambiente in Dashboard → Environment
-5. URL: `https://salone-nadia-bot.onrender.com`
+5. URL: `https://simoneacconciature.it` (l'indirizzo
+   `salone-nadia-bot.onrender.com` resta valido e serve ancora al webhook di Meta)
 
 ## Test
 

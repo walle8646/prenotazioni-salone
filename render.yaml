@@ -2,6 +2,10 @@ services:
   - type: web
     name: salone-nadia-bot
     runtime: docker
+    # ATTENZIONE: in produzione il piano e' a pagamento, e deve restarlo — sul
+    # gratuito le porte SMTP sono bloccate e non parte nessuna email. Questo
+    # valore vale solo se qualcuno risincronizza il blueprint da zero: se lo
+    # fa, va rimesso il piano giusto dal dashboard.
     plan: free
     healthCheckPath: /health
     envVars:
@@ -20,13 +24,16 @@ services:
         generateValue: true
       - key: SECRET_KEY
         generateValue: true
+      # Casella del salone su Aruba. La 465 vuole SSL dal primo byte e la
+      # 587 vuole STARTTLS: la strada la sceglie il codice guardando la
+      # porta, quindi qui basta che il numero sia quello giusto.
       - key: SMTP_HOST
-        value: "smtp.gmail.com"
+        value: "smtps.aruba.it"
       - key: SMTP_PORT
-        value: "587"
+        value: "465"
+      # L'utente e' l'indirizzo per intero, non la parte prima della chiocciola
       - key: SMTP_USER
         sync: false
-      # Password per le app di Google, non quella dell'account
       - key: SMTP_PASSWORD
         sync: false
       - key: SLOT_DURATION_MIN
@@ -42,7 +49,7 @@ services:
       # le viene a prendere da sé, quindi non basta un percorso. Senza, le
       # scelte su WhatsApp restano testo e funzionano lo stesso.
       - key: PUBLIC_BASE_URL
-        value: "https://salone-nadia-bot.onrender.com"
+        value: "https://simoneacconciature.it"
       - key: INACTIVITY_DAYS
         value: "60"
       - key: SESSION_TTL_SECONDS
