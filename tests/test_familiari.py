@@ -384,3 +384,53 @@ def test_due_fratelli_con_nomi_diversi_restano_due_persone():
     assert dividi_nome("Riccardo Di Dio") == ("Riccardo", "Di Dio")
     assert dividi_nome("Riccardo") == ("Riccardo", "")
     assert dividi_nome("  ") == ("", "")
+
+
+@pytest.mark.asyncio
+async def test_un_figlio_che_si_chiama_come_il_padre_va_dichiarato(
+    mock_redis, canale, backends
+):
+    """Il nome da solo non li distingue. Il caso frequente è l'opposto — il
+    modello che ripete in "per" il nome di chi scrive — quindi si rifiuta, ma
+    il rifiuto dice come uscirne."""
+    await _conversazione(mock_redis, canale, backends, _prenota())
+    assert len(backends.appuntamenti) == 1
+
+    # Stesso nome del titolare, senza dichiarare niente: resta lui, e viene
+    # rifiutato perché ne ha già uno.
+    await _conversazione(
+        mock_redis, canale, backends, _prenota(per="Valerio", slot=f"{GIORNO}T10:00")
+    )
+    assert len(backends.appuntamenti) == 1
+
+    # Dichiarato: è un'altra persona, e passa.
+    await _conversazione(
+        mock_redis,
+        canale,
+        backends,
+        _prenota(per="Valerio", nuova_persona=True, slot=f"{GIORNO}T10:00"),
+    )
+
+    assert len(backends.appuntamenti) == 2
+    omonimi = [c for c in backends.clienti if c.get("nome") == "Valerio"]
+    assert len(omonimi) == 2, "il figlio è una persona sua, non il padre"
+    assert backends.appuntamenti[-1]["client_id"] != backends.appuntamenti[0]["client_id"]
+
+
+@pytest.mark.asyncio
+async def test_anche_l_omonimo_sta_dentro_i_tre_posti(mock_redis, canale, backends):
+    """Dichiararlo non apre una via d'uscita: il limite è il tetto, non il
+    controllo sul nome."""
+    for indice, nome in enumerate(("Luca", "Sara", "Gino")):
+        await _conversazione(
+            mock_redis, canale, backends,
+            _prenota(per=nome, slot=f"{GIORNO}T{9 + indice:02d}:00"),
+        )
+    assert len(backends.appuntamenti) == 3
+
+    await _conversazione(
+        mock_redis, canale, backends,
+        _prenota(per="Valerio", nuova_persona=True, slot=f"{GIORNO}T14:00"),
+    )
+
+    assert len(backends.appuntamenti) == 3

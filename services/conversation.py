@@ -1101,7 +1101,16 @@ async def _per_chi_si_prenota(
     # appuntamenti, quindi lì non si può sbagliare nulla di grave.
     nome_titolare = suo.get("nome") or nome
     if stessa_persona(per, nome_titolare):
-        return io_stesso, None
+        # Resta un caso che il nome non sa distinguere: un figlio che si chiama
+        # come il padre. Per quello il modello deve dirlo **esplicitamente**,
+        # perché il caso frequente è l'opposto — il modello che ripete in "per"
+        # il nome di chi scrive quando l'appuntamento è suo — e trattarli allo
+        # stesso modo vorrebbe dire o rifiutare una prenotazione buona o
+        # regalare un secondo appuntamento a chi ne ha già uno. Dichiararlo non
+        # apre niente: il tetto delle tre persone vale lo stesso, ed è quello
+        # il limite, non il controllo sul nome.
+        if not action.get("nuova_persona"):
+            return {**io_stesso, "per_dichiarato": True}, None
 
     if identificato:
         for familiare in familiari:
@@ -1194,6 +1203,18 @@ async def _appuntamento_futuro_di_chi_prenota(
                 "non se ne può avere più di uno. Per vederlo o spostarlo serve "
                 "prima la verifica: chiedi al cliente l'email e mandagli un "
                 "codice con INVIA_CODICE_VERIFICA."
+            )
+        }
+
+    if persona.get("per_dichiarato"):
+        return {
+            "errore": (
+                f"{prossimo.get('data_ora')}: quella persona ha già un "
+                "appuntamento e non se ne può avere più di uno. Chiedi al "
+                "cliente se vuole spostarlo, disdirlo, o prenotare per "
+                "qualcun altro. **Se invece è davvero un'altra persona che si "
+                "chiama come chi scrive**, ripeti CREA_APPUNTAMENTO con lo "
+                'stesso "per" e in più "nuova_persona": true.'
             )
         }
 
