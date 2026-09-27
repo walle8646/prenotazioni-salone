@@ -121,7 +121,18 @@ app.include_router(chat_ws.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    """Vivo, e **quale versione**.
+
+    Senza il commit qui dentro, "la correzione e' gia' online?" si risponde
+    solo aspettando e riprovando: e' successo di ripetere una prova su un
+    difetto gia' corretto e di crederlo ancora aperto. Render mette il commit
+    in `RENDER_GIT_COMMIT` da solo; fuori da Render la voce non c'e' e non
+    manca niente.
+    """
+    import os
+
+    commit = os.getenv("RENDER_GIT_COMMIT") or ""
+    return {"status": "ok", "commit": commit[:7]} if commit else {"status": "ok"}
 
 
 @app.get("/health/detailed")
