@@ -1100,6 +1100,13 @@ async def _per_chi_si_prenota(
     # solo per chi non è ancora in anagrafica — e chi non c'è non ha
     # appuntamenti, quindi lì non si può sbagliare nulla di grave.
     nome_titolare = suo.get("nome") or nome
+    logger.info(
+        "Per chi si prenota: per=%r titolare=%r familiari=%s identificato=%s",
+        per,
+        nome_titolare,
+        [f.get("nome") for f in familiari],
+        identificato,
+    )
     if stessa_persona(per, nome_titolare):
         # Resta un caso che il nome non sa distinguere: un figlio che si chiama
         # come il padre. Per quello il modello deve dirlo **esplicitamente**,
@@ -1129,6 +1136,7 @@ async def _per_chi_si_prenota(
 
     if posti_liberi(len(familiari)) <= 0:
         elenco = ", ".join(f.get("nome") or "?" for f in familiari)
+        logger.warning("Prenotazione rifiutata [posti finiti]: %s", elenco)
         return io_stesso, {
             "errore": (
                 f"A questo contatto fanno già capo {MASSIMO_FAMILIARI} persone"
@@ -1195,6 +1203,16 @@ async def _appuntamento_futuro_di_chi_prenota(
     prossimo = _primo_appuntamento_futuro(suoi)
     if prossimo is None:
         return None
+
+    logger.warning(
+        "Prenotazione rifiutata [ne ha già uno]: persona=%r titolare=%s "
+        "cliente_id=%s app_id=%s del %s",
+        persona.get("per"),
+        persona.get("titolare"),
+        persona.get("cliente_id"),
+        prossimo.get("app_id"),
+        prossimo.get("data_ora"),
+    )
 
     if not identificato:
         return {
@@ -1344,6 +1362,11 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     # Fra la proposta e la conferma passano minuti, e in quei minuti può
     # prenotare qualcun altro: vale comunque la pena di richiederlo.
     if not await _slot_ancora_libero(action["slot"], cal_id, durata, backends):
+        logger.warning(
+            "Prenotazione rifiutata [slot occupato]: %s con %s",
+            action["slot"],
+            action.get("parrucchiere"),
+        )
         return {
             "errore": (
                 "Quell'orario non è più libero con l'operatore scelto. Rifai "
