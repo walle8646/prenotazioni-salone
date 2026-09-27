@@ -434,3 +434,63 @@ async def test_anche_l_omonimo_sta_dentro_i_tre_posti(mock_redis, canale, backen
     )
 
     assert len(backends.appuntamenti) == 3
+
+
+# --------------------------------- un appuntamento scritto non si racconta falso
+#
+# Visto in produzione il 27 settembre: il bot ha creato l'appuntamento e ha
+# detto "c'è stato un problema tecnico". Il cliente ha riprovato, e solo la
+# regola dell'appuntamento unico ha impedito la seconda poltrona. Dire fallito
+# quello che è riuscito è il modo peggiore di sbagliare.
+
+
+@pytest.mark.asyncio
+async def test_se_l_email_esplode_la_prenotazione_resta_buona(backends, monkeypatch):
+    """Quello che conta non è che la riga esista — esiste anche col difetto —
+    ma che il **risultato** dica creata: è quello che il modello racconta al
+    cliente, ed è lì che nasceva il "problema tecnico" su una prenotazione
+    riuscita."""
+    from services.conversation import execute_action
+    from services.session_manager import new_session
+
+    async def email_rotta(*args, **kwargs):
+        raise RuntimeError("SMTP giù")
+
+    monkeypatch.setattr(backends, "send_confirmation_email", email_rotta)
+
+    risultato = await execute_action(
+        {
+            "action": "CREA_APPUNTAMENTO",
+            "slot": f"{GIORNO}T09:00",
+            "parrucchiere": "Francesco",
+            "servizi": ["Taglio"],
+            "nome": "Valerio",
+            "cognome": "Rossi",
+            "email": "valerio@example.it",
+        },
+        TELEFONO,
+        new_session(),
+        backends,
+    )
+
+    assert risultato.get("prenotazione_creata") is True, risultato
+    assert "errore" not in risultato
+    assert len(backends.appuntamenti) == 1
+
+
+@pytest.mark.asyncio
+async def test_se_l_agenda_non_scrive_l_evento_non_resta_su_google(
+    mock_redis, canale, backends, monkeypatch
+):
+    """Altrimenti quella mezz'ora resta occupata da un appuntamento che
+    nessuno sa di avere: né il salone, che non lo vede nel pannello, né il
+    cliente, a cui stiamo per dire che non è andata."""
+    async def agenda_rotta(*args, **kwargs):
+        raise RuntimeError("database giù")
+
+    monkeypatch.setattr(backends, "create_appointment", agenda_rotta)
+
+    await _conversazione(mock_redis, canale, backends, _prenota())
+
+    assert backends.appuntamenti == []
+    assert backends.eventi == {}, "l'evento su Google va tolto"

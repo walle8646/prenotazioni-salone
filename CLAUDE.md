@@ -155,6 +155,21 @@ non è nemmeno esprimibile. Da lì la sessione del sito ha
 confermata. Esiste per il costo: dal 1° ottobre 2026 ogni risposta del bot su
 WhatsApp si paga a messaggio, la chat del sito no.
 
+**Una volta scritto l'appuntamento, niente può più raccontarlo fallito.**
+Email di conferma e aggiornamenti della sessione stanno dentro un `try` che
+logga e tira dritto: prima, un inciampo lì finiva nel gestore generico e
+tornava al modello come errore, che lo riferiva al cliente come "problema
+tecnico" su una prenotazione **riuscita**. Visto in produzione il 27 settembre:
+il cliente ha riprovato, e solo la regola dell'appuntamento unico ha impedito
+la seconda poltrona. Dire fallito quello che è riuscito è il modo peggiore di
+sbagliare, perché chi legge fa esattamente la cosa che rompe.
+
+Nel passaggio prima vale il contrario: se l'evento su Google è nato e **la
+riga in agenda no**, l'evento si toglie prima di dire che non è andata.
+Lasciarlo vorrebbe dire una mezz'ora occupata da un appuntamento che nessuno
+sa di avere — né il salone, che nel pannello non lo vede, né il cliente, a cui
+si è appena detto che non è andata.
+
 **Alla conferma si ricontrolla che l'orario sia libero**
 (`_slot_ancora_libero()`, dentro `CREA_APPUNTAMENTO`). Visto in produzione: il
 modello ha elencato fra i "liberi" un operatore che a quell'ora era occupato,

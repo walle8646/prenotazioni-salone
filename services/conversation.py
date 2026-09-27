@@ -1443,34 +1443,57 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
         except Exception:  # noqa: BLE001 - la foto non deve far fallire la prenotazione
             logger.exception("Salvataggio della foto fallito")
 
-    await backends.create_appointment(
-        client_id=intestatario,
-        data_ora=action["slot"],
-        servizi=servizi,
-        parrucchiere=action.get("parrucchiere"),
-        richieste_spec=richieste or None,
-        foto_url=foto_url,
-        gcal_event_id=event_id,
-        durata_min=durata,
-        prezzo=catalogo.prezzo_totale(servizi) or None,
-    )
-
-    # L'email va sempre a chi ha un indirizzo, cioè al titolare: un figlio non
-    # ne ha uno. Ma deve dire per chi è l'appuntamento, o chi la riceve crede
-    # sia il suo e si presenta il giorno sbagliato.
-    destinatario = email or client.get("email")
-    if destinatario:
-        await backends.send_confirmation_email(
-            to=destinatario,
-            # Il saluto è per chi legge, cioè il titolare: il nome dichiarato
-            # dal modello può essere quello del figlio, e "Ciao Riccardo" a chi
-            # si chiama Valerio fa sembrare l'email di un altro.
-            nome=client.get("nome") or nome,
+    try:
+        await backends.create_appointment(
+            client_id=intestatario,
             data_ora=action["slot"],
-            parrucchiere=action.get("parrucchiere", ""),
             servizi=servizi,
-            per=None if persona["titolare"] else persona["per"],
+            parrucchiere=action.get("parrucchiere"),
+            richieste_spec=richieste or None,
+            foto_url=foto_url,
+            gcal_event_id=event_id,
+            durata_min=durata,
+            prezzo=catalogo.prezzo_totale(servizi) or None,
         )
+    except Exception:  # noqa: BLE001
+        # L'evento su Google c'è già e la riga in agenda no: senza toglierlo,
+        # quella mezz'ora resta occupata da un appuntamento che nessuno sa di
+        # avere — né il salone, che non lo vede nel pannello, né il cliente,
+        # a cui stiamo per dire che non è andata.
+        logger.exception("Agenda non scritta: tolgo l'evento %s da Google", event_id)
+        try:
+            await backends.delete_event(event_id, cal_id)
+        except Exception:  # noqa: BLE001
+            logger.error(
+                "Evento %s rimasto su %s senza appuntamento: va tolto a mano",
+                event_id,
+                cal_id,
+            )
+        raise
+
+    # Da qui in poi **l'appuntamento esiste**, e niente di quello che segue può
+    # più raccontarlo come fallito. Dirlo fallito quando c'è è il modo peggiore
+    # di sbagliare: il cliente riprova, e senza la regola dell'appuntamento
+    # unico si ritroverebbe due poltrone. Visto in produzione, il 27 settembre.
+    try:
+        # L'email va sempre a chi ha un indirizzo, cioè al titolare: un figlio
+        # non ne ha uno. Ma deve dire per chi è l'appuntamento, o chi la riceve
+        # crede sia il suo e si presenta il giorno sbagliato.
+        destinatario = email or client.get("email")
+        if destinatario:
+            await backends.send_confirmation_email(
+                to=destinatario,
+                # Il saluto è per chi legge, cioè il titolare: il nome
+                # dichiarato dal modello può essere quello del figlio, e "Ciao
+                # Riccardo" a chi si chiama Valerio fa sembrare l'email di un altro.
+                nome=client.get("nome") or nome,
+                data_ora=action["slot"],
+                parrucchiere=action.get("parrucchiere", ""),
+                servizi=servizi,
+                per=None if persona["titolare"] else persona["per"],
+            )
+    except Exception:  # noqa: BLE001
+        logger.exception("Conferma non inviata per l'appuntamento del %s", action["slot"])
 
     session["stato_flusso"] = "confermato"
     # Chi ha appena prenotato per il figlio può prenotare anche per sé: la
