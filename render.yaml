@@ -2,11 +2,13 @@ services:
   - type: web
     name: salone-nadia-bot
     runtime: docker
-    # ATTENZIONE: in produzione il piano e' a pagamento, e deve restarlo — sul
-    # gratuito le porte SMTP sono bloccate e non parte nessuna email. Questo
-    # valore vale solo se qualcuno risincronizza il blueprint da zero: se lo
-    # fa, va rimesso il piano giusto dal dashboard.
-    plan: free
+    # Nessun `plan` dichiarato, in nessuno dei tre servizi, ed e' una scelta:
+    # omettendolo Render tiene il piano che il servizio ha gia'. Scritto a mano
+    # invece invecchia — questo file diceva ancora `free` mesi dopo il
+    # passaggio al piano a pagamento, e il sync e' fallito proprio li':
+    # "cannot downgrade database from 0.1c-256mb to Free". Il fallimento ci ha
+    # protetti: sul gratuito le porte SMTP sono bloccate, e le email avrebbero
+    # smesso di partire un'ora dopo averle fatte funzionare.
     healthCheckPath: /health
     envVars:
       - key: DATABASE_URL
@@ -45,11 +47,15 @@ services:
       # Numero del salone, dato al cliente quando è troppo tardi per disdire
       - key: SALONE_TELEFONO
         sync: false
-      # Indirizzo pubblico del servizio. Serve a WhatsApp: le immagini Meta se
-      # le viene a prendere da sé, quindi non basta un percorso. Senza, le
-      # scelte su WhatsApp restano testo e funzionano lo stesso.
+      # Indirizzo pubblico del servizio: Meta va a prendersi da se' l'immagine
+      # con le facce degli operatori, quindi non basta un percorso e un
+      # indirizzo irraggiungibile fa fallire il messaggio intero, non solo la
+      # foto. Lo comanda il dashboard e non questo file, perche' cambia per
+      # motivi che col codice non c'entrano: finche' i nodi DNS di Aruba non
+      # sono allineati vale ancora `https://salone-nadia-bot.onrender.com`, e
+      # diventa `https://simoneacconciature.it` quando lo sono.
       - key: PUBLIC_BASE_URL
-        value: "https://simoneacconciature.it"
+        sync: false
       - key: INACTIVITY_DAYS
         value: "60"
       - key: SESSION_TTL_SECONDS
@@ -76,12 +82,10 @@ services:
 
   - type: redis
     name: salone-nadia-redis
-    plan: free
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
 
 databases:
   - name: salone-nadia-db
-    plan: free
     databaseName: salone_nadia
     postgresMajorVersion: "16"
