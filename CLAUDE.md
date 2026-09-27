@@ -734,6 +734,31 @@ che il salone non ha mai fatto: adesso quelli scritti in `ORARI_APERTURA` sono
 solo i valori iniziali, e a comandare è la tabella che si modifica da
 **Presenze**.
 
+## Deploy
+
+**`render.yaml` descrive l'infrastruttura, non la comanda.** I tre servizi —
+web, Redis, PostgreSQL — esistono gia' e si configurano dal dashboard di
+Render, che e' l'unica fonte di verita'. Il file resta come disegno
+d'insieme e per ricostruire da zero, ma il blueprint **non si sincronizza da
+solo**: la sincronizzazione automatica e' spenta.
+
+Il perche' vale la pena ricordarlo, perche' sono difetti visti accadere nel
+giro di due ore. Il file dichiarava `plan: free` su tutti e tre i servizi,
+fermo a com'erano il primo giorno; in produzione sono a pagamento — proprio
+per sbloccare le porte SMTP. Il sync e' fallito con *"cannot downgrade
+database from 0.1c-256mb to Free"*, e **il fallimento ci ha protetti**: se il
+declassamento del web service fosse riuscito, le email avrebbero smesso di
+partire un'ora dopo averle fatte funzionare, e nessuno avrebbe collegato le
+due cose. Il secondo danno mancato e' `PUBLIC_BASE_URL`: scritto nel file,
+sarebbe stato imposto al dashboard mentre le DNS erano ancora a meta' del
+passaggio.
+
+Da qui due regole per chi tocca quel file. **Il piano non si dichiara**:
+omesso, Render tiene quello che il servizio ha gia'; scritto a mano invecchia
+e prima o poi declassa. E **tutto cio' che cambia per motivi operativi va
+`sync: false`** — l'indirizzo pubblico, le credenziali, le chiavi. Nel file
+restano solo i valori che cambiano insieme al codice.
+
 ## Dominio
 
 Il sito e il pannello stanno su **https://simoneacconciature.it** (registrato

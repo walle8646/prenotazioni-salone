@@ -1,3 +1,22 @@
+# QUESTO FILE DESCRIVE L'INFRASTRUTTURA, NON LA COMANDA.
+#
+# I tre servizi esistono gia' e si configurano dal dashboard di Render, che e'
+# l'unica fonte di verita': piani, variabili con `sync: false`, dominio
+# personalizzato. Qui resta il disegno d'insieme, utile a chi arriva e deve
+# capire come sta in piedi la cosa, e a ricostruirla da zero se un giorno
+# servisse.
+#
+# Il motivo non e' filosofico. Un blueprint che si sincronizza da solo a ogni
+# push ha provato a fare due danni in due ore: declassare il database al piano
+# gratuito (fallendo, per fortuna: sul gratuito le porte SMTP sono bloccate e
+# le email avrebbero smesso di partire) e sovrascrivere l'indirizzo pubblico
+# mentre le DNS erano ancora a meta' del passaggio. Cose che il codice non sa,
+# e che un file versionato non puo' sapere.
+#
+# Da qui due regole. Tutto cio' che cambia per motivi operativi va
+# `sync: false`. E il piano non si dichiara: omesso, Render tiene quello che
+# il servizio ha gia'; scritto a mano, invecchia e a un certo punto declassa.
+
 services:
   - type: web
     name: salone-nadia-bot
