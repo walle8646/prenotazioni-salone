@@ -1642,18 +1642,37 @@ async def conversazione_rispondi(
 
 @router.post("/conversazioni/{conversazione_id}/chiudi")
 async def conversazione_chiudi(
+    request: Request,
     conversazione_id: int,
     utente=Depends(utente_del_pannello),
 ):
-    """Restituisce la conversazione al bot.
+    """Restituisce la conversazione al bot, **dimenticando quella di prima**.
 
     Non manda niente al cliente: un "da adesso ti risponde di nuovo il bot"
     scritto magari tre ore dopo l'ultimo scambio è un messaggio senza contesto.
     Al prossimo messaggio il bot risponde e basta.
+
+    Ma riprende da zero, non da dov'era. Una conversazione finisce a una
+    persona quasi sempre perché il bot si era incartato, e restituirgliela con
+    la stessa memoria vuol dire restituirgli lo stesso vicolo cieco: visto in
+    produzione, chiusa la conversazione il bot ha riletto il proprio "non ti
+    rispondo più io" e ha rifatto esattamente quello — senza nemmeno riprovare
+    a prenotare. In mezzo, poi, il cliente ha parlato con una persona vera: il
+    contesto di prima è comunque vecchio.
     """
     from services.db_service import chiudi_conversazione_operatore
+    from services.session_manager import delete_session
 
-    await chiudi_conversazione_operatore(conversazione_id)
+    telefono = await chiudi_conversazione_operatore(conversazione_id)
+    redis = getattr(request.app.state, "redis", None)
+    if telefono and redis is not None:
+        try:
+            await delete_session(redis, telefono)
+        except Exception:  # noqa: BLE001
+            # Redis irraggiungibile: la conversazione torna al bot lo stesso,
+            # con la memoria vecchia. Meglio che non chiuderla affatto.
+            logger.warning("Memoria non azzerata per %s", telefono, exc_info=True)
+
     return RedirectResponse("/admin/conversazioni", 303)
 
 

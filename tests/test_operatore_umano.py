@@ -349,3 +349,75 @@ async def test_su_un_passaggio_dimenticato_i_puntini_tornano_veri(
     )
 
     assert await risponde_una_persona(NUMERO, backends) is False
+
+
+# ------------------------------------------ chiudere dimentica lo scambio
+#
+# Una conversazione finisce a una persona quasi sempre perché il bot si era
+# incartato. Restituirgliela con la stessa memoria vuol dire restituirgli lo
+# stesso vicolo cieco: visto in produzione, riaperta la conversazione il bot
+# ha riletto il proprio "non ti rispondo più io" e ha rifatto quello, senza
+# nemmeno riprovare a prenotare.
+
+
+@pytest.mark.asyncio
+async def test_chiudere_un_passaggio_azzera_la_memoria(monkeypatch, mock_redis):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from routers import admin
+    from services.session_manager import get_session, save_session
+
+    telefono = "393339998877"
+    await save_session(
+        mock_redis,
+        telefono,
+        {
+            "stato_flusso": "confermato",
+            "history": [{"role": "assistant", "content": "non ti rispondo più io"}],
+            "dati_temp": {},
+        },
+    )
+
+    async def finta_chiusura(conversazione_id):
+        return telefono
+
+    monkeypatch.setattr(
+        "services.db_service.chiudi_conversazione_operatore", finta_chiusura
+    )
+
+    app = FastAPI()
+    app.include_router(admin.router)
+    app.state.redis = mock_redis
+    app.dependency_overrides[admin.utente_del_pannello] = lambda: "nadia"
+    client = TestClient(app, follow_redirects=False)
+
+    risposta = client.post("/admin/conversazioni/10/chiudi")
+
+    assert risposta.status_code == 303
+    rimasta = await get_session(mock_redis, telefono)
+    assert rimasta["history"] == [], "il bot riparte da zero, non da dov'era"
+
+
+@pytest.mark.asyncio
+async def test_senza_redis_la_conversazione_si_chiude_lo_stesso(monkeypatch, mock_redis):
+    """La memoria vecchia è un fastidio; una conversazione che non si chiude
+    lascia il bot muto su quel numero, ed è peggio."""
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from routers import admin
+
+    async def finta_chiusura(conversazione_id):
+        return "393339998877"
+
+    monkeypatch.setattr(
+        "services.db_service.chiudi_conversazione_operatore", finta_chiusura
+    )
+
+    app = FastAPI()
+    app.include_router(admin.router)
+    app.dependency_overrides[admin.utente_del_pannello] = lambda: "nadia"
+    client = TestClient(app, follow_redirects=False)
+
+    assert client.post("/admin/conversazioni/10/chiudi").status_code == 303

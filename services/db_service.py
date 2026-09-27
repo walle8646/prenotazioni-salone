@@ -696,17 +696,30 @@ async def registra_messaggio_conversazione(
         await db.commit()
 
 
-async def chiudi_conversazione_operatore(conversazione_id: int) -> None:
-    """Restituisce la conversazione al bot."""
+async def chiudi_conversazione_operatore(conversazione_id: int) -> str | None:
+    """Restituisce la conversazione al bot, e dice su quale numero.
+
+    Il numero serve a chi chiude per buttare via anche la memoria di quello
+    scambio: vedi `conversazione_chiudi` nel pannello.
+    """
     from models.orm import ConversazioneOperatore
 
     async with async_session() as db:
-        await db.execute(
-            update(ConversazioneOperatore)
-            .where(ConversazioneOperatore.id == conversazione_id)
-            .values(stato="chiusa", chiusa_il=datetime.now())
-        )
+        riga = (
+            await db.execute(
+                select(ConversazioneOperatore).where(
+                    ConversazioneOperatore.id == conversazione_id
+                )
+            )
+        ).scalar_one_or_none()
+        if riga is None:
+            return None
+
+        riga.stato = "chiusa"
+        riga.chiusa_il = datetime.now()
+        telefono = riga.telefono
         await db.commit()
+        return telefono
 
 
 async def elenco_conversazioni_operatore(aperte: bool = True, limite: int = 50) -> list[dict]:

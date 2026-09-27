@@ -578,6 +578,19 @@ rifiutarla dopo l'invio è il modo peggiore di dirlo. Chiudere la conversazione
 la restituisce al bot e non manda niente al cliente — un "da adesso ti risponde
 il bot" scritto tre ore dopo è un messaggio senza contesto.
 
+**Chiudere azzera anche la memoria di quello scambio** (`delete_session` in
+`conversazione_chiudi`). Una conversazione finisce a una persona quasi sempre
+perché il bot si era incartato: restituirgliela con la stessa memoria vuol
+dire restituirgli lo stesso vicolo cieco. Visto in produzione, ed è costato
+un'ora di diagnosi sbagliata: chiusa la conversazione, il bot ha riletto nello
+storico il proprio "da adesso non ti rispondo più io" e ha rifatto esattamente
+quello — **senza nemmeno riprovare** l'azione che aveva fallito, il che dai
+messaggi sembrava identico a un difetto ancora aperto. In mezzo, poi, il
+cliente ha parlato con una persona vera: il contesto di prima è vecchio per
+definizione. Se Redis non risponde la conversazione si chiude lo stesso con la
+memoria vecchia — un fastidio, mentre una conversazione che non si chiude
+lascia il bot muto su quel numero.
+
 **Il pannello si installa sul telefono e suona.** Manifest e service worker
 stanno alla **radice** (`/manifest.webmanifest`, `/sw.js`) e non sotto
 `/static/`: un service worker comanda solo sul percorso da cui è stato
