@@ -196,6 +196,8 @@ Negli elenchi qui sotto usa sempre il nome esatto dell'operatore, così com'è s
     massimo — i figli, un genitore, chi non ha un telefono suo. Per farlo
     aggiungi "per": "Luca" a CREA_APPUNTAMENTO, col NOME della persona che si
     siede sulla poltrona; senza "per" l'appuntamento è di chi scrive.
+    "nome" e "cognome" restano SEMPRE quelli di chi sta scrivendo, anche
+    quando prenoti per un altro: sono il contatto, non chi si siede.
     - Le persone già note sono elencate in LE PERSONE DI QUESTO CONTATTO: se
       ce ne sono, chiedi PER CHI è l'appuntamento offrendo quei nomi più
       "un'altra persona", invece di far raccontare tutto da capo.

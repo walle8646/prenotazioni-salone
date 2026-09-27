@@ -60,8 +60,36 @@ def stessa_persona(uno: str | None, altro: str | None) -> bool:
     Confronto tollerante — maiuscole, spazi — perché il nome arriva da come
     l'ha scritto il cliente in chat: "luca" e "Luca " sono lo stesso figlio, e
     trattarli come due persone diverse brucerebbe uno dei tre posti.
+
+    **Il solo nome vale quanto nome e cognome**: il modello a volte scrive
+    "Riccardo" e a volte "Riccardo Di Dio", e trattarli come due persone
+    aprirebbe una seconda scheda e brucerebbe un posto su tre. Quando tutti e
+    due hanno anche il cognome si confrontano per intero, così due fratelli
+    non diventano la stessa persona.
     """
-    return (uno or "").strip().casefold() == (altro or "").strip().casefold()
+    a = " ".join((uno or "").split()).casefold()
+    b = " ".join((altro or "").split()).casefold()
+    if not a or not b:
+        return False
+    if a == b:
+        return True
+    pezzi_a, pezzi_b = a.split(), b.split()
+    if len(pezzi_a) == 1 or len(pezzi_b) == 1:
+        return pezzi_a[0] == pezzi_b[0]
+    return False
+
+
+def dividi_nome(intero: str | None) -> tuple[str, str]:
+    """"Riccardo Di Dio" -> ("Riccardo", "Di Dio").
+
+    Il modello passa la persona come le viene: a volte il solo nome, a volte
+    nome e cognome. Infilato tutto nella colonna del nome, sul calendario
+    dell'operatore compariva "Riccardo Di Dio Di Dio".
+    """
+    pezzi = (intero or "").split()
+    if not pezzi:
+        return "", ""
+    return pezzi[0], " ".join(pezzi[1:])
 
 
 # Cosa farne di una persona che si vuole togliere da un contatto. Tre casi, e

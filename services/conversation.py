@@ -1083,12 +1083,25 @@ async def _per_chi_si_prenota(
 
     per = (action.get("per") or "").strip()
     io_stesso = {"per": nome, "cliente_id": None, "titolare": True, "nuova": False}
-    if not per or stessa_persona(per, nome):
+    if not per:
         return io_stesso, None
 
     identificato = _identita_provata(phone, session)
     trovato = await _appuntamenti_del_richiedente(phone, session, backends)
     familiari = (trovato or {}).get("familiari") or []
+    suo = (trovato or {}).get("cliente") or {}
+
+    # **Chi è il titolare lo dice l'anagrafica, non il modello.** Prenotando
+    # per un figlio il modello scrive spesso il nome del figlio anche in
+    # "nome", e confrontando "per" con quello il figlio diventava il padre: si
+    # prendeva l'appuntamento del padre come proprio e la prenotazione veniva
+    # rifiutata per un doppione che non esisteva. Successo in produzione, con
+    # un padre e un figlio che hanno lo stesso cognome. Il nome dichiarato vale
+    # solo per chi non è ancora in anagrafica — e chi non c'è non ha
+    # appuntamenti, quindi lì non si può sbagliare nulla di grave.
+    nome_titolare = suo.get("nome") or nome
+    if stessa_persona(per, nome_titolare):
+        return io_stesso, None
 
     if identificato:
         for familiare in familiari:
@@ -1102,10 +1115,6 @@ async def _per_chi_si_prenota(
                     },
                     None,
                 )
-        # Anche il titolare può essere chiamato per nome dal modello.
-        suo = (trovato or {}).get("cliente") or {}
-        if stessa_persona(suo.get("nome"), per):
-            return io_stesso, None
 
     from services.persone import MASSIMO_FAMILIARI, posti_liberi
 
@@ -1268,10 +1277,15 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
 
     # Sul calendario dell'operatore va il nome di chi si siede, non di chi ha
     # telefonato: è l'unica cosa che ha davanti quando il cliente entra.
+    from services.persone import dividi_nome
+
     if persona["titolare"]:
         nome_completo = f"{nome} {cognome}".strip() or "Cliente"
     else:
-        nome_completo = f"{persona['per']} {cognome}".strip()
+        # "per" arriva a volte col cognome e a volte senza: attaccandogli
+        # sempre quello del titolare si leggeva "Riccardo Di Dio Di Dio".
+        nome_persona, cognome_persona = dividi_nome(persona["per"])
+        nome_completo = f"{nome_persona} {cognome_persona or cognome}".strip()
 
     descrizione_parts = []
     if prezzo:
@@ -1360,8 +1374,9 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
         if persona["cliente_id"]:
             intestatario = persona["cliente_id"]
         else:
+            nome_persona, cognome_persona = dividi_nome(persona["per"])
             aggiunto = await backends.aggiungi_familiare(
-                client["id"], persona["per"], cognome
+                client["id"], nome_persona, cognome_persona or cognome
             )
             if aggiunto is None:
                 return {
@@ -1403,7 +1418,10 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     if destinatario:
         await backends.send_confirmation_email(
             to=destinatario,
-            nome=nome,
+            # Il saluto è per chi legge, cioè il titolare: il nome dichiarato
+            # dal modello può essere quello del figlio, e "Ciao Riccardo" a chi
+            # si chiama Valerio fa sembrare l'email di un altro.
+            nome=client.get("nome") or nome,
             data_ora=action["slot"],
             parrucchiere=action.get("parrucchiere", ""),
             servizi=servizi,

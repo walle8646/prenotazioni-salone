@@ -317,3 +317,70 @@ async def test_non_si_rinomina_il_familiare_di_un_altro_contatto():
     assert await _familiare_di(FintoDb(di_un_altro), 5, 9) is None
     assert await _familiare_di(FintoDb(di_un_altro), 77, 9) is di_un_altro
     assert await _familiare_di(FintoDb(None), 77, 9) is None
+
+
+# ------------------------------------------- il caso visto in produzione
+#
+# Un padre con un appuntamento alle 18:30 prenota per il figlio, che ha il suo
+# stesso cognome. Il bot ha fatto scegliere tutto e poi ha rifiutato: "hai già
+# un appuntamento". Il motivo non era il cognome ma la domanda sbagliata —
+# "per" veniva confrontato col nome che scrive **il modello**, e il modello,
+# prenotando per il figlio, scrive il nome del figlio anche in "nome". Così il
+# figlio diventava il padre e si prendeva il suo appuntamento come proprio.
+
+
+@pytest.mark.asyncio
+async def test_il_figlio_non_diventa_il_padre_se_il_modello_ne_confonde_i_nomi(
+    mock_redis, canale, backends
+):
+    # Il padre c'è già in anagrafica, con un appuntamento suo.
+    await _conversazione(mock_redis, canale, backends, _prenota())
+    assert len(backends.appuntamenti) == 1
+
+    # Ora prenota per il figlio, e il modello mette il nome del figlio anche
+    # nei campi del contatto: è quello che è successo davvero.
+    claude = _prenota(
+        per="Riccardo", nome="Riccardo", cognome="Rossi", slot=f"{GIORNO}T10:00"
+    )
+    await _conversazione(mock_redis, canale, backends, claude)
+
+    assert len(backends.appuntamenti) == 2, "la prenotazione del figlio non deve cadere"
+    riccardo = next(c for c in backends.clienti if c.get("nome") == "Riccardo")
+    assert backends.appuntamenti[-1]["client_id"] == riccardo["id"]
+
+
+@pytest.mark.asyncio
+async def test_il_nome_intero_e_il_solo_nome_sono_la_stessa_persona(
+    mock_redis, canale, backends
+):
+    """Il modello alterna "Riccardo" e "Riccardo Rossi": due schede per la
+    stessa persona brucerebbero due posti su tre."""
+    await _conversazione(mock_redis, canale, backends, _prenota(per="Riccardo"))
+    await _conversazione(
+        mock_redis, canale, backends, _prenota(per="Riccardo Rossi", slot=f"{GIORNO}T10:00")
+    )
+
+    quanti = [c for c in backends.clienti if (c.get("nome") or "").startswith("Riccardo")]
+    assert len(quanti) == 1
+    assert len(backends.appuntamenti) == 1, "ed è sempre lui, quindi niente secondo"
+
+
+@pytest.mark.asyncio
+async def test_il_cognome_non_si_scrive_due_volte_sul_calendario(
+    mock_redis, canale, backends
+):
+    await _conversazione(mock_redis, canale, backends, _prenota(per="Riccardo Rossi"))
+
+    evento = next(iter(backends.eventi.values()))
+    assert evento["cliente"] == "Riccardo Rossi"
+
+
+def test_due_fratelli_con_nomi_diversi_restano_due_persone():
+    from services.persone import dividi_nome
+
+    assert stessa_persona("Luca Rossi", "Sara Rossi") is False
+    assert stessa_persona("Luca", "Luca Rossi") is True
+    assert stessa_persona("", "Luca") is False
+    assert dividi_nome("Riccardo Di Dio") == ("Riccardo", "Di Dio")
+    assert dividi_nome("Riccardo") == ("Riccardo", "")
+    assert dividi_nome("  ") == ("", "")

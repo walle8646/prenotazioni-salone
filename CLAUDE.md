@@ -180,6 +180,20 @@ e la colonna del telefono — obbligatoria e unica — prende un segnaposto
 `telefono_da_mostrare()`, perché un segnaposto scambiato per un numero manda
 la receptionist a comporre cifre che non chiamano nessuno.
 
+**Chi è il titolare lo dice l'anagrafica, non il modello.** Il primo
+tentativo confrontava `per` col `nome` dichiarato nell'azione, e il modello —
+prenotando per un figlio — scrive il nome del figlio **anche** in `nome`: così
+il figlio diventava il padre, si prendeva l'appuntamento del padre come
+proprio, e la prenotazione veniva rifiutata per un doppione che non esisteva.
+Visto in produzione, con padre e figlio dallo stesso cognome: il bot ha fatto
+scegliere servizio, giorno, ora e operatore, poi ha detto di no e ha passato
+la conversazione a una persona. Ora il confronto è col nome che sta in
+anagrafica; quello dichiarato vale solo per chi non c'è ancora, e chi non c'è
+non ha appuntamenti da confondere. **Il solo nome vale quanto nome e cognome**
+(`stessa_persona`): il modello alterna "Riccardo" e "Riccardo Di Dio", e
+trattarli come due persone apriva una seconda scheda e bruciava un posto su
+tre.
+
 **Il nome della persona arriva dal modello, ma non è mai un contatto**
 (`_per_chi_si_prenota()`): vale solo dentro la famiglia di chi sta scrivendo,
 e chi non c'è viene creato lì dentro. Se fosse un'email o un numero,
