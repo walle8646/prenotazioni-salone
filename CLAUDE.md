@@ -890,7 +890,18 @@ I commenti spiegano il perché di una scelta, non quello che il codice già dice
 
 I test non toccano mai la rete: Claude, Google e il database si sostituiscono
 con i finti. Il rovescio della medaglia va tenuto presente: **quello che
-succede solo contro il database vero, la suite non lo vede.** Il caso tipico
+succede solo contro il database vero, la suite non lo vede.**
+
+**E un finto con la firma sbagliata non nasconde un difetto: lo fabbrica.**
+`RealBackends` passava alla conferma un parametro che la funzione vera non
+accettava, mentre `FakeBackends` lo accettava: `TypeError` a ogni email di
+conferma — **per tutte le prenotazioni**, non solo quelle nuove — con 459 test
+verdi. Per giorni il cliente si è sentito dire "problema tecnico" su
+appuntamenti regolarmente creati. Da qui `tests/test_email_firme.py`: chiama
+le funzioni **vere** con SMTP non configurato, così `_invia` esce prima di
+aprire una connessione e non si tocca la rete, ma la firma sì. Quando si
+aggiunge un parametro a un backend, il finto **e** il vero vanno cambiati
+insieme, e va chiamato quello vero almeno una volta. Il caso tipico
 sono le relazioni SQLAlchemy: leggerne una caricata pigramente dentro una
 sessione asincrona solleva `MissingGreenlet`, e succede in produzione con la
 suite tutta verde. O si carica esplicitamente con `selectinload`, o non la si

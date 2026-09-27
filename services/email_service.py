@@ -110,8 +110,19 @@ async def _invia(destinatario: str, oggetto: str, html: str) -> None:
         logger.error("Invio email a %s fallito: %s", destinatario, e)
 
 
+def _riga_per(per: str | None) -> str:
+    """La riga che dice di chi è l'appuntamento, quando non è di chi legge.
+
+    Un contatto solo può coprire quattro persone: senza questa riga, il padre
+    che riceve la conferma del figlio la legge come propria e si presenta lui
+    il martedì mattina.
+    """
+    return f"<li><strong>Per:</strong> {per}</li>" if per else ""
+
+
 async def send_confirmation_email(
-    to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list
+    to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list,
+    per: str | None = None,
 ):
     """Invia email di conferma appuntamento."""
     servizi_str = ", ".join(servizi or [])
@@ -120,8 +131,9 @@ async def send_confirmation_email(
         "Conferma appuntamento - Acconciature Simone",
         f"""
             <h2>Ciao {nome}!</h2>
-            <p>Il tuo appuntamento è confermato:</p>
+            <p>{'Appuntamento confermato' if per else 'Il tuo appuntamento è confermato'}:</p>
             <ul>
+                {_riga_per(per)}
                 <li><strong>Data e ora:</strong> {_quando(data_ora)}</li>
                 <li><strong>Servizio:</strong> {servizi_str}</li>
                 <li><strong>Parrucchiere:</strong> {parrucchiere}</li>
