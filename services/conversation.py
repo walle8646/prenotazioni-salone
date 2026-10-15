@@ -584,6 +584,29 @@ def con_foto(options: list[dict]) -> list[dict]:
     return arricchite
 
 
+async def _avvisa_delle_condizioni(session: dict, to: str, channel: Channel) -> None:
+    """Dice che prenotando si accettano le condizioni, una volta a conversazione.
+
+    Se non parte non si blocca niente: una prenotazione fallita per un avviso
+    non spedito sarebbe un danno piu' grosso di quello che l'avviso previene,
+    e il link sta comunque in fondo a ogni pagina del sito e nell'email di
+    conferma.
+    """
+    from services import condizioni
+
+    if not condizioni.serve_avviso(session):
+        return
+    frase = condizioni.frase()
+    if not frase:
+        return
+    try:
+        await channel.send_text(to, frase)
+    except Exception:  # noqa: BLE001
+        logger.warning("Avviso sulle condizioni non inviato a %s", to, exc_info=True)
+        return
+    session["condizioni_avvisate"] = True
+
+
 async def deliver(channel: Channel, to: str, response: str) -> None:
     """Consegna una risposta sul canale, con bottoni se il testo contiene opzioni.
 
@@ -619,6 +642,11 @@ async def _run_turn(session_key, session, channel, backends, claude, redis=None)
         action, pre_text = try_parse_action(response)
 
         if action is None:
+            # L'avviso sulle condizioni va prima del riepilogo, non dopo: sotto
+            # ai bottoni si tocca prima di leggerlo. E non entra nello storico,
+            # perche' e' una cosa che diciamo noi al cliente e non un pezzo
+            # della conversazione che il modello deve ricordarsi.
+            await _avvisa_delle_condizioni(session, session_key, channel)
             session["history"].append({"role": "assistant", "content": response})
             await deliver(channel, session_key, response)
             risposta_inviata = True

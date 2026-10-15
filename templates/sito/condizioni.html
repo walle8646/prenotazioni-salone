@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Condizioni del servizio — Acconciature Simone</title>
+    <link rel="stylesheet" href="/static/sito.css?v={{ v }}">
+</head>
+<body>
+    <header class="site-header">
+        <nav>
+            <a href="/" class="logo">
+                <img src="/static/img/logo-piccolo.png?v={{ v }}" alt="" width="24" height="44">
+                <span>Acconciature Simone</span>
+            </a>
+            <div class="nav-links">
+                <a href="/">Home</a>
+                <a href="/chi-siamo">Chi siamo</a>
+            </div>
+        </nav>
+    </header>
+
+    <section class="page-content">
+        <h1>Condizioni del servizio</h1>
+        <p><em>Ultimo aggiornamento: {{ aggiornata }}</em></p>
+
+        <p>
+            Questa pagina spiega come funziona la prenotazione quando scrivi su
+            WhatsApp o usi la chat del sito, e che cosa facciamo dei tuoi dati.
+            Prenotando accetti quello che c'è scritto qui.
+        </p>
+
+        <h2>Con chi stai parlando</h2>
+        <p>
+            Ti risponde un <strong>assistente automatico</strong> di
+            {{ titolare }}, non una persona. Fa una cosa sola: prendere,
+            spostare e disdire appuntamenti.
+        </p>
+        <p>
+            Se in qualsiasi momento vuoi parlare con qualcuno del salone basta
+            chiederlo — scrivi "vorrei parlare con una persona" e l'assistente
+            si fa da parte: da quel momento ti risponde qualcuno in salone,
+            negli orari di apertura e dallo stesso numero.
+        </p>
+
+        <h2>Prenotare</h2>
+        <ul>
+            <li>
+                L'appuntamento è confermato solo quando l'assistente te lo
+                dice. Finché state ancora scegliendo giorno, ora o operatore,
+                il posto non è tenuto.
+            </li>
+            <li>
+                Si prenota fino a <strong>{{ giorni_avanti }} giorni</strong> in
+                avanti e non meno di <strong>{{ ore_minime }} ore</strong> prima
+                dell'orario scelto. Per qualcosa di più immediato, chiama il
+                salone.
+            </li>
+            <li>
+                <strong>Un appuntamento per volta a persona.</strong> Se ne hai
+                già uno in programma, per spostarlo si cambia quello invece di
+                prenderne un secondo.
+            </li>
+            <li>
+                Puoi prenotare anche per i tuoi familiari, fino a
+                <strong>tre persone</strong> oltre a te: ognuna ha il suo
+                appuntamento e il suo nome sul calendario dell'operatore.
+            </li>
+        </ul>
+
+        <h2>Disdire e spostare</h2>
+        <ul>
+            <li>
+                Da qui puoi disdire o spostare fino a
+                <strong>{{ ore_disdetta }} ore</strong> prima
+                dell'appuntamento.
+            </li>
+            <li>
+                Più tardi di così serve una telefonata al salone: non è una
+                regola burocratica, è che a quel punto il posto va riempito a
+                voce, e un messaggio che nessuno legge in tempo lo lascerebbe
+                vuoto.
+            </li>
+            <li>
+                Se non riesci a venire, <strong>avvisaci comunque</strong>:
+                mezz'ora liberata è mezz'ora che possiamo dare a qualcun altro.
+            </li>
+            <li>
+                Può succedere che sia il salone a dover annullare — un
+                operatore che sta male, una chiusura straordinaria. In quel caso
+                ti avvisiamo noi, all'email che ci hai lasciato o al numero da
+                cui hai scritto.
+            </li>
+        </ul>
+
+        <h2>Prezzi e durate</h2>
+        <p>
+            I prezzi e le durate sono quelli del
+            <a href="/#servizi">listino</a> al momento della prenotazione e
+            possono cambiare: quello che vale è il listino esposto in salone il
+            giorno dell'appuntamento. La durata la decide il servizio scelto, e
+            serve a tenere occupata la poltrona per il tempo giusto — se in
+            salone il servizio cambia, può cambiare anche il prezzo.
+        </p>
+
+        <h2>I tuoi dati</h2>
+        <p>
+            Il titolare del trattamento è <strong>{{ titolare }}</strong>. Qui
+            sotto il riassunto; i dettagli, i tuoi diritti e come esercitarli
+            stanno nell'<a href="/privacy">informativa sulla privacy</a>.
+        </p>
+        <ul>
+            <li>
+                <strong>Cosa raccogliamo:</strong> nome e cognome, il numero di
+                telefono o l'email da cui scrivi, gli appuntamenti che prendi e
+                le eventuali richieste particolari che ci lasci.
+            </li>
+            <li>
+                <strong>Perché:</strong> per darti l'appuntamento, per
+                riconoscerti la volta dopo senza richiederti tutto da capo, e
+                per avvisarti se qualcosa cambia.
+            </li>
+            <li>
+                <strong>Le conversazioni</strong> con l'assistente non vengono
+                conservate: restano in memoria il tempo di capirsi e poi
+                scadono da sole. Fanno eccezione quelle che passano a una
+                persona del salone, che vengono salvate perché chi ti risponde
+                sappia di cosa stavate parlando.
+            </li>
+            <li>
+                <strong>Chi li tocca oltre a noi:</strong> WhatsApp (Meta) per i
+                messaggi, Google Calendar per gli appuntamenti degli operatori,
+                e il servizio di posta del salone per le email di conferma.
+                Non vendiamo i tuoi dati a nessuno e non li usiamo per
+                pubblicità.
+            </li>
+            <li>
+                <strong>Per farti cancellare</strong> basta chiederlo: le
+                istruzioni sono nella pagina
+                <a href="/cancellazione-dati">cancellazione dei dati</a>.
+            </li>
+        </ul>
+
+        <h2>Quando l'assistente sbaglia</h2>
+        <p>
+            È un sistema automatico e può capitargli di non capire o di dire
+            una cosa imprecisa. Se quello che leggi non ti torna — un orario che
+            non quadra, un prezzo diverso da quello che ti aspettavi — chiedi di
+            parlare con una persona invece di confermare: quello che conta è
+            quello che ti dice il salone.
+        </p>
+
+        <h2>Contatti</h2>
+        <p>
+            Per qualsiasi cosa puoi scriverci
+            {% if email_salone %}a <a href="mailto:{{ email_salone }}">{{ email_salone }}</a>{% else %}all'indirizzo email del salone{% endif %}{% if telefono_salone %}
+            o telefonare al {{ telefono_salone }}{% endif %}.
+        </p>
+    </section>
+
+    <footer>
+        <p>&copy; 2026 Acconciature Simone. Tutti i diritti riservati.</p>
+        <p><a href="/privacy">Informativa sulla privacy</a></p>
+    </footer>
+</body>
+</html>

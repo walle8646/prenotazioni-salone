@@ -418,6 +418,36 @@ gli slot tornano ripetuti, uno per operatore libero — il prompt dice
 esplicitamente di elencare ogni orario una volta sola, altrimenti alle sedici
 compaiono sei bottoni identici.
 
+**Prima di confermare, il bot dice che prenotando si accettano le
+condizioni** (`services/condizioni.py`, pagina `/condizioni`). Lo aggiunge il
+codice e non il modello, per la stessa ragione di "Indifferente": il prompt
+viene rispettato quasi sempre, e "quasi" non basta per l'informazione da dare
+prima di raccogliere i dati di qualcuno.
+
+Quattro scelte, tutte con un perché. Parte **quando il cliente ha scelto
+servizio, orario e operatore** — da lì il passo dopo è confermare — e **una
+volta sola per conversazione**: ripeterlo a ogni messaggio è rumore, e il
+rumore si smette di leggerlo. Arriva **prima** del riepilogo e non dopo,
+perché un avviso che compare sotto ai bottoni si tocca prima di leggerlo. Va
+in un **messaggio suo** e non in coda al riepilogo: su WhatsApp quel testo
+viaggia dentro un messaggio interattivo, dove un indirizzo non è detto che si
+possa toccare, e `deliver()` ricava i bottoni leggendo le righe — una riga in
+più rischierebbe di diventare un bottone. E **non entra nello storico**: è una
+cosa che diciamo noi, non un pezzo di conversazione che il modello debba
+ricordarsi, e nello storico si pagherebbe a ogni messaggio successivo.
+
+Se non parte non blocca niente: una prenotazione fallita per un avviso non
+spedito sarebbe un danno più grosso di quello che l'avviso previene, e il link
+sta comunque in fondo a ogni pagina del sito. Senza `PUBLIC_BASE_URL` non si
+manda nulla — un avviso senza link non informa nessuno, e mandarlo servirebbe
+solo a sembrare in regola.
+
+**I numeri nella pagina si leggono dalla configurazione**, non sono scritti nel
+template: quanto in anticipo si prenota, entro quando si disdice. Scritti a
+mano direbbero una cosa mentre il bot ne fa un'altra, ed è il genere di
+difetto che si scopre da un cliente che protesta citando una pagina che gli
+abbiamo dato noi.
+
 ## Pannello di gestione
 
 Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata,

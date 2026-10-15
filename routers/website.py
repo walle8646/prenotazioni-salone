@@ -293,6 +293,42 @@ TITOLARE_PRIVACY = "Acconciature Simone"
 PRIVACY_AGGIORNATA = "5 settembre 2026"
 
 
+# Stessa regola della data dell'informativa: dice quando le condizioni sono
+# cambiate, non quando le stai leggendo.
+CONDIZIONI_AGGIORNATE = "15 ottobre 2026"
+
+
+@router.get("/condizioni", response_class=HTMLResponse)
+async def condizioni(request: Request):
+    """Condizioni del servizio, con il riassunto di cosa facciamo dei dati.
+
+    Il bot la cita prima che il cliente confermi un appuntamento, quindi
+    l'indirizzo e' stabile e la pagina deve stare in piedi da sola: chi la apre
+    ci arriva da un messaggio WhatsApp, non navigando il sito.
+
+    I numeri — quanto in anticipo si prenota, entro quando si disdice — si
+    leggono dalla configurazione invece di essere scritti nel template. Scritti
+    a mano direbbero una cosa mentre il bot ne fa un'altra, ed e' il genere di
+    difetto che nessuno nota finche' un cliente non protesta citando una pagina
+    che gli abbiamo dato noi.
+    """
+    from config import settings
+
+    return templates.TemplateResponse(
+        "condizioni.html",
+        {
+            "request": request,
+            "titolare": TITOLARE_PRIVACY,
+            "email_salone": settings.smtp_user,
+            "telefono_salone": settings.salone_telefono,
+            "aggiornata": CONDIZIONI_AGGIORNATE,
+            "giorni_avanti": settings.max_booking_days_ahead,
+            "ore_minime": settings.min_booking_hours_ahead,
+            "ore_disdetta": settings.cancel_policy_hours,
+        },
+    )
+
+
 @router.get("/privacy", response_class=HTMLResponse)
 async def privacy(request: Request):
     """Informativa sul trattamento dei dati.
