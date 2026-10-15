@@ -33,6 +33,32 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 
+async def _dimentica_le_sessioni(numero: str | None) -> int:
+    """Butta via le conversazioni in corso, che tengono il valore in memoria.
+
+    Senza Redis non si ferma: la parte che conta e' la tabella, e una sessione
+    scade da se' in un paio d'ore.
+    """
+    from config import settings
+    from services.session_manager import SESS_PREFIX
+
+    try:
+        import redis.asyncio as aioredis
+
+        redis = aioredis.from_url(settings.redis_url, decode_responses=True)
+        chiavi = (
+            [f"{SESS_PREFIX}{numero}"]
+            if numero
+            else [c async for c in redis.scan_iter(f"{SESS_PREFIX}*")]
+        )
+        quante = await redis.delete(*chiavi) if chiavi else 0
+        await redis.aclose()
+        return quante
+    except Exception as errore:  # noqa: BLE001
+        print(f"Sessioni non azzerate ({errore}): scadono da se' entro due ore.")
+        return 0
+
+
 async def main() -> int:
     from sqlalchemy import update
 
@@ -53,8 +79,17 @@ async def main() -> int:
 
     quanti = risultato.rowcount or 0
     chi = f"il numero {numero}" if numero else "tutti i clienti"
+
+    # E anche le conversazioni in corso, o non serve a niente. Ogni
+    # conversazione si porta in memoria il valore letto quando e' cominciata:
+    # ripulire la tabella e lasciare la sessione viva vuol dire vedere il bot
+    # continuare a comportarsi come prima, e non capire perche'. Costato
+    # un pomeriggio.
+    sessioni = await _dimentica_le_sessioni(numero)
+
     if quanti:
         print(f"Dimenticata l'accettazione per {chi}: {quanti} schede.")
+        print(f"Conversazioni in corso azzerate: {sessioni}.")
         print("Alla prossima prenotazione l'avviso ricompare.")
     else:
         print(f"Nessuna scheda da ripulire per {chi}.")
