@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}Sposta un appuntamento - Acconciature Simone{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <h2>Sposta l'appuntamento di {{ app.cliente_nome or 'un cliente' }}</h2>
+
+    <div class="scheda-sposta">
+        <p>
+            <strong>{{ app.cliente_nome or 'Senza nome' }}</strong>
+            {% if app.cliente_telefono %}
+            · <a href="https://wa.me/{{ app.cliente_telefono }}" target="_blank" rel="noopener">{{ app.cliente_telefono }}</a>
+            {% endif %}
+        </p>
+        <p class="nota">
+            Adesso è <strong>{{ app.quando_estesa }}</strong> con
+            <strong>{{ app.parrucchiere }}</strong> —
+            {{ app.servizi | join(', ') if app.servizi else 'servizio non indicato' }},
+            {{ app.durata_min }} minuti.
+        </p>
+        <p class="nota">
+            Tocca una casella verde per spostarlo lì. Il cliente riceve
+            un'email con il nuovo orario, se ha lasciato l'indirizzo.
+        </p>
+    </div>
+
+    {% if errore %}<p class="avviso-grave">{{ errore }}</p>{% endif %}
+
+    {% include "_calendario_mesi.html" %}
+
+    <div class="barra-giornata">
+        <a class="btn-small btn-neutro" href="{{ torna_a }}">‹ Torna all'assenza</a>
+    </div>
+
+    {% if agenda.chiuso %}
+    <p class="empty-state">Il salone è chiuso in questa data.</p>
+    {% else %}
+
+    {% if nota_liberi %}
+    <p class="nota-liberi">{{ nota_liberi }}</p>
+    {% else %}
+    <p class="nota-liberi">
+        <span class="nota-verde"></span>
+        Verdi sono le ore in cui ci stanno tutti i {{ app.durata_min }} minuti del servizio,
+        con quell'operatore.
+    </p>
+    {% endif %}
+
+    {% include "_agenda_griglia.html" %}
+
+    {% endif %}
+
+    <form method="POST" action="/admin/assenze/sposta" id="modulo-sposta" hidden>
+        <input type="hidden" name="app_id" value="{{ app.app_id }}">
+        <input type="hidden" name="operatore_id" value="{{ operatore_id }}">
+        <input type="hidden" name="data" value="{{ giorno_assenza }}">
+        <input type="hidden" name="slot" id="sposta-slot">
+        <input type="hidden" name="operatore" id="sposta-operatore">
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    "use strict";
+
+    var modulo = document.getElementById("modulo-sposta");
+
+    // Le caselle verdi qui non aprono un modulo: spostano quell'appuntamento.
+    // Si chiede conferma perché è un'azione che cambia l'agenda di due
+    // persone e manda un'email al cliente: un tocco per sbaglio su un
+    // telefono costerebbe una telefonata di scuse.
+    document.querySelectorAll(".agenda-libero").forEach(function (posto) {
+        posto.addEventListener("click", function () {
+            var dove = posto.dataset.etichetta;
+            if (!confirm("Sposto l'appuntamento a " + dove + "? Il cliente viene avvisato.")) {
+                return;
+            }
+            document.getElementById("sposta-slot").value = posto.dataset.slot;
+            document.getElementById("sposta-operatore").value = posto.dataset.operatore;
+            modulo.submit();
+        });
+    });
+
+    var linea = document.querySelector(".agenda-adesso");
+    if (linea) {
+        var partenza = Date.now();
+        var da = parseFloat(linea.style.getPropertyValue("--da"));
+        setInterval(function () {
+            var trascorse = (Date.now() - partenza) / 60000 / 30;
+            linea.style.setProperty("--da", da + trascorse);
+        }, 60000);
+    }
+}());
+</script>
+{% endblock %}

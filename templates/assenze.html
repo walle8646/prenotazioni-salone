@@ -73,7 +73,19 @@
             {% for a in appuntamenti %}
             <tr{% if a.alternative is not none and not a.alternative %} class="riga-critica"{% endif %}>
                 <td data-label="Ora"><strong>{{ a.ora }}</strong></td>
-                <td data-label="Cliente">{{ a.cliente_nome or 'Senza nome' }}</td>
+                <td data-label="Cliente">
+                    {{ a.cliente_nome or 'Senza nome' }}
+                    {% if a.cliente_telefono %}
+                    {# Il numero sotto il nome, e cliccabile: quando un
+                       appuntamento non si puo' salvare la cosa da fare e'
+                       scrivere a quella persona, e cercarla altrove costa
+                       tempo che non c'e'. #}
+                    <a class="telefono-cliente"
+                       href="https://wa.me/{{ a.cliente_telefono }}"
+                       target="_blank" rel="noopener"
+                       title="Scrivi su WhatsApp">{{ a.cliente_telefono }}</a>
+                    {% endif %}
+                </td>
                 <td data-label="Servizi">{{ a.servizi | join(', ') if a.servizi else '-' }}</td>
                 <td data-label="Come lo avvisiamo">
                     {% if a.cliente_email %}
@@ -101,10 +113,16 @@
                             </select>
                             <button type="submit" class="btn-small">Sposta</button>
                         </form>
+                        <a class="scegli-ora"
+                           href="/admin/assenze/sposta/{{ a.app_id }}?operatore_id={{ operatore_id }}&amp;giorno_assenza={{ giorno.strftime('%Y-%m-%d') }}">
+                            oppure scegli un altro orario
+                        </a>
                     {% else %}
                         <strong class="da-chiamare">Nessuno è libero a quell'ora.</strong>
-                        <span class="nota">Va annullato, o spostato a un altro
-                        orario da <a href="/admin/prenota?data={{ giorno.strftime('%Y-%m-%d') }}">Prenota</a>.</span>
+                        <a class="btn-small scegli-ora-grande"
+                           href="/admin/assenze/sposta/{{ a.app_id }}?operatore_id={{ operatore_id }}&amp;giorno_assenza={{ giorno.strftime('%Y-%m-%d') }}">
+                            Cerca un altro orario
+                        </a>
                     {% endif %}
                 </td>
             </tr>

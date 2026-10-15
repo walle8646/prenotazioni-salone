@@ -90,3 +90,14 @@ async def annulla_giornata(appuntamenti: list[dict], backends) -> dict:
             )
 
     return resoconto
+
+
+def email_dello_spostamento(prima: str, dopo: str) -> str:
+    """Quale delle due email va mandata quando un appuntamento si sposta.
+
+    Non e' pignoleria. L'email dello spostamento barra la vecchia data e
+    scrive la nuova: con giorno e ora identici si legge come un errore del
+    salone. E quella del cambio operatore dice "stesso orario": mandarla
+    quando l'ora e' cambiata lascia il cliente a presentarsi a quella vecchia.
+    """
+    return "spostamento" if dopo != prima else "cambio_operatore"

@@ -669,6 +669,35 @@ body.barra-ridotta .barra-stringi .ic {
 /* La riga di un appuntamento che nessun altro operatore puo' prendere: e'
    l'unico caso, in quella schermata, in cui si perde davvero un cliente. Il
    rosso qui vuol dire attenzione, come dappertutto nel pannello. */
+.telefono-cliente {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--verde-vivo);
+    text-decoration: none;
+}
+
+.telefono-cliente:hover { text-decoration: underline; }
+
+.scegli-ora {
+    display: inline-block;
+    margin-top: 0.35rem;
+    font-size: 0.85rem;
+}
+
+.scegli-ora-grande { display: inline-block; margin-top: 0.4rem; }
+
+.scheda-sposta {
+    background: white;
+    border: 1px solid var(--verde-tenue);
+    border-left: 4px solid var(--verde-vivo);
+    border-radius: 8px;
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 1.2rem;
+}
+
+.scheda-sposta p { margin: 0 0 0.3rem; }
+.scheda-sposta p:last-child { margin-bottom: 0; }
+
 .riga-critica {
     background: #fdecea;
 }

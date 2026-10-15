@@ -1,0 +1,52 @@
+{# I quattro mesi in cima. Estratto perche' lo mostrano due schermate — Prenota e
+   lo spostamento di un appuntamento — e disegnarlo in due posti vuol dire
+   due pezzi che prima o poi dicono due cose diverse sullo stesso orario.
+   Variabili attese: `mesi`, `dove`, `filtro`. #}
+    {# Due mesi interi al posto del campo "vai a un'altra data": quello sapeva
+       portare da qualche parte, ma non dove conveniva andare. Per trovare il
+       primo giorno scarico si tiravano a indovinare date una per volta, mentre
+       qui la distribuzione si vede prima di scegliere. #}
+    {# Sul telefono quattro mesi impilati sono novecento pixel prima di
+       arrivare alla griglia: lì partono chiusi e li apre chi li cerca. Sul
+       monitor stanno in riga e sono sempre aperti — il bottone non esiste
+       proprio, e la regola che li nasconde vive dentro la media query. Con un
+       <details> bastava una finestra stretta al caricamento per ritrovarseli
+       chiusi sul monitor, senza niente da toccare per riaprirli. #}
+    <div class="mesi-scatola" id="mesi">
+        <button type="button" class="mesi-mostra" id="mesi-mostra" aria-expanded="false">
+            Calendario dei prossimi quattro mesi
+        </button>
+    <div class="mesi">
+        {% for m in mesi %}
+        <div class="mese">
+            <p class="mese-nome">{{ m.nome }}</p>
+            <div class="mese-griglia">
+                {% for g in ["L", "M", "M", "G", "V", "S", "D"] %}
+                <span class="mese-testa" aria-hidden="true">{{ g }}</span>
+                {% endfor %}
+
+                {% for settimana in m.settimane %}
+                {% for c in settimana %}
+                {% if not c %}
+                <span class="mese-vuoto"></span>
+                {% elif not c.aperto %}
+                {# Un giorno di chiusura non si tocca: mandare a cercare posto
+                   di domenica fa perdere tempo a chi ha il cliente in linea. #}
+                <span class="mese-giorno mese-chiuso" title="Chiuso">{{ c.numero }}</span>
+                {% else %}
+                <a class="mese-giorno{{ ' mese-scelto' if c.scelto }}{{ ' mese-oggi' if c.oggi }}{{ ' mese-passato' if c.passato }}"
+                   href="{{ dove }}?data={{ c.iso }}&amp;vista=giorno{{ filtro }}"
+                   style="--carico: {{ c.riempimento }};"
+                   title="{{ c.quanti }} appuntament{{ 'o' if c.quanti == 1 else 'i' }}">
+                    {{ c.numero }}
+                    <span class="mese-carico" aria-hidden="true"></span>
+                </a>
+                {% endif %}
+                {% endfor %}
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    </div>
+

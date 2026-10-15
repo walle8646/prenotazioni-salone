@@ -1629,6 +1629,97 @@ async def assenze_form(
     )
 
 
+@router.get("/assenze/sposta/{app_id}", response_class=HTMLResponse)
+async def assenze_sposta_scegli(
+    request: Request,
+    app_id: int,
+    data: str = None,
+    operatore_id: int = None,
+    giorno_assenza: str = None,
+    errore: str = None,
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """La griglia da cui scegliere un orario nuovo per un appuntamento solo.
+
+    E' la stessa di Prenota, e il calendario dei quattro mesi pure: due pezzi
+    che disegnano le ore libere in posti diversi prima o poi ne dicono due
+    versioni, e quella su cui si sposta e' sempre l'altra. Cambia solo cosa fa
+    una casella verde — qui sposta invece di aprire il modulo.
+
+    Le ore libere si chiedono **per la durata di questo appuntamento**: il
+    verde deve comparire solo dove un colore da due ore ci sta davvero.
+    """
+    riga = (
+        await db.execute(
+            select(Appuntamento)
+            .options(
+                selectinload(Appuntamento.cliente),
+                selectinload(Appuntamento.parrucchiere),
+            )
+            .where(Appuntamento.id == app_id)
+        )
+    ).scalar_one_or_none()
+    if riga is None or riga.stato != "Confermato":
+        return RedirectResponse(
+            f"/admin/assenze?operatore_id={operatore_id or ''}"
+            f"&data={giorno_assenza or date.today().isoformat()}"
+            + f"&errore={quote('Quell appuntamento non c e piu.')}",
+            303,
+        )
+
+    cliente = riga.cliente
+    telefono = cliente.telefono_wa if cliente else None
+    durata = riga.durata_min or settings.slot_duration_min
+    app = {
+        "app_id": riga.id,
+        "cliente_nome": (
+            f"{cliente.nome or ''} {cliente.cognome or ''}".strip() if cliente else ""
+        ),
+        "cliente_telefono": (
+            telefono if telefono and not telefono.startswith(("web_", "fam:")) else None
+        ),
+        "parrucchiere": riga.parrucchiere.nome if riga.parrucchiere else "—",
+        "servizi": riga.servizi or [],
+        "durata_min": durata,
+        "quando_estesa": _in_italiano(riga.data_ora.date())
+        + f" alle {riga.data_ora.strftime('%H:%M')}",
+    }
+
+    adesso = datetime.now()
+    giorno = (
+        datetime.strptime(data, "%Y-%m-%d").date() if data else riga.data_ora.date()
+    )
+    liberi, nota_liberi = await _dove_c_e_posto(giorno, adesso, durata=durata)
+    contenuto = await _giornata(db, giorno, adesso, liberi=liberi)
+
+    giorno_assenza = giorno_assenza or riga.data_ora.date().isoformat()
+    dove = f"/admin/assenze/sposta/{app_id}"
+    return templates.TemplateResponse(
+        "sposta_appuntamento.html",
+        {
+            "request": request,
+            **contenuto,
+            "app": app,
+            "data_selezionata": giorno,
+            "mesi": await _mesi_davanti(db, giorno, adesso, None),
+            "dove": dove,
+            "filtro": (
+                f"&operatore_id={operatore_id or ''}&giorno_assenza={giorno_assenza}"
+            ),
+            "nota_liberi": nota_liberi,
+            "operatore_scelto": None,
+            "vista_settimana": False,
+            "operatore_id": operatore_id or "",
+            "giorno_assenza": giorno_assenza,
+            "torna_a": (
+                f"/admin/assenze?operatore_id={operatore_id or ''}&data={giorno_assenza}"
+            ),
+            "errore": errore,
+        },
+    )
+
+
 @router.post("/assenze/sposta")
 async def assenze_sposta(
     request: Request,
@@ -1656,6 +1747,7 @@ async def assenze_sposta(
     from prompts.system_prompt import get_cal_id_for_parrucchiere
     from services.backends import RealBackends
     from services.conversation import _slot_ancora_libero
+    from services.assenze import email_dello_spostamento
 
     modulo = await request.form()
     app_id = int(modulo.get("app_id") or 0)
@@ -1697,14 +1789,25 @@ async def assenze_sposta(
         return torna(f"{nuovo_nome} non e' fra gli operatori.", errore=True)
 
     da_chi = riga.parrucchiere.nome if riga.parrucchiere else "chi non c'e'"
-    quando = riga.data_ora.strftime("%Y-%m-%dT%H:%M")
+    prima = riga.data_ora.strftime("%Y-%m-%dT%H:%M")
+    # Senza `slot` si resta alla stessa ora: e' lo spostamento rapido fatto
+    # dalla riga dell'elenco. Con `slot` arriva dalla griglia, dove si sceglie
+    # anche quando.
+    quando = (modulo.get("slot") or "").strip() or prima
+    quale_email = email_dello_spostamento(prima, quando)
+    cambia_ora = quale_email == "spostamento"
     durata = riga.durata_min or settings.slot_duration_min
     backends = RealBackends()
+
+    try:
+        nuovo_momento = datetime.strptime(quando, "%Y-%m-%dT%H:%M")
+    except ValueError:
+        return torna("Non ho capito a che ora spostarlo.", errore=True)
 
     if not await _slot_ancora_libero(quando, cal_id, durata, backends):
         return torna(
             f"{nuovo_nome} nel frattempo non e' piu' libero alle "
-            f"{riga.data_ora.strftime('%H:%M')}. Ricarica e riprova.",
+            f"{nuovo_momento.strftime('%H:%M')}. Ricarica e riprova.",
             errore=True,
         )
 
@@ -1730,6 +1833,7 @@ async def assenze_sposta(
 
     riga.parrucchiere_id = nuovo_operatore.id
     riga.gcal_event_id = nuovo_evento
+    riga.data_ora = nuovo_momento
     await db.commit()
 
     # Solo adesso: l'appuntamento nuovo c'e' gia', quindi il peggio che puo'
@@ -1745,31 +1849,54 @@ async def assenze_sposta(
                 da_chi,
             )
 
+    # Due email diverse, e non e' pignoleria. Quella dello spostamento barra
+    # la vecchia data e scrive la nuova: con giorno e ora identici si
+    # leggerebbe come un errore. E quando cambia l'ora, dire solo "cambia
+    # l'operatore" lascerebbe il cliente a presentarsi all'ora vecchia.
     if cliente and cliente.email:
         try:
-            await backends.send_operatore_cambiato_email(
-                to=cliente.email,
-                nome=cliente.nome or nome_cliente,
-                data_ora=quando,
-                da_chi=da_chi,
-                a_chi=nuovo_nome,
-                servizi=riga.servizi or [],
-            )
+            if quale_email == "spostamento":
+                await backends.send_change_email(
+                    to=cliente.email,
+                    nome=cliente.nome or nome_cliente,
+                    da=prima,
+                    a=quando,
+                    parrucchiere=nuovo_nome,
+                    servizi=riga.servizi or [],
+                )
+            else:
+                await backends.send_operatore_cambiato_email(
+                    to=cliente.email,
+                    nome=cliente.nome or nome_cliente,
+                    data_ora=quando,
+                    da_chi=da_chi,
+                    a_chi=nuovo_nome,
+                    servizi=riga.servizi or [],
+                )
         except Exception:  # noqa: BLE001
-            logger.warning("Email del cambio operatore non inviata", exc_info=True)
+            logger.warning("Email dello spostamento non inviata", exc_info=True)
 
     logger.info(
-        "Appuntamento %s spostato da %s a %s da %s", app_id, da_chi, nuovo_nome, utente
+        "Appuntamento %s spostato da %s (%s) a %s (%s) da %s",
+        app_id,
+        da_chi,
+        prima,
+        nuovo_nome,
+        quando,
+        utente,
     )
     avvisato = (
         "e il cliente e' stato avvisato per email"
         if cliente and cliente.email
         else "ma il cliente non ha email: va avvisato a voce"
     )
-    return torna(
-        f"{nome_cliente} delle {riga.data_ora.strftime('%H:%M')} ora e' con "
-        f"{nuovo_nome}, {avvisato}."
+    dove_ora = (
+        f"{_in_italiano(nuovo_momento.date())} alle "
+        f"{nuovo_momento.strftime('%H:%M')} con {nuovo_nome}"
+        if cambia_ora
+        else f"alle {nuovo_momento.strftime('%H:%M')} con {nuovo_nome}"
     )
+    return torna(f"{nome_cliente} ora e' {dove_ora}, {avvisato}.")
 
 
 @router.post("/assenze")
@@ -2178,7 +2305,7 @@ _SPIEGAZIONI = {
 
 
 async def _dove_c_e_posto(
-    giorno: date, adesso: datetime, operatore: str | None = None
+    giorno: date, adesso: datetime, operatore: str | None = None, durata: int = 30
 ) -> tuple[dict[str, set[str]], str | None]:
     """Gli orari liberi di ogni operatore secondo Google, e perché mancano.
 
@@ -2201,12 +2328,12 @@ async def _dove_c_e_posto(
     I giorni passati non si interrogano: nessuno ci prenota, e sarebbero sei
     chiamate a Google per disegnare del verde inutile.
     """
-    liberi, motivo = await _liberi_da_google(giorno, adesso, operatore)
+    liberi, motivo = await _liberi_da_google(giorno, adesso, operatore, durata)
     return liberi, _SPIEGAZIONI.get(motivo)
 
 
 async def _liberi_da_google(
-    giorno: date, adesso: datetime, operatore: str | None = None
+    giorno: date, adesso: datetime, operatore: str | None = None, durata: int = 30
 ) -> tuple[dict[str, set[str]], str | None]:
     """Gli orari liberi e il **motivo** se non ce ne sono, non ancora la frase.
 
@@ -2236,7 +2363,13 @@ async def _liberi_da_google(
         cal_id = get_cal_id_for_parrucchiere(operatore) if operatore else None
         if operatore and not cal_id:
             return {}, "guasto"
-        slot = await RealBackends().check_availability(giorno.isoformat(), cal_id, 30)
+        # La durata vera e non trenta minuti fissi: spostando un colore da due
+        # ore, il verde deve comparire solo dove ci sono due ore libere di
+        # fila. Per una prenotazione nuova resta trenta, perche' il servizio
+        # si sceglie dopo aver scelto l'ora.
+        slot = await RealBackends().check_availability(
+            giorno.isoformat(), cal_id, durata
+        )
         # Google dice se l'operatore è occupato, non se quel giorno lavora: lo
         # stesso filtro che sta fra la ricerca e il bot, o il verde comparirebbe
         # sopra le righe di chi non è in salone.

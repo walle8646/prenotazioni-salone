@@ -26,53 +26,7 @@
         {% endfor %}
     </nav>
 
-    {# Due mesi interi al posto del campo "vai a un'altra data": quello sapeva
-       portare da qualche parte, ma non dove conveniva andare. Per trovare il
-       primo giorno scarico si tiravano a indovinare date una per volta, mentre
-       qui la distribuzione si vede prima di scegliere. #}
-    {# Sul telefono quattro mesi impilati sono novecento pixel prima di
-       arrivare alla griglia: lì partono chiusi e li apre chi li cerca. Sul
-       monitor stanno in riga e sono sempre aperti — il bottone non esiste
-       proprio, e la regola che li nasconde vive dentro la media query. Con un
-       <details> bastava una finestra stretta al caricamento per ritrovarseli
-       chiusi sul monitor, senza niente da toccare per riaprirli. #}
-    <div class="mesi-scatola" id="mesi">
-        <button type="button" class="mesi-mostra" id="mesi-mostra" aria-expanded="false">
-            Calendario dei prossimi quattro mesi
-        </button>
-    <div class="mesi">
-        {% for m in mesi %}
-        <div class="mese">
-            <p class="mese-nome">{{ m.nome }}</p>
-            <div class="mese-griglia">
-                {% for g in ["L", "M", "M", "G", "V", "S", "D"] %}
-                <span class="mese-testa" aria-hidden="true">{{ g }}</span>
-                {% endfor %}
-
-                {% for settimana in m.settimane %}
-                {% for c in settimana %}
-                {% if not c %}
-                <span class="mese-vuoto"></span>
-                {% elif not c.aperto %}
-                {# Un giorno di chiusura non si tocca: mandare a cercare posto
-                   di domenica fa perdere tempo a chi ha il cliente in linea. #}
-                <span class="mese-giorno mese-chiuso" title="Chiuso">{{ c.numero }}</span>
-                {% else %}
-                <a class="mese-giorno{{ ' mese-scelto' if c.scelto }}{{ ' mese-oggi' if c.oggi }}{{ ' mese-passato' if c.passato }}"
-                   href="{{ dove }}?data={{ c.iso }}&amp;vista=giorno{{ filtro }}"
-                   style="--carico: {{ c.riempimento }};"
-                   title="{{ c.quanti }} appuntament{{ 'o' if c.quanti == 1 else 'i' }}">
-                    {{ c.numero }}
-                    <span class="mese-carico" aria-hidden="true"></span>
-                </a>
-                {% endif %}
-                {% endfor %}
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
-    </div>
+    {% include "_calendario_mesi.html" %}
 
     <div class="barra-giornata">
         {% if operatore_scelto %}
@@ -120,77 +74,7 @@
     </p>
     {% endif %}
 
-    <div class="agenda-scorre">
-        <div class="agenda{{ ' agenda-stretta' if agenda.colonne | length == 1 }}"
-             style="--righe: {{ agenda.righe }}; --colonne: {{ agenda.colonne | length }};">
-            <div class="agenda-testata">
-                <div class="agenda-angolo"></div>
-                {% for c in agenda.colonne %}
-                <div class="agenda-operatore{{ ' colonna-oggi' if c.oggi }}">
-                    {% if c.foto %}
-                    <img src="/operatori/{{ c.nome | urlencode }}/foto" alt="" width="28" height="28">
-                    {% endif %}
-                    <span class="agenda-nome">{{ c.nome }}</span>
-                    <small>
-                        {%- if c.aperto is defined and not c.aperto -%}
-                            chiuso
-                        {%- elif c.liberi | length == 1 -%}
-                            1 libero
-                        {%- else -%}
-                            {{ c.liberi | length }} liberi
-                        {%- endif -%}
-                    </small>
-                </div>
-                {% endfor %}
-            </div>
-
-            <div class="agenda-corpo">
-                <div class="agenda-ore" aria-hidden="true">
-                    {% for o in agenda.ore %}
-                    <span style="--da: {{ o.riga }};">{{ o.testo }}</span>
-                    {% endfor %}
-                </div>
-
-                {% for c in agenda.colonne %}
-                <div class="agenda-colonna">
-                    {% for z in c.fuori %}
-                    <div class="agenda-fuori" style="--da: {{ z.da }}; --per: {{ z.per }};"></div>
-                    {% endfor %}
-
-                    {# Con una settimana davanti l'intestazione è un giorno, non
-                       una persona: chi riceve resta quello scelto in cima. #}
-                    {% set chi = operatore_scelto or c.nome %}
-                    {% set col_giorno = vista_settimana %}
-                    {% for l in c.liberi %}
-                    <button type="button" class="agenda-libero"
-                            style="--da: {{ l.da }};"
-                            data-slot="{{ l.slot }}" data-operatore="{{ chi }}"
-                            data-etichetta="{% if col_giorno %}{{ c.nome }} · {% endif %}{{ l.ora }} con {{ chi }}"
-                            title="Prenota alle {{ l.ora }} con {{ chi }}">
-                        <span>{{ l.ora }}</span>
-                    </button>
-                    {% endfor %}
-
-                    {# Qui gli appuntamenti non si aprono e non si disdicono:
-                       per quello c'è Appuntamenti. Un click che non fa niente
-                       è meglio di un click che disdice mentre si prenota. #}
-                    {% for b in c.blocchi %}
-                    <div class="agenda-blocco agenda-occupato{{ ' blocco-corto' if b.per < 1.5 }}"
-                         style="--da: {{ b.da }}; --per: {{ b.per }}; --corsia: {{ b.corsia }}; --corsie: {{ b.corsie }}; --sfondo: {{ b.sfondo }}; --bordo: {{ b.bordo }};"
-                         title="{{ b.ora }}–{{ b.fine }} · {{ b.cliente }} · {{ b.servizi }}">
-                        <span class="blocco-ora">{{ b.ora }}</span>
-                        <span class="blocco-cliente">{{ b.cliente }}</span>
-                    </div>
-                    {% endfor %}
-                </div>
-                {% endfor %}
-
-                {% if agenda.adesso is not none %}
-                <div class="agenda-adesso" style="--da: {{ agenda.adesso }};" title="Adesso"></div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
+    {% include "_agenda_griglia.html" %}
 
     <dialog id="nuovo" class="dettaglio">
         <form method="dialog" class="dettaglio-chiudi">

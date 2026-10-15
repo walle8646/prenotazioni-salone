@@ -794,6 +794,26 @@ vuota quando davvero non c'è nessuno: **"non lo so" e "non c'è nessuno" non
 sono la stessa cosa**, e mostrarli uguali farebbe annullare appuntamenti che
 si potevano salvare. Solo la lista vuota colora la riga di rosso.
 
+Chi non si può spostare alla stessa ora ha comunque **Cerca un altro
+orario**, che apre la griglia di Prenota per quell'appuntamento solo: lì una
+casella verde lo sposta invece di aprire il modulo. La griglia e il calendario
+dei quattro mesi sono due **include** (`_agenda_griglia.html`,
+`_calendario_mesi.html`), non due copie, per la stessa ragione per cui la
+geometria sta in una funzione sola: due pezzi che disegnano le ore libere in
+posti diversi prima o poi ne dicono due versioni, e quella su cui si sposta è
+sempre l'altra. Le ore libere si chiedono per la **durata di quell'
+appuntamento** (`_dove_c_e_posto(durata=...)`), o il verde comparirebbe dove
+un colore da due ore non ci sta.
+
+Quale email parte lo decide `email_dello_spostamento()`, logica pura col suo
+test: stessa ora e operatore diverso è una cosa, ora diversa è un'altra, e
+scambiarle lascia il cliente a presentarsi all'ora vecchia.
+
+Nell'elenco il **numero di telefono sta sotto il nome**, cliccabile su
+WhatsApp: quando un appuntamento non si può salvare, la cosa da fare è
+scrivere a quella persona, e cercarne il numero altrove costa tempo che in
+quel momento non c'è.
+
 Lo spostamento ricontrolla che l'ora sia ancora libera (Google accetta le
 sovrapposizioni in silenzio), crea l'evento sul calendario nuovo **prima** di
 togliere il vecchio — l'ordine opposto, se la creazione fallisse, lascerebbe

@@ -1,0 +1,76 @@
+{# La griglia della giornata, con le caselle libere. Estratto perche' lo mostrano due schermate — Prenota e
+   lo spostamento di un appuntamento — e disegnarlo in due posti vuol dire
+   due pezzi che prima o poi dicono due cose diverse sullo stesso orario.
+   Variabili attese: `agenda`, `operatore_scelto`, `vista_settimana`. #}
+    <div class="agenda-scorre">
+        <div class="agenda{{ ' agenda-stretta' if agenda.colonne | length == 1 }}"
+             style="--righe: {{ agenda.righe }}; --colonne: {{ agenda.colonne | length }};">
+            <div class="agenda-testata">
+                <div class="agenda-angolo"></div>
+                {% for c in agenda.colonne %}
+                <div class="agenda-operatore{{ ' colonna-oggi' if c.oggi }}">
+                    {% if c.foto %}
+                    <img src="/operatori/{{ c.nome | urlencode }}/foto" alt="" width="28" height="28">
+                    {% endif %}
+                    <span class="agenda-nome">{{ c.nome }}</span>
+                    <small>
+                        {%- if c.aperto is defined and not c.aperto -%}
+                            chiuso
+                        {%- elif c.liberi | length == 1 -%}
+                            1 libero
+                        {%- else -%}
+                            {{ c.liberi | length }} liberi
+                        {%- endif -%}
+                    </small>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="agenda-corpo">
+                <div class="agenda-ore" aria-hidden="true">
+                    {% for o in agenda.ore %}
+                    <span style="--da: {{ o.riga }};">{{ o.testo }}</span>
+                    {% endfor %}
+                </div>
+
+                {% for c in agenda.colonne %}
+                <div class="agenda-colonna">
+                    {% for z in c.fuori %}
+                    <div class="agenda-fuori" style="--da: {{ z.da }}; --per: {{ z.per }};"></div>
+                    {% endfor %}
+
+                    {# Con una settimana davanti l'intestazione è un giorno, non
+                       una persona: chi riceve resta quello scelto in cima. #}
+                    {% set chi = operatore_scelto or c.nome %}
+                    {% set col_giorno = vista_settimana %}
+                    {% for l in c.liberi %}
+                    <button type="button" class="agenda-libero"
+                            style="--da: {{ l.da }};"
+                            data-slot="{{ l.slot }}" data-operatore="{{ chi }}"
+                            data-etichetta="{% if col_giorno %}{{ c.nome }} · {% endif %}{{ l.ora }} con {{ chi }}"
+                            title="Prenota alle {{ l.ora }} con {{ chi }}">
+                        <span>{{ l.ora }}</span>
+                    </button>
+                    {% endfor %}
+
+                    {# Qui gli appuntamenti non si aprono e non si disdicono:
+                       per quello c'è Appuntamenti. Un click che non fa niente
+                       è meglio di un click che disdice mentre si prenota. #}
+                    {% for b in c.blocchi %}
+                    <div class="agenda-blocco agenda-occupato{{ ' blocco-corto' if b.per < 1.5 }}"
+                         style="--da: {{ b.da }}; --per: {{ b.per }}; --corsia: {{ b.corsia }}; --corsie: {{ b.corsie }}; --sfondo: {{ b.sfondo }}; --bordo: {{ b.bordo }};"
+                         title="{{ b.ora }}–{{ b.fine }} · {{ b.cliente }} · {{ b.servizi }}">
+                        <span class="blocco-ora">{{ b.ora }}</span>
+                        <span class="blocco-cliente">{{ b.cliente }}</span>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+
+                {% if agenda.adesso is not none %}
+                <div class="agenda-adesso" style="--da: {{ agenda.adesso }};" title="Adesso"></div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+

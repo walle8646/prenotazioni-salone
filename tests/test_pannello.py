@@ -419,3 +419,16 @@ async def test_si_chiede_una_volta_per_durata_e_non_per_appuntamento(monkeypatch
     )
 
     assert sorted(durate_chieste) == [30, 120]
+
+
+def test_quale_email_si_manda_quando_un_appuntamento_si_sposta():
+    """L'email dello spostamento barra la vecchia data e scrive la nuova: con
+    giorno e ora identici si legge come un errore del salone. E quella del
+    cambio operatore dice "stesso orario": mandarla quando l'ora e' cambiata
+    lascia il cliente a presentarsi a quella vecchia."""
+    from services.assenze import email_dello_spostamento
+
+    uguale = "2026-10-16T09:30"
+    assert email_dello_spostamento(uguale, uguale) == "cambio_operatore"
+    assert email_dello_spostamento(uguale, "2026-10-16T15:00") == "spostamento"
+    assert email_dello_spostamento(uguale, "2026-10-17T09:30") == "spostamento"
