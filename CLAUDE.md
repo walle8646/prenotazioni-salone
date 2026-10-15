@@ -166,8 +166,23 @@ meno. Il gettone **non arriva mai da un parametro del modello**: vale sempre e
 solo il numero della conversazione, quindi un link per il numero di un altro
 non è nemmeno esprimibile. Da lì la sessione del sito ha
 `telefono_verificato`, che `_identita_provata()` tratta come l'email
-confermata. Esiste per il costo: dal 1° ottobre 2026 ogni risposta del bot su
-WhatsApp si paga a messaggio, la chat del sito no.
+confermata. Esiste per il costo: dal 1° ottobre 2026 le risposte del bot su
+WhatsApp si pagano a messaggio, la chat del sito no.
+
+**Con una franchigia che cambia l'urgenza, non la direzione.** Meta regala
+**mille messaggi di servizio al mese per numero**, non cumulabili: finché il
+salone ci sta dentro non paga niente, ed è il motivo per cui a metà ottobre
+2026 non si vedeva ancora un addebito. Oltre, si paga alla tariffa dei
+messaggi di utilità del mercato del destinatario. Una conversazione di
+prenotazione ne consuma una manciata, quindi il tetto arriva intorno al
+centinaio di prenotazioni al mese: non è lontano come sembra.
+
+E c'è la parte che fa male in silenzio: **senza un metodo di pagamento
+registrato, oltre la franchigia Meta non li consegna affatto.** Non è una
+fattura a sorpresa, è il bot che smette di rispondere al millesimoprimo
+messaggio del mese — e si presenta esattamente come tutti gli altri guasti di
+WhatsApp già visti qui: silenzio e spunte grigie. Il numero vero di messaggi
+consumati si legge in WhatsApp Manager; il metodo di pagamento in Billing Hub.
 
 **Una volta scritto l'appuntamento, niente può più raccontarlo fallito.**
 Email di conferma e aggiornamenti della sessione stanno dentro un `try` che
