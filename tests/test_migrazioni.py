@@ -37,16 +37,25 @@ def test_create_all_conosce_tutte_le_tabelle_del_progetto():
     import importlib
     import sys
 
-    # Si simula un processo che non ha ancora visto i modelli
-    for modulo in ("models.orm", "models.database"):
-        sys.modules.pop(modulo, None)
+    # I moduli veri si mettono da parte **tenendoli in mano**, e si rimettono
+    # a posto alla fine. Toglierli e basta e' costato un pomeriggio: il
+    # registro dei modelli di SQLAlchemy tiene le classi con riferimenti
+    # deboli, quindi la vecchia `Presenza` — che nessun altro modulo importa
+    # per nome — veniva buttata via dal garbage collector. Da quel momento
+    # ogni test successivo che tocca l'ORM falliva con "failed to locate a
+    # name ('Presenza')", e la colpa sembrava sua.
+    vecchi = {m: sys.modules.pop(m, None) for m in ("models.orm", "models.database")}
+    try:
+        database = importlib.import_module("models.database")
+        assert database.Base.metadata.tables == {}, "premessa del test"
 
-    database = importlib.import_module("models.database")
-    assert database.Base.metadata.tables == {}, "premessa del test"
-
-    importlib.import_module("models.orm")
-    attese = {"clienti", "parrucchieri", "appuntamenti", "servizi"}
-    assert attese <= set(database.Base.metadata.tables)
+        importlib.import_module("models.orm")
+        attese = {"clienti", "parrucchieri", "appuntamenti", "servizi"}
+        assert attese <= set(database.Base.metadata.tables)
+    finally:
+        for nome, modulo in vecchi.items():
+            if modulo is not None:
+                sys.modules[nome] = modulo
 
 
 def test_un_database_gia_annotato_non_viene_toccato():

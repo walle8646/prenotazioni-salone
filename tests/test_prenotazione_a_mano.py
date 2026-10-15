@@ -442,3 +442,59 @@ def test_quando_va_tutto_bene_non_si_cancella_niente(pannello, monkeypatch):
     _prenota(pannello)
 
     assert tolti == []
+
+
+# ------------------------------------------- i link che la pagina si fabbrica
+#
+# Un parametro scritto vuoto non e' un parametro assente: la rotta lo legge
+# come stringa vuota e, se e' dichiarato numero, risponde 422 con un JSON in
+# inglese. Chi lavora in salone si trova una pagina di errore al posto del
+# calendario, col cliente al telefono.
+
+
+def test_un_parametro_senza_valore_non_si_scrive():
+    """Visto in produzione il 15 ottobre: la pagina dello spostamento aperta
+    da Appuntamenti non ha nessun operatore assente, e i giorni del calendario
+    portavano `operatore_id=` vuoto."""
+    coda = admin.coda_query(operatore_id=None, giorno_assenza="2026-10-15")
+
+    assert "operatore_id" not in coda
+    assert coda == "&giorno_assenza=2026-10-15"
+
+
+def test_anche_la_stringa_vuota_e_lo_spazio_restano_fuori():
+    assert admin.coda_query(a="", b="   ", c="3") == "&c=3"
+
+
+def test_quello_che_c_e_viene_scritto_in_ordine():
+    coda = admin.coda_query(operatore_id=3, giorno_assenza="2026-10-15")
+
+    assert coda == "&operatore_id=3&giorno_assenza=2026-10-15"
+
+
+def test_un_indirizzo_dentro_un_parametro_viene_protetto():
+    """`torna` contiene a sua volta un punto interrogativo: lasciato nudo,
+    tutto quello che segue diventerebbe un parametro della pagina sbagliata."""
+    coda = admin.coda_query(torna="/admin/dashboard?data=2026-10-15")
+
+    assert coda == "&torna=/admin/dashboard%3Fdata%3D2026-10-15"
+
+
+def test_un_operatore_scritto_vuoto_non_fa_esplodere_la_pagina(pannello):
+    """L'altra meta' della stessa difesa: anche se un indirizzo vecchio o un
+    preferito porta `operatore_id=`, la pagina deve rispondere, non mostrare
+    un errore di validazione in inglese."""
+
+    class _Nessuna:
+        def scalar_one_or_none(self):
+            return None
+
+    class _FintoDb:
+        async def execute(self, *argomenti, **parametri):
+            return _Nessuna()
+
+    pannello.app.dependency_overrides[admin.get_db] = lambda: _FintoDb()
+
+    risposta = pannello.get("/admin/sposta/1492?data=2026-10-16&operatore_id=")
+
+    assert risposta.status_code == 303, risposta.text

@@ -830,6 +830,17 @@ vuota quando davvero non c'è nessuno: **"non lo so" e "non c'è nessuno" non
 sono la stessa cosa**, e mostrarli uguali farebbe annullare appuntamenti che
 si potevano salvare. Solo la lista vuota colora la riga di rosso.
 
+**Un parametro scritto vuoto non è un parametro assente** (`coda_query()`).
+`&operatore_id=` arriva alla rotta come stringa vuota, e un campo dichiarato
+numero risponde **422 con un JSON in inglese**: al posto del calendario, a chi
+ha il cliente al telefono, compare una riga di errore. È successo il 15
+ottobre toccando un giorno sulla pagina dello spostamento aperta da
+Appuntamenti, dove di operatore assente non ce n'è nessuno. I link se li
+fabbrica `coda_query()`, che salta quello che non ha valore e protegge il
+resto; la rotta accetta comunque il vuoto e lo legge come "nessun
+operatore", perché un indirizzo vecchio o un preferito non devono poter
+mostrare una pagina di errore.
+
 **Spostare un appuntamento ha una pagina sola** (`/admin/sposta/{id}`), e la
 aprono due schermate: l'assenza di un operatore e il dettaglio di un
 appuntamento in Appuntamenti. Due schermate per spostare finirebbero per
@@ -1139,6 +1150,14 @@ niente non lo dice, semplicemente non si presenta.
 
 Codice, commenti e nomi in italiano, coerentemente con il resto del progetto.
 I commenti spiegano il perché di una scelta, non quello che il codice già dice.
+
+**Un test che toglie un modulo da `sys.modules` deve rimetterlo a posto, e
+tenerlo in mano nel frattempo.** Il registro dei modelli di SQLAlchemy tiene
+le classi con riferimenti deboli: tolto `models.orm`, la vecchia `Presenza` —
+che nessun altro modulo importa per nome — se la prende il garbage collector,
+e da lì in avanti ogni test che tocca l'ORM muore con *failed to locate a name
+('Presenza')*. Il guasto si presenta nel test sbagliato, dipende dall'ordine
+di esecuzione e sparisce lanciando quel test da solo.
 
 I test non toccano mai la rete: Claude, Google e il database si sostituiscono
 con i finti. Il rovescio della medaglia va tenuto presente: **quello che

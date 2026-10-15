@@ -1640,7 +1640,11 @@ async def assenze_sposta_scegli(
     request: Request,
     app_id: int,
     data: str = None,
-    operatore_id: int = None,
+    # Non `int`: un indirizzo che porta `operatore_id=` senza valore farebbe
+    # rispondere 422 in JSON, cioe' una riga di errore in inglese in faccia a
+    # chi ha il cliente al telefono. Qui vuoto vale "nessun operatore", che e'
+    # il caso normale arrivando da Appuntamenti.
+    operatore_id: str = "",
     giorno_assenza: str = None,
     torna: str = None,
     errore: str = None,
@@ -1657,6 +1661,8 @@ async def assenze_sposta_scegli(
     Le ore libere si chiedono **per la durata di questo appuntamento**: il
     verde deve comparire solo dove un colore da due ore ci sta davvero.
     """
+    operatore_id = int(operatore_id) if str(operatore_id).strip().isdigit() else None
+
     riga = (
         await db.execute(
             select(Appuntamento)
@@ -1744,9 +1750,10 @@ async def assenze_sposta_scegli(
             "data_selezionata": giorno,
             "mesi": await _mesi_davanti(db, giorno, adesso, None),
             "dove": dove,
-            "filtro": (
-                f"&operatore_id={operatore_id or ''}"
-                f"&giorno_assenza={giorno_assenza}&torna={quote(torna_a)}"
+            "filtro": coda_query(
+                operatore_id=operatore_id,
+                giorno_assenza=giorno_assenza,
+                torna=torna_a,
             ),
             "nota_liberi": nota_liberi,
             "operatore_scelto": None,
@@ -2346,6 +2353,25 @@ async def push_iscrizione(request: Request, utente=Depends(utente_del_pannello))
 # la pagina diceva "nessuna mezz'ora libera" con le poltrone vuote: visto il
 # 15 ottobre provando a spostare un appuntamento di oggi.
 ANTICIPO_DAL_PANNELLO = 0
+
+
+def coda_query(**parametri) -> str:
+    """I parametri da appendere a un indirizzo, saltando quelli senza valore.
+
+    **Un parametro scritto vuoto non e' un parametro assente.** `...&
+    operatore_id=&...` arriva alla rotta come stringa vuota, e un campo
+    dichiarato numero risponde 422 con un JSON in inglese: a chi lavora in
+    salone, col cliente al telefono, arriva una pagina di errore al posto del
+    calendario. Visto il 15 ottobre toccando un giorno sul calendario della
+    pagina dello spostamento aperta da Appuntamenti, dove di operatore assente
+    non ce n'e' nessuno.
+    """
+    pezzi = []
+    for nome, valore in parametri.items():
+        testo = "" if valore is None else str(valore).strip()
+        if testo:
+            pezzi.append(f"&{nome}={quote(testo)}")
+    return "".join(pezzi)
 
 _SPIEGAZIONI = {
     "passato": "Giornata già passata: i posti liberi si segnano da adesso in avanti.",
