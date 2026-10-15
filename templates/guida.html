@@ -137,6 +137,9 @@
     <li><a href="#operatori">Operatori</a></li>
     <li><a href="#presenze">Presenze</a></li>
     <li><a href="#assenze">Assenze</a></li>
+    <li><a href="#a-mano">Solo a mano</a></li>
+    <li><a href="#interruttore">Spegnere il bot</a></li>
+    <li><a href="#numero">Il numero del salone</a></li>
     <li><a href="#calendar">Google Calendar</a></li>
     <li><a href="#problemi">Se qualcosa non torna</a></li>
   </ol>
@@ -144,7 +147,7 @@
 
 <h2 id="cosa" style="border-top:none;padding-top:0;margin-top:0">Cos'è e cosa fa</h2>
 
-<p>Il salone ha un assistente automatico che risponde ai clienti su <strong>WhatsApp</strong>, al numero <strong>+39 351 639 5494</strong>, e nella <strong>chat del sito</strong>. Si presenta come l'assistente del salone — non col nome di una persona, così nessuno crede di scrivere a voi — e lavora a qualsiasi ora, senza che nessuno debba stare al telefono.</p>
+<p>Il salone ha un assistente automatico che risponde ai clienti su <strong>WhatsApp</strong>, al <a href="#numero">numero del salone</a>, e nella <strong>chat del sito</strong>. Si presenta come l'assistente del salone — non col nome di una persona, così nessuno crede di scrivere a voi — e lavora a qualsiasi ora, senza che nessuno debba stare al telefono.</p>
 
 <p>Quello che sa fare per un cliente:</p>
 <ul>
@@ -184,6 +187,8 @@
 
 <p>Il cliente riceve un'<strong>email</strong> alla conferma, allo spostamento e alla disdetta, se ha lasciato l'indirizzo. Su WhatsApp l'indirizzo non è obbligatorio.</p>
 
+<p>Mentre sta scegliendo l'orario, una volta sola, il bot gli manda anche un messaggio con il link alle <strong>condizioni del servizio</strong>: cosa succede prenotando, entro quando si disdice, e cosa facciamo dei suoi dati. A chi ha già prenotato non lo ripete, finché quelle condizioni non cambiano.</p>
+
 <div class="nota">
   <p><strong>Se un cliente si impunta o il bot non lo segue più</strong>, gli basta scrivere <em>ricominciamo da capo</em>: la conversazione riparte pulita. Oppure può chiedere di parlare con una persona, e a quel punto tocca a voi (vedi <a href="#conversazioni">Conversazioni</a>).</p>
 </div>
@@ -192,7 +197,7 @@
 
 <p>Il pannello è all'indirizzo <strong>simoneacconciature.it/admin</strong>. Funziona anche dal telefono. Si entra con utente e password del salone; se le avete dimenticate, chi gestisce il sistema può reimpostarle.</p>
 
-<p>In alto c'è il menù con le sette schermate. Qui sotto sono spiegate una per una, nell'ordine in cui compaiono.</p>
+<p>Il menù sta <strong>a sinistra</strong>. Il bottone <kbd>Riduci</kbd> in fondo lo stringe a sole icone quando serve più spazio, e se ne ricorda la prossima volta. Sul telefono resta fuori schermo e si richiama col bottone in alto. Qui sotto le schermate sono spiegate una per una, nell'ordine in cui compaiono.</p>
 
 <h2 id="appuntamenti">Appuntamenti</h2>
 <span class="voce-menu"><small>menù</small>Appuntamenti</span>
@@ -235,7 +240,17 @@
 
 <p>L'elenco mostra chi aspetta, da quanto, e cosa ha chiesto. Toccando una riga si apre la conversazione: si legge quello che il cliente si era già detto col bot, e in fondo c'è la casella per rispondere. Quello che scrivete arriva al cliente su WhatsApp, dal numero del salone. I messaggi nuovi del cliente compaiono da soli, senza ricaricare la pagina.</p>
 
-<p>Quando avete finito, <kbd>Ho finito, ridai la conversazione al bot</kbd>: da lì in poi il cliente torna a parlare con l'assistente. Se nessuno risponde per un giorno intero, il bot riprende da solo, così il cliente non resta senza risposta.</p>
+<p>Quando avete finito, <kbd>Ridai la conversazione al bot</kbd>: da lì in poi il cliente torna a parlare con l'assistente. Se nessuno risponde per un giorno intero, il bot riprende da solo, così il cliente non resta senza risposta.</p>
+
+<h3>Farsi avvisare sul telefono</h3>
+
+<p>In cima alla schermata c'è <kbd>Avvisami sul telefono</kbd>. Premendolo, da quel momento arriva una <strong>notifica</strong> ogni volta che un cliente chiede di parlare con una persona, e a ogni suo messaggio successivo. Toccandola si apre direttamente quella conversazione. L'email continua ad arrivare, ma la posta si guarda la sera: la notifica arriva mentre il cliente sta ancora scrivendo.</p>
+
+<p>Se dopo <strong>dieci minuti</strong> nessuno ha risposto, ne arriva una seconda — perché chi aspetta smette di scrivere, e senza quel richiamo la prima notifica resterebbe l'unica. I solleciti arrivano solo negli orari di apertura: di notte non servono a nessuno.</p>
+
+<div class="nota">
+  <p><strong>Su iPhone c'è un passaggio in più, ed è obbligatorio.</strong> Le notifiche arrivano solo se il pannello è stato <strong>aggiunto alla schermata Home</strong>: si apre il sito in Safari, si tocca <em>Condividi</em>, poi <em>Aggiungi a Home</em>, e da lì in poi si usa quell'icona. Dal browser normale il permesso non si può nemmeno chiedere. Su Android funziona anche senza, ma conviene farlo lo stesso.</p>
+</div>
 
 <div class="nota">
   <p><strong>Si può scrivere solo entro 24 ore dall'ultimo messaggio del cliente.</strong> È una regola di WhatsApp, non nostra. La pagina dice quanto manca, e quando le 24 ore sono passate toglie la casella: a quel punto o gli telefonate, o aspettate che riscriva lui — al suo prossimo messaggio si può di nuovo rispondere.</p>
@@ -318,6 +333,59 @@
 
 <p>Confermando, gli appuntamenti vengono annullati, tolti dal calendario Google, e ai clienti parte un'email diversa da quella della disdetta normale: qui la colpa non è loro, e il salone si scusa. Alla fine la pagina dice quanti sono stati avvisati e, soprattutto, <strong>chi va chiamato a mano</strong> perché non ha lasciato un'email — con il numero di telefono accanto.</p>
 
+<h2 id="a-mano">Solo a mano</h2>
+<span class="voce-menu"><small>menù</small>Solo a mano</span>
+
+<p>L'elenco dei numeri che il bot <strong>non tocca</strong>: non risponde, non propone orari, non prenota. Serve per chi ha chiesto di parlare solo col salone, per una situazione delicata, o per un contatto che non è un cliente — un fornitore, il commercialista.</p>
+
+<p>Quello che scrivono arriva comunque in <a href="#conversazioni">Conversazioni</a>, con la notifica: mettere un numero qui non deve diventare un modo di perdere qualcuno senza accorgersene. Al cliente però non parte nessun messaggio automatico: su quel numero risponde una persona, e un messaggio del bot mentre state già leggendo sarebbe solo rumore.</p>
+
+<h3>Come si scrive il numero</h3>
+
+<p>Scrivetelo come vi viene: <kbd>349 102 1925</kbd>, <kbd>+39 349 102 1925</kbd>, <kbd>349-102-1925</kbd>. Vengono salvati tutti allo stesso modo, nella forma che usa WhatsApp. <strong>Il prefisso 39 lo mette il sistema</strong> quando manca, perché in rubrica i numeri li avete senza.</p>
+
+<p>Due eccezioni: un <strong>numero fisso</strong> va scritto con lo zero davanti (<kbd>0362 123456</kbd>), e un <strong>numero straniero</strong> ha bisogno del prefisso del suo paese (<kbd>+33 6 12 34 56 78</kbd> per la Francia), perché quello non si può indovinare.</p>
+
+<div class="nota">
+  <p><strong>Se scrivete qualcosa che non è un numero, la pagina lo rifiuta invece di salvarlo.</strong> È voluto: un numero storto resterebbe nell'elenco senza corrispondere a nessuno, l'elenco sembrerebbe a posto e il bot continuerebbe a rispondere a chi ci avevate messo apposta.</p>
+</div>
+
+<p>Il campo <strong>Perché</strong> è facoltativo ma conviene riempirlo: fra sei mesi, davanti a un numero senza spiegazione, nessuno sa più se si può togliere.</p>
+
+<p>Togliendo un numero il bot ricomincia a rispondergli dal messaggio dopo. Se in quel momento la sua conversazione è ancora aperta in Conversazioni, chiudetela: finché resta aperta risponde comunque una persona.</p>
+
+<div class="nota">
+  <p><strong>Questo elenco non scade.</strong> Una conversazione passata a una persona torna al bot dopo un giorno senza risposta; un numero messo qui resta fuori finché non lo togliete voi.</p>
+</div>
+
+<h2 id="interruttore">Spegnere il bot</h2>
+
+<p>In fondo al menù, sotto a tutte le schermate, c'è <kbd>Spegni il bot</kbd>. È l'interruttore d'emergenza: da quel momento <strong>l'assistente non risponde più a nessuno</strong>.</p>
+
+<p>Serve quando qualcosa non va — il bot dice ai clienti una cosa sbagliata, i prezzi sono rimasti indietro, c'è un guasto — e volete fermarlo subito senza chiamare nessuno.</p>
+
+<p>Col bot spento, su WhatsApp non parte nessuna risposta automatica. I messaggi dei clienti <strong>arrivano comunque in Conversazioni</strong>, con la notifica, e risponde una persona. Dalla chat del sito, dove non c'è nessuno che legge, il bot dice al cliente di scrivere o telefonare al salone.</p>
+
+<p>Quando è spento <strong>ogni schermata del pannello lo dice</strong>, con una fascia rossa in cima che non si può chiudere. Non è un fastidio: un interruttore lasciato giù per dimenticanza costa più del guasto che doveva tamponare — giorni di prenotazioni mancate senza che nessuno capisca perché.</p>
+
+<p>Lo stato resta anche se il sistema si riavvia: non si riaccende da solo. Per riaccenderlo si preme <kbd>Riaccendi il bot</kbd>, dalla fascia rossa o dal menù, e le conversazioni aperte solo perché era spento tornano da sole al bot.</p>
+
+<h2 id="numero">Il numero del salone</h2>
+
+<p>Il bot risponde sul numero del salone, quello che i clienti hanno già in rubrica e che è scritto sulle vetrine. Il numero <strong>resta sul telefono</strong>, nell'app WhatsApp Business: non cambia niente di come la usate.</p>
+
+<p><em>Fino a quando il collegamento non è fatto, il bot risponde su un numero dedicato, +39 351 639 5494, che i clienti non conoscono: è quello usato per metterlo a punto.</em></p>
+
+<p>Quello che cambia, col numero vero, è che la stessa conversazione ce l'avete davanti in due — il bot e voi. E qui c'è la regola che conta:</p>
+
+<div class="nota">
+  <p><strong>Appena rispondete voi dall'app, il bot si fa da parte.</strong> Su quella conversazione smette di scrivere, e quello che avete risposto dal telefono compare in Conversazioni, così chi guarda il pannello sa cosa è già stato detto. Torna a rispondere lui solo quando quella conversazione viene chiusa dal pannello, o dopo un giorno di silenzio.</p>
+</div>
+
+<p>Vuol dire che non dovete fare niente di speciale: se un cliente vi scrive e volete rispondergli voi, rispondete e basta. Il bot non vi parlerà sopra.</p>
+
+<p>Le notifiche di WhatsApp continuano ad arrivarvi per ogni messaggio, anche per quelli che gestisce il bot. Se diventano troppe, quelle chat si possono silenziare dall'app come qualsiasi altra: in Conversazioni resta comunque tutto quello che serve.</p>
+
 <h2 id="calendar">Google Calendar</h2>
 
 <p>Ogni operatore ha un <strong>calendario Google suo</strong>, condiviso con l'account Google del salone. Si vedono tutti insieme nell'app Google Calendar sul telefono, ognuno con il suo colore, e si possono spegnere e accendere uno per uno.</p>
@@ -356,17 +424,19 @@
 <div class="tabella-scorre">
 <table>
   <tr><th>Cosa succede</th><th>Da dove cominciare</th></tr>
-  <tr><td>Il bot non risponde a un cliente</td><td>Guardate <strong>Conversazioni</strong>: se quel cliente ha una conversazione aperta, il bot tace apposta finché non la chiudete.</td></tr>
+  <tr><td>Il bot non risponde a <strong>nessuno</strong></td><td>Guardate se in cima alle schermate c'è la fascia rossa: è l'<a href="#interruttore">interruttore</a> rimasto giù. Si riaccende da lì.</td></tr>
+  <tr><td>Il bot non risponde a un cliente</td><td>Tre cose, in quest'ordine. Il suo numero è in <a href="#a-mano">Solo a mano</a>? Ha una conversazione aperta in <strong>Conversazioni</strong>? Qualcuno gli ha risposto dal telefono negli ultimi giorni? In tutti e tre i casi il bot tace apposta.</td></tr>
   <tr><td>Il bot propone orari in cui siete chiusi, o non ne propone in cui siete aperti</td><td><strong>Presenze</strong>, orari del salone e giorni di chiusura. Poi le ore del singolo operatore.</td></tr>
   <tr><td>Un operatore non viene mai proposto</td><td><strong>Operatori</strong>: è in servizio? Poi <strong>Presenze</strong>: ha ore in quel giorno? Poi il suo calendario: è pieno?</td></tr>
   <tr><td>Il bot dice un prezzo sbagliato</td><td><strong>Listino</strong>. La modifica vale subito.</td></tr>
   <tr><td>Un cliente non ha ricevuto l'email</td><td>Ha lasciato l'indirizzo? Lo vedete nella sua scheda in <strong>Clienti</strong>. Su WhatsApp non è obbligatorio.</td></tr>
+  <tr><td>Il bot risponde <strong>insieme a voi</strong> allo stesso cliente</td><td>Non dovrebbe: appena rispondete dall'app lui si ferma. Se succede, mettete quel numero in <a href="#a-mano">Solo a mano</a> e ditelo a chi gestisce il sistema.</td></tr>
   <tr><td>Un cliente dice che il bot "non lo capisce"</td><td>Può scrivere <em>ricominciamo da capo</em>, oppure chiedere di parlare con una persona: arriva a voi in <strong>Conversazioni</strong>.</td></tr>
 </table>
 </div>
 
 <footer>
-  Acconciature Simone · settembre 2026. Se qualcosa in questa guida non corrisponde a quello che vedete sullo schermo, è la guida a essere indietro: ditelo a chi gestisce il sistema.
+  Acconciature Simone · aggiornata il 15 ottobre 2026. Se qualcosa in questa guida non corrisponde a quello che vedete sullo schermo, è la guida a essere indietro: ditelo a chi gestisce il sistema.
 </footer>
 
 </div></div>
