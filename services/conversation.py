@@ -600,7 +600,13 @@ async def _avvisa_delle_condizioni(session: dict, to: str, channel: Channel) -> 
         # un difetto si vedono uguali — cioe' non si vedono — e l'unico modo
         # di distinguerli e' indovinare. Gia' costato tre giri di prove.
         dati = session.get("dati_temp") or {}
-        if all(dati.get(chiave) for chiave in condizioni._DATI_COMPLETI):
+        # Una riga per conversazione e non una per messaggio: il motivo non
+        # cambia dentro lo stesso discorso, e ripeterlo a ogni turno vorrebbe
+        # dire sommergere i log proprio quando tutto funziona.
+        if all(
+            dati.get(chiave) for chiave in condizioni._DATI_COMPLETI
+        ) and not session.get("condizioni_silenzio_annotato"):
+            session["condizioni_silenzio_annotato"] = True
             logger.info(
                 "Avviso condizioni non inviato a %s: gia' avvisato=%s, "
                 "versione accettata=%r (corrente %r)",
