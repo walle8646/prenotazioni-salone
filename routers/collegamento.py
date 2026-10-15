@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/collega-whatsapp", tags=["collegamento"])
 templates = Jinja2Templates(directory="templates")
 templates.env.globals["v"] = _VERSIONE_STATICI
+# Anche qui, perche' la pagina estende lo stesso base.html: senza, la fascia
+# che avverte del bot spento sparirebbe proprio su una schermata di lavoro.
+from services.interruttore import bot_attivo as _bot_attivo  # noqa: E402
+
+templates.env.globals["bot_attivo"] = _bot_attivo
 
 
 @router.get("", response_class=HTMLResponse, include_in_schema=False)

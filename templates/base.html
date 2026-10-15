@@ -111,6 +111,17 @@
         </nav>
 
         <div class="barra-fondo">
+            {# L'interruttore sta nel menù e non in una schermata sua: quando
+               serve, serve da dove si è — di solito da Conversazioni, con un
+               cliente che sta scrivendo. #}
+            <form method="post" action="/admin/bot" class="barra-interruttore">
+                <button type="submit"
+                        class="{% if bot_attivo and bot_attivo() %}acceso{% else %}spento{% endif %}"
+                        title="{% if bot_attivo and bot_attivo() %}Il bot risponde: premi per farlo tacere{% else %}Il bot tace: premi per riattivarlo{% endif %}">
+                    <svg class="ic" aria-hidden="true"><use href="#ic-conversazioni"/></svg>
+                    <span>{% if bot_attivo and bot_attivo() %}Spegni il bot{% else %}Riaccendi il bot{% endif %}</span>
+                </button>
+            </form>
             <a href="/admin/login" title="Esci">
                 <svg class="ic" aria-hidden="true"><use href="#ic-logout"/></svg>
                 <span>Esci</span>
@@ -126,6 +137,21 @@
     <div class="barra-velo" id="velo-barra" hidden></div>
 
     <main class="container">
+        {# Su ogni schermata, non solo su quella da cui si spegne: un
+           interruttore d'emergenza lasciato giù per dimenticanza costa più
+           del guasto che doveva tamponare — giorni di prenotazioni mancate
+           senza che nessuno capisca perché. #}
+        {% if bot_attivo and not bot_attivo() %}
+        <div class="avviso-bot" role="status">
+            <strong>Il bot è spento.</strong>
+            A chi scrive su WhatsApp non risponde nessuno in automatico: i
+            messaggi arrivano in <a href="/admin/conversazioni">Conversazioni</a>
+            e vanno letti da qualcuno.
+            <form method="post" action="/admin/bot">
+                <button type="submit">Riaccendi</button>
+            </form>
+        </div>
+        {% endif %}
         {% block content %}{% endblock %}
     </main>
 </div>

@@ -225,6 +225,25 @@ class ChiusuraSalone(Base):
     motivo = Column(String(120))
 
 
+class Impostazione(Base):
+    """Interruttori del sistema, uno per riga.
+
+    Vive in database e non in una variabile d'ambiente perche' deve potersi
+    cambiare mentre il salone e' aperto, senza un deploy e senza riavvio: la
+    prima cosa che serve qui e' spegnere il bot in fretta, e un interruttore
+    d'emergenza che richiede un deploy non e' un interruttore d'emergenza.
+
+    Chiave e valore come testo, perche' quello che si salva sono due o tre
+    bandierine: una colonna per ognuna vorrebbe dire una migrazione ogni volta.
+    """
+
+    __tablename__ = "impostazioni"
+
+    chiave = Column(String(50), primary_key=True)
+    valore = Column(String(255), nullable=False)
+    aggiornato_il = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class IscrizionePush(Base):
     """Un telefono che ha chiesto di ricevere le notifiche del salone.
 

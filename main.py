@@ -86,6 +86,19 @@ async def lifespan(app: FastAPI):
         len(chiusure),
     )
 
+    # L'interruttore del bot, prima di aprire la porta ai messaggi: se qualcuno
+    # l'aveva spento, un riavvio non deve riaccenderlo di nascosto.
+    from services.db_service import leggi_bot_attivo
+    from services.interruttore import set_bot_attivo_cache
+
+    attivo = await leggi_bot_attivo()
+    set_bot_attivo_cache(attivo)
+    if not attivo:
+        logging.getLogger(__name__).warning(
+            "Il bot e' DISATTIVATO dal pannello: ai clienti non risponde nessuno "
+            "in automatico"
+        )
+
     from services.presenze import set_presenze_cache
 
     presenze = await get_presenze()

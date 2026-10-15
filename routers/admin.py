@@ -26,6 +26,12 @@ templates.env.globals["v"] = _VERSIONE_STATICI
 # Lo stesso filtro in tutte le schermate: un segnaposto mostrato come numero
 # manda la receptionist a comporre cifre che non chiamano nessuno.
 templates.env.globals["telefono_da_mostrare"] = telefono_da_mostrare
+# Letto a ogni pagina del pannello: quando il bot e' spento deve dirlo ogni
+# schermata, non solo quella da cui si spegne. Un interruttore d'emergenza
+# lasciato giu' per dimenticanza e' peggio del guasto che doveva tamponare.
+from services.interruttore import bot_attivo as _bot_attivo  # noqa: E402
+
+templates.env.globals["bot_attivo"] = _bot_attivo
 
 
 @router.get("/", include_in_schema=False)
@@ -95,6 +101,34 @@ def utente_del_pannello(request: Request):
     if not utente:
         raise HTTPException(status_code=303, headers={"Location": "/admin/login"})
     return utente
+
+
+@router.post("/bot", include_in_schema=False)
+async def bot_interruttore(
+    request: Request, utente=Depends(utente_del_pannello)
+):
+    """Accende o spegne le risposte automatiche, subito.
+
+    Si scrive in database e si ricarica la copia in memoria nello stesso giro:
+    il bot legge quella, e senza la seconda riga lo spegnimento avrebbe effetto
+    solo dal riavvio successivo — cioe' mai, nel momento in cui serve.
+
+    Si torna da dove si e' premuto: l'interruttore sta nel menu di ogni
+    schermata, e rimandare sempre alla dashboard farebbe perdere il posto a chi
+    stava guardando una conversazione.
+    """
+    from services.db_service import scrivi_bot_attivo
+    from services.interruttore import bot_attivo, set_bot_attivo_cache
+
+    nuovo_stato = not bot_attivo()
+    await scrivi_bot_attivo(nuovo_stato)
+    set_bot_attivo_cache(nuovo_stato)
+    logger.warning(
+        "Bot %s da %s", "riattivato" if nuovo_stato else "DISATTIVATO", utente
+    )
+
+    torna_a = request.headers.get("referer") or "/admin/dashboard"
+    return RedirectResponse(torna_a, status_code=303)
 
 
 async def _ricarica_listino() -> None:

@@ -120,6 +120,7 @@ body.barra-ridotta .barra {
 
 .barra-voci a,
 .barra-fondo a,
+.barra-interruttore button,
 .barra-stringi {
     display: flex;
     align-items: center;
@@ -139,6 +140,7 @@ body.barra-ridotta .barra {
 
 .barra-voci a:hover,
 .barra-fondo a:hover,
+.barra-interruttore button:hover,
 .barra-stringi:hover {
     background: rgba(255, 255, 255, 0.1);
     color: white;
@@ -146,6 +148,7 @@ body.barra-ridotta .barra {
 
 .barra-voci a:focus-visible,
 .barra-fondo a:focus-visible,
+.barra-interruttore button:focus-visible,
 .barra-stringi:focus-visible {
     outline: 2px solid var(--arancio);
     outline-offset: -2px;
@@ -155,6 +158,64 @@ body.barra-ridotta .barra {
    l'arancio sul bordo si vede anche quando le voci sono solo icone. */
 .barra-voci a[aria-current="page"] {
     background: var(--arancio-scuro);
+    color: white;
+}
+
+/* L'interruttore del bot. Spento non e' uno stato fra gli altri: la voce si
+   accende di rosso, che qui vuol dire attenzione e non marchio, perche' deve
+   saltare all'occhio anche quando il menu e' ridotto a icone. */
+.barra-interruttore {
+    margin: 0;
+}
+
+.barra-interruttore button.spento {
+    background: var(--allarme);
+    color: white;
+}
+
+.barra-interruttore button.spento:hover {
+    background: var(--allarme);
+    filter: brightness(1.15);
+}
+
+/* La fascia che lo dice su ogni schermata. Sta sopra al contenuto e non si
+   puo' chiudere: e' la prima cosa da sapere di quello che si sta guardando. */
+.avviso-bot {
+    display: flex;
+    align-items: center;
+    gap: 0.9rem;
+    flex-wrap: wrap;
+    background: #fdeceb;
+    border: 1px solid var(--allarme);
+    border-left-width: 5px;
+    border-radius: 8px;
+    padding: 0.85rem 1rem;
+    margin-bottom: 1.2rem;
+    color: #5c1512;
+}
+
+.avviso-bot strong {
+    color: var(--allarme);
+}
+
+.avviso-bot form {
+    margin: 0 0 0 auto;
+}
+
+.avviso-bot button {
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    border: 1px solid var(--allarme);
+    background: white;
+    color: var(--allarme);
+    border-radius: 7px;
+    padding: 0.45rem 0.9rem;
+    cursor: pointer;
+}
+
+.avviso-bot button:hover {
+    background: var(--allarme);
     color: white;
 }
 
@@ -171,6 +232,7 @@ body.barra-ridotta .barra span {
 body.barra-ridotta .barra-marchio,
 body.barra-ridotta .barra-voci a,
 body.barra-ridotta .barra-fondo a,
+body.barra-ridotta .barra-interruttore button,
 body.barra-ridotta .barra-stringi {
     justify-content: center;
     padding-left: 0;

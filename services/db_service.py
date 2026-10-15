@@ -1001,3 +1001,48 @@ async def togli_iscrizione_push(endpoint: str) -> None:
             delete(IscrizionePush).where(IscrizionePush.endpoint == endpoint)
         )
         await db.commit()
+
+
+# ------------------------------------------------------- interruttori di sistema
+
+
+async def leggi_bot_attivo() -> bool:
+    """Se il bot risponde, secondo quello che dice il database.
+
+    Un guasto di lettura lascia il bot acceso: un salone che tace per una
+    query fallita e' peggio di una risposta sbagliata, perche' nessuno se ne
+    accorge finche' non manca un cliente.
+    """
+    from services.interruttore import CHIAVE, da_testo
+    from models.orm import Impostazione
+
+    try:
+        async with async_session() as db:
+            riga = (
+                await db.execute(
+                    select(Impostazione.valore).where(Impostazione.chiave == CHIAVE)
+                )
+            ).scalar_one_or_none()
+        return da_testo(riga)
+    except Exception:  # noqa: BLE001
+        logger.warning("Stato del bot non leggibile: lo considero acceso", exc_info=True)
+        return True
+
+
+async def scrivi_bot_attivo(valore: bool) -> None:
+    """Accende o spegne il bot, e lo scrive dove sopravvive a un riavvio."""
+    from services.interruttore import CHIAVE, a_testo
+    from models.orm import Impostazione
+
+    async with async_session() as db:
+        riga = (
+            await db.execute(
+                select(Impostazione).where(Impostazione.chiave == CHIAVE)
+            )
+        ).scalar_one_or_none()
+        if riga is None:
+            db.add(Impostazione(chiave=CHIAVE, valore=a_testo(valore)))
+        else:
+            riga.valore = a_testo(valore)
+            riga.aggiornato_il = datetime.now()
+        await db.commit()

@@ -1100,6 +1100,53 @@ cambiare idea vuol dire scollegare e rifare.
 Il token che il flusso restituisce e' quello del cliente e non scade; la
 pagina lo mostra, ed e' il motivo per cui sta dietro la password del pannello.
 
+### L'interruttore del bot
+
+Nel menù del pannello, su ogni schermata: **Spegni il bot**. Lo stato vive
+nella tabella `impostazioni` e si legge da una copia in memoria
+(`services/interruttore.py`), come listino e operatori — la decisione si
+prende prima di ogni messaggio, e una query in più per messaggio si paga per
+sempre. Chi scrive ricarica la cache nello stesso giro: senza quella riga lo
+spegnimento avrebbe effetto dal riavvio successivo, cioè mai, nel momento in
+cui serve.
+
+Esiste perché il numero è quello vero del salone. Se il bot dicesse qualcosa
+di sbagliato ai clienti, l'unica leva sarebbe cambiare le variabili su Render
+e aspettare il riavvio: un interruttore d'emergenza che richiede un deploy non
+è un interruttore d'emergenza.
+
+Quattro scelte, tutte con un perché.
+
+**Spento vuol dire davvero zitto**, e il controllo sta prima di tutto il
+resto — prima di `vuole_ricominciare()`, prima perfino del rifiuto per i tipi
+di messaggio non gestiti, che sarebbe comunque una risposta del bot. E prima
+di spendere un token.
+
+**Su WhatsApp al cliente non si manda niente.** In coexistence il numero è sul
+telefono del salone: il messaggio è già arrivato a chi deve leggerlo, e un
+"ti risponde una persona" mandato mentre quella persona sta già leggendo
+sarebbe rumore. Col bot spento la conversazione torna a essere WhatsApp
+normale, che è quello che era prima che il bot esistesse. **Dal sito no**: lì
+non c'è nessuno che legge su un telefono, e una pagina che non risponde sembra
+rotta, quindi si dice il numero del salone — lo stesso messaggio di chi chiede
+una persona.
+
+**Quello che arriva mentre è spento non si perde**: la conversazione si apre
+in `conversazioni_operatore` e la notifica parte, o spegnere il bot sarebbe un
+modo di perdere clienti in silenzio.
+
+**Lo dice ogni schermata**, con una fascia rossa che non si chiude. Un
+interruttore d'emergenza lasciato giù per dimenticanza costa più del guasto
+che doveva tamponare: giorni di prenotazioni mancate senza che nessuno capisca
+perché. Per lo stesso motivo lo stato sopravvive al riavvio — un bot che si
+riaccende da solo dopo un deploy, proprio quando qualcuno l'aveva spento
+apposta, è il difetto opposto e altrettanto silenzioso.
+
+Il valore predefinito non è neutro: una tabella vuota o una lettura fallita
+lasciano il bot **acceso**. Un salone che tace per una query andata storta è
+peggio di una risposta sbagliata, perché nessuno se ne accorge finché non
+manca un cliente.
+
 ## Sicurezza
 
 `.env` non va mai committato e non deve finire nei log. Le credenziali del

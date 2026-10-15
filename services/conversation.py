@@ -122,6 +122,13 @@ async def risponde_una_persona(phone: str, backends=None) -> bool:
     """
     from datetime import datetime
 
+    from services.interruttore import bot_attivo
+
+    # Col bot spento a rispondere e' per forza una persona: i puntini
+    # prometterebbero una risposta che non arrivera' da sola.
+    if not bot_attivo():
+        return True
+
     backends = backends if backends is not None else _backends_reali()
     try:
         conversazione = await backends.conversazione_operatore_aperta(phone)
@@ -136,6 +143,51 @@ async def risponde_una_persona(phone: str, backends=None) -> bool:
     return bool(conversazione) and not passaggio_dimenticato(
         conversazione, datetime.now()
     )
+
+
+# Quello che si legge nel pannello quando a tacere non e' una scelta della
+# conversazione ma l'interruttore generale.
+MOTIVO_BOT_SPENTO = "Bot disattivato dal pannello."
+
+
+async def _bot_spento_prende_in_carico(phone: str, text: str | None, backends) -> None:
+    """Col bot spento il messaggio non riceve risposta, ma non si perde.
+
+    Al cliente non si manda niente. In coexistence il numero e' sul telefono
+    del salone: il messaggio gli e' gia' arrivato, e un "ti risponde una
+    persona" mandato mentre quella persona sta gia' leggendo sarebbe rumore.
+    Col bot spento la conversazione torna a essere WhatsApp normale, che e'
+    esattamente quello che era prima che il bot esistesse.
+
+    Quello che non deve succedere e' che il messaggio resti solo sul telefono:
+    la conversazione si apre nel pannello e la notifica parte, o spegnere il
+    bot diventerebbe un modo di perdere clienti in silenzio.
+    """
+    try:
+        conversazione = await backends.conversazione_operatore_aperta(phone)
+        if not conversazione:
+            conversazione = await backends.apri_conversazione_operatore(
+                telefono=phone, canale="whatsapp", motivo=MOTIVO_BOT_SPENTO
+            )
+        await backends.registra_messaggio_conversazione(
+            conversazione["id"], "cliente", text or "[messaggio senza testo]"
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Col bot spento il messaggio di %s non e' finito nel pannello", phone
+        )
+        return
+
+    try:
+        from services.push import avvisa
+
+        await avvisa(
+            titolo=conversazione.get("nome_visualizzato") or phone,
+            testo=text or "Ha mandato un messaggio.",
+            url=f"/admin/conversazioni/{conversazione['id']}",
+        )
+    except Exception:  # noqa: BLE001
+        logger.warning("Notifica col bot spento non inviata", exc_info=True)
 
 
 # Quello che si legge nel pannello come causa del passaggio, quando il
@@ -629,6 +681,15 @@ async def handle_incoming_message(
     backends = backends if backends is not None else _backends_reali()
     claude = claude or _claude_reale
 
+    # Prima di qualunque altra cosa, anche prima di dire che un tipo di
+    # messaggio non si gestisce: col bot spento non deve partire nessuna
+    # risposta automatica, nemmeno un rifiuto.
+    from services.interruttore import bot_attivo
+
+    if not bot_attivo():
+        await _bot_spento_prende_in_carico(phone, text, backends)
+        return
+
     if msg_type not in ("text", "image", "interactive"):
         await channel.send_text(phone, MESSAGGIO_TIPO_NON_SUPPORTATO)
         return
@@ -751,6 +812,22 @@ async def handle_incoming_message_web(
     channel = WebChannel()
     backends = backends if backends is not None else _backends_reali()
     claude = claude or _claude_reale
+
+    # Dal sito il silenzio non va bene: qui non c'e' nessuno che legge il
+    # messaggio su un telefono, e una pagina che non risponde sembra rotta.
+    # Si dice quello che si direbbe a chi chiede una persona: il numero.
+    from services.interruttore import bot_attivo
+
+    if not bot_attivo():
+        from config import settings
+
+        testo = (
+            MESSAGGIO_PASSAGGIO_WEB.format(telefono=settings.salone_telefono)
+            if settings.salone_telefono
+            else MESSAGGIO_PASSAGGIO_WEB_SENZA_NUMERO
+        )
+        await channel.send_text(session_id, testo)
+        return channel.payload()
 
     if vuole_ricominciare(text):
         await _ricomincia(redis, session_id, channel)
