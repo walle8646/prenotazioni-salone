@@ -29,7 +29,7 @@
     {% include "_calendario_mesi.html" %}
 
     <div class="barra-giornata">
-        <a class="btn-small btn-neutro" href="{{ torna_a }}">‹ Torna all'assenza</a>
+        <a class="btn-small btn-neutro" href="{{ torna_a }}">‹ Torna indietro</a>
     </div>
 
     {% if agenda.chiuso %}
@@ -50,10 +50,11 @@
 
     {% endif %}
 
-    <form method="POST" action="/admin/assenze/sposta" id="modulo-sposta" hidden>
+    <form method="POST" action="/admin/sposta" id="modulo-sposta" hidden>
         <input type="hidden" name="app_id" value="{{ app.app_id }}">
         <input type="hidden" name="operatore_id" value="{{ operatore_id }}">
         <input type="hidden" name="data" value="{{ giorno_assenza }}">
+        <input type="hidden" name="torna" value="{{ torna_a }}">
         <input type="hidden" name="slot" id="sposta-slot">
         <input type="hidden" name="operatore" id="sposta-operatore">
     </form>

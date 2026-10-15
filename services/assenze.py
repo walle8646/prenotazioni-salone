@@ -101,3 +101,22 @@ def email_dello_spostamento(prima: str, dopo: str) -> str:
     quando l'ora e' cambiata lascia il cliente a presentarsi a quella vecchia.
     """
     return "spostamento" if dopo != prima else "cambio_operatore"
+
+
+def togli_chi_non_viene(
+    liberi: dict[str, set[str]], assente: str | None, giorno: str, giorno_assenza: str
+) -> dict[str, set[str]]:
+    """Le ore libere senza quelle di chi quel giorno non c'e'.
+
+    Google lo dice libero, e ha ragione: l'assenza e' una decisione presa
+    adesso, non un orario scritto in Presenze. Ma offrire di spostare un
+    appuntamento proprio sulla persona che manca e' il modo piu' rapido di
+    rifare domani lo stesso lavoro.
+
+    **Solo nel giorno dell'assenza.** Il giorno dopo quell'operatore c'e', e
+    toglierlo da tutto il calendario vorrebbe dire nascondere meta' dei posti
+    liberi della settimana.
+    """
+    if not assente or giorno != giorno_assenza:
+        return liberi
+    return {nome: ore for nome, ore in liberi.items() if nome != assente}

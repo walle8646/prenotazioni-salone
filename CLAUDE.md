@@ -794,8 +794,27 @@ vuota quando davvero non c'è nessuno: **"non lo so" e "non c'è nessuno" non
 sono la stessa cosa**, e mostrarli uguali farebbe annullare appuntamenti che
 si potevano salvare. Solo la lista vuota colora la riga di rosso.
 
+**Spostare un appuntamento ha una pagina sola** (`/admin/sposta/{id}`), e la
+aprono due schermate: l'assenza di un operatore e il dettaglio di un
+appuntamento in Appuntamenti. Due schermate per spostare finirebbero per
+comportarsi in due modi diversi, e quella da cui si sposta davvero sarebbe
+sempre l'altra. Da dove si torna arriva come parametro, o chi apre la pagina
+da Appuntamenti si ritroverebbe sulle assenze.
+
+Nel dettaglio di un appuntamento **Sposta sta accanto a Disdici**, e prima:
+sono le due risposte alla stessa telefonata — "giovedì non ce la faccio" — e
+la prima è quasi sempre quella giusta, perché un cliente spostato resta e uno
+disdetto va richiamato.
+
+**Chi non viene non compare fra le ore libere del giorno in cui manca**
+(`togli_chi_non_viene()`). Google lo dice libero, e ha ragione: l'assenza è
+una decisione presa adesso, non un orario scritto in Presenze. Ma offrire di
+spostare l'appuntamento proprio sulla persona che manca è il modo più rapido
+di rifare domani lo stesso lavoro. Vale **solo per quel giorno**: toglierlo da
+tutto il calendario nasconderebbe metà dei posti liberi della settimana.
+
 Chi non si può spostare alla stessa ora ha comunque **Cerca un altro
-orario**, che apre la griglia di Prenota per quell'appuntamento solo: lì una
+orario**, che apre quella pagina per quell'appuntamento solo: lì una
 casella verde lo sposta invece di aprire il modulo. La griglia e il calendario
 dei quattro mesi sono due **include** (`_agenda_griglia.html`,
 `_calendario_mesi.html`), non due copie, per la stessa ragione per cui la
@@ -857,6 +876,13 @@ col bottone: una colonna fissa larga quattro dita su 375 pixel lascerebbe al
 contenuto meno della metà. Le icone sono un foglio di `<symbol>` solo,
 richiamate per nome: disegnate dentro ogni voce sarebbero dieci copie da
 ritrovare una per una.
+
+**Le caselle libere sono verde pieno con l'ora in nero.** La prima versione
+aveva un fondo pallidissimo e il testo verde su verde: 5,7 contro 1, e una
+giornata piena di posti liberi si leggeva come una giornata vuota — lo stesso
+difetto per cui l'ora dentro la cella non si nasconde al passaggio del mouse.
+Adesso il nero sul verde fa 10,9. Il quadratino della legenda usa lo stesso
+verde, o spiegherebbe una cosa diversa da quella che si vede.
 
 **I colori vengono dalle fotografie del salone, non dal gusto di nessuno.**
 Il verde è quello della pelle delle poltrone — tinta 190°, misurata su

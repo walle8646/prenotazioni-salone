@@ -101,7 +101,7 @@
                         <span class="nota">Non riesco a leggere i calendari:
                         riprova fra poco prima di annullare.</span>
                     {% elif a.alternative %}
-                        <form method="POST" action="/admin/assenze/sposta"
+                        <form method="POST" action="/admin/sposta"
                               class="riga-sposta">
                             <input type="hidden" name="app_id" value="{{ a.app_id }}">
                             <input type="hidden" name="operatore_id" value="{{ operatore_id }}">
@@ -114,13 +114,13 @@
                             <button type="submit" class="btn-small">Sposta</button>
                         </form>
                         <a class="scegli-ora"
-                           href="/admin/assenze/sposta/{{ a.app_id }}?operatore_id={{ operatore_id }}&amp;giorno_assenza={{ giorno.strftime('%Y-%m-%d') }}">
+                           href="/admin/sposta/{{ a.app_id }}?operatore_id={{ operatore_id }}&amp;giorno_assenza={{ giorno.strftime('%Y-%m-%d') }}">
                             oppure scegli un altro orario
                         </a>
                     {% else %}
                         <strong class="da-chiamare">Nessuno è libero a quell'ora.</strong>
                         <a class="btn-small scegli-ora-grande"
-                           href="/admin/assenze/sposta/{{ a.app_id }}?operatore_id={{ operatore_id }}&amp;giorno_assenza={{ giorno.strftime('%Y-%m-%d') }}">
+                           href="/admin/sposta/{{ a.app_id }}?operatore_id={{ operatore_id }}&amp;giorno_assenza={{ giorno.strftime('%Y-%m-%d') }}">
                             Cerca un altro orario
                         </a>
                     {% endif %}

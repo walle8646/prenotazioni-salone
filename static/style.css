@@ -669,6 +669,17 @@ body.barra-ridotta .barra-stringi .ic {
 /* La riga di un appuntamento che nessun altro operatore puo' prendere: e'
    l'unico caso, in quella schermata, in cui si perde davvero un cliente. Il
    rosso qui vuol dire attenzione, come dappertutto nel pannello. */
+/* Le due azioni del dettaglio di un appuntamento, in riga. Spostare prima di
+   disdire: e' quasi sempre la risposta giusta alla stessa telefonata. */
+.dettaglio-azioni {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.dettaglio-azioni form { margin: 0; }
+
 .telefono-cliente {
     display: block;
     font-size: 0.85rem;
@@ -2131,20 +2142,27 @@ body.barra-ridotta .barra-stringi .ic {
     align-items: center;
     justify-content: center;
     padding: 0;
-    border: 1px dashed #7fc4a5;
+    /* Un verde pieno e non un'ombra di verde. Le caselle libere sono la cosa
+       che si sta cercando su questa schermata: con un fondo pallidissimo e il
+       testo verde su verde, una giornata piena di posti si legge come una
+       giornata vuota. L'ora in nero perche' e' un dato da leggere, non una
+       decorazione: nero su questo verde fa 10,9 contro 1, il verde su verde
+       pallido di prima stava a 5,7. */
+    border: 1px solid #4ea87b;
     border-radius: 4px;
-    background: #e6f6ed;
-    color: #226b48;
+    background: #8fd3ab;
+    color: #111;
     font: inherit;
-    font-size: 0.72rem;
+    font-size: 0.74rem;
+    font-weight: 600;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
 }
 
 .agenda-libero:hover,
 .agenda-libero:focus-visible {
-    background: #dcf1e5;
-    border-style: solid;
+    background: #6ec593;
+    border-color: #2f8a5e;
 }
 
 /* Gli impegni sulla schermata Prenota: si vedono, ma spenti. Servono a
@@ -2345,14 +2363,16 @@ a.mese-giorno:hover {
     font-size: 0.85rem;
 }
 
+/* Il quadratino della legenda: dello stesso verde delle caselle, o spiega
+   una cosa diversa da quella che si vede. */
 .nota-verde {
     display: inline-block;
     flex: none;
     width: 1.2rem;
     height: 0.9rem;
-    border: 1px dashed #7fc4a5;
+    border: 1px solid #4ea87b;
     border-radius: 3px;
-    background: #e6f6ed;
+    background: #8fd3ab;
 }
 
 .avviso-buono,

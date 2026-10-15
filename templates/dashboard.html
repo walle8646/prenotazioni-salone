@@ -143,10 +143,19 @@
             <dt>Operatore</dt><dd data-campo="operatore"></dd>
             <dt>Note</dt><dd data-campo="note"></dd>
         </dl>
-        <form method="POST" id="dettaglio-disdici">
-            <input type="hidden" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
-            <button type="submit" class="btn-small btn-neutro">Disdici</button>
-        </form>
+        <div class="dettaglio-azioni">
+            {# Spostare e disdire stanno insieme perche' sono le due risposte
+               alla stessa telefonata — "non ce la faccio giovedi'" — e la
+               prima e' quasi sempre quella giusta: un cliente spostato resta,
+               uno disdetto va richiamato. La pagina e' la stessa che si apre
+               dalle assenze: due schermate per spostare un appuntamento
+               finirebbero per comportarsi in due modi diversi. #}
+            <a class="btn-small" id="dettaglio-sposta" href="#">Sposta</a>
+            <form method="POST" id="dettaglio-disdici">
+                <input type="hidden" name="data" value="{{ data_selezionata.strftime('%Y-%m-%d') }}">
+                <button type="submit" class="btn-small btn-neutro">Disdici</button>
+            </form>
+        </div>
     </dialog>
     {% endif %}
 
@@ -227,6 +236,12 @@
             campo("prezzo").textContent = d.prezzo;
             campo("operatore").textContent = d.operatore;
             campo("note").textContent = d.note || "—";
+
+            // Si torna qui, al giorno che si stava guardando: chi sposta un
+            // appuntamento sta lavorando su questa giornata, non su un'altra.
+            var qui = "/admin/dashboard?data={{ data_selezionata.strftime('%Y-%m-%d') }}";
+            document.getElementById("dettaglio-sposta").href =
+                "/admin/sposta/" + d.id + "?torna=" + encodeURIComponent(qui);
 
             var disdici = document.getElementById("dettaglio-disdici");
             disdici.action = "/admin/appuntamenti/" + d.id + "/annulla";

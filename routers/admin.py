@@ -1629,13 +1629,14 @@ async def assenze_form(
     )
 
 
-@router.get("/assenze/sposta/{app_id}", response_class=HTMLResponse)
+@router.get("/sposta/{app_id}", response_class=HTMLResponse)
 async def assenze_sposta_scegli(
     request: Request,
     app_id: int,
     data: str = None,
     operatore_id: int = None,
     giorno_assenza: str = None,
+    torna: str = None,
     errore: str = None,
     utente=Depends(utente_del_pannello),
     db=Depends(get_db),
@@ -1661,10 +1662,10 @@ async def assenze_sposta_scegli(
         )
     ).scalar_one_or_none()
     if riga is None or riga.stato != "Confermato":
+        indietro = torna or f"/admin/dashboard?data={date.today().isoformat()}"
+        separatore = "&" if "?" in indietro else "?"
         return RedirectResponse(
-            f"/admin/assenze?operatore_id={operatore_id or ''}"
-            f"&data={giorno_assenza or date.today().isoformat()}"
-            + f"&errore={quote('Quell appuntamento non c e piu.')}",
+            indietro + separatore + f"errore={quote('Quell appuntamento non c e piu.')}",
             303,
         )
 
@@ -1691,10 +1692,41 @@ async def assenze_sposta_scegli(
         datetime.strptime(data, "%Y-%m-%d").date() if data else riga.data_ora.date()
     )
     liberi, nota_liberi = await _dove_c_e_posto(giorno, adesso, durata=durata)
-    contenuto = await _giornata(db, giorno, adesso, liberi=liberi)
 
     giorno_assenza = giorno_assenza or riga.data_ora.date().isoformat()
-    dove = f"/admin/assenze/sposta/{app_id}"
+
+    # Chi non viene non puo' prendersi l'appuntamento che stiamo spostando
+    # proprio perche' non viene. Google lo dice libero — l'assenza e' una
+    # decisione di adesso, non un orario in Presenze — e senza questa riga la
+    # griglia offrirebbe il verde della persona che manca. Vale **solo per il
+    # giorno dell'assenza**: il giorno dopo quell'operatore c'e'.
+    assente = (
+        await db.execute(select(Parrucchiere.nome).where(Parrucchiere.id == operatore_id))
+    ).scalar_one_or_none() if operatore_id else None
+    from services.assenze import togli_chi_non_viene
+
+    liberi = togli_chi_non_viene(
+        liberi, assente, giorno.isoformat(), giorno_assenza
+    )
+    if assente and giorno.isoformat() == giorno_assenza:
+        if not liberi:
+            nota_liberi = (
+                f"Quel giorno, a parte {assente}, non c'e' nessun altro libero: "
+                "prova un altro giorno dal calendario qui sopra."
+            )
+
+    contenuto = await _giornata(db, giorno, adesso, liberi=liberi)
+
+    # Da dove si e' arrivati, per sapere dove tornare: la stessa pagina la
+    # aprono l'assenza di un operatore e il dettaglio di un appuntamento, e
+    # sbattere chi arriva da Appuntamenti sulla schermata delle assenze
+    # sarebbe un modo di fargli perdere il posto in cui stava lavorando.
+    torna_a = torna or (
+        f"/admin/assenze?operatore_id={operatore_id or ''}&data={giorno_assenza}"
+        if operatore_id
+        else f"/admin/dashboard?data={riga.data_ora.date().isoformat()}"
+    )
+    dove = f"/admin/sposta/{app_id}"
     return templates.TemplateResponse(
         "sposta_appuntamento.html",
         {
@@ -1705,22 +1737,21 @@ async def assenze_sposta_scegli(
             "mesi": await _mesi_davanti(db, giorno, adesso, None),
             "dove": dove,
             "filtro": (
-                f"&operatore_id={operatore_id or ''}&giorno_assenza={giorno_assenza}"
+                f"&operatore_id={operatore_id or ''}"
+                f"&giorno_assenza={giorno_assenza}&torna={quote(torna_a)}"
             ),
             "nota_liberi": nota_liberi,
             "operatore_scelto": None,
             "vista_settimana": False,
             "operatore_id": operatore_id or "",
             "giorno_assenza": giorno_assenza,
-            "torna_a": (
-                f"/admin/assenze?operatore_id={operatore_id or ''}&data={giorno_assenza}"
-            ),
+            "torna_a": torna_a,
             "errore": errore,
         },
     )
 
 
-@router.post("/assenze/sposta")
+@router.post("/sposta")
 async def assenze_sposta(
     request: Request,
     utente=Depends(utente_del_pannello),
@@ -1755,12 +1786,15 @@ async def assenze_sposta(
     operatore_id = modulo.get("operatore_id") or ""
     giorno_txt = modulo.get("data") or date.today().isoformat()
 
+    dove_tornare = (modulo.get("torna") or "").strip() or (
+        f"/admin/assenze?operatore_id={operatore_id}&data={giorno_txt}"
+    )
+
     def torna(messaggio: str | None = None, errore: bool = False):
         chiave = "errore" if errore else "spostato"
-        coda = f"&{chiave}={quote(messaggio)}" if messaggio else ""
-        return RedirectResponse(
-            f"/admin/assenze?operatore_id={operatore_id}&data={giorno_txt}{coda}", 303
-        )
+        separatore = "&" if "?" in dove_tornare else "?"
+        coda = f"{separatore}{chiave}={quote(messaggio)}" if messaggio else ""
+        return RedirectResponse(dove_tornare + coda, 303)
 
     if not app_id or not nuovo_nome:
         return torna("Mi serve sapere quale appuntamento e a chi darlo.", errore=True)

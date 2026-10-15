@@ -432,3 +432,39 @@ def test_quale_email_si_manda_quando_un_appuntamento_si_sposta():
     assert email_dello_spostamento(uguale, uguale) == "cambio_operatore"
     assert email_dello_spostamento(uguale, "2026-10-16T15:00") == "spostamento"
     assert email_dello_spostamento(uguale, "2026-10-17T09:30") == "spostamento"
+
+
+def test_chi_non_viene_non_compare_fra_le_ore_libere_di_quel_giorno():
+    """Google lo dice libero — l'assenza e' una decisione di adesso, non un
+    orario in Presenze — e senza toglierlo la griglia offrirebbe di spostare
+    l'appuntamento proprio sulla persona che manca."""
+    from services.assenze import togli_chi_non_viene
+
+    liberi = {
+        "Andrea": {"2026-10-16T09:30"},
+        "Bario": {"2026-10-16T11:00"},
+    }
+
+    restano = togli_chi_non_viene(liberi, "Andrea", "2026-10-16", "2026-10-16")
+
+    assert set(restano) == {"Bario"}
+
+
+def test_il_giorno_dopo_quell_operatore_c_e():
+    """Toglierlo da tutto il calendario nasconderebbe meta' dei posti liberi
+    della settimana."""
+    from services.assenze import togli_chi_non_viene
+
+    liberi = {"Andrea": {"2026-10-17T09:30"}, "Bario": {"2026-10-17T11:00"}}
+
+    restano = togli_chi_non_viene(liberi, "Andrea", "2026-10-17", "2026-10-16")
+
+    assert set(restano) == {"Andrea", "Bario"}
+
+
+def test_senza_un_assente_non_si_toglie_niente():
+    from services.assenze import togli_chi_non_viene
+
+    liberi = {"Andrea": {"2026-10-16T09:30"}}
+
+    assert togli_chi_non_viene(liberi, None, "2026-10-16", "2026-10-16") == liberi
