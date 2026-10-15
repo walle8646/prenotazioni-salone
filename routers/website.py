@@ -285,7 +285,17 @@ async def chi_siamo(request: Request):
 # Denominazione da esporre nell'informativa. Scritta qui e non nel template
 # perché è un dato dell'attività, non una scelta di impaginazione: va
 # completata con ragione sociale, sede e partita IVA reali.
-TITOLARE_PRIVACY = "Acconciature Simone"
+# Chi risponde davanti alla legge. Il nome di insegna da solo non basta:
+# un'informativa che non dice chi e' giuridicamente il titolare, con partita
+# IVA e sede, vale poco — e la stessa identificazione serve nelle condizioni.
+#
+# Il nome di insegna resta separato perche' dentro una frase ("ti risponde un
+# assistente automatico di ...") la ragione sociale per esteso si legge male,
+# e nei documenti serve invece per intero.
+NOME_SALONE = "Acconciature Simone"
+TITOLARE_PRIVACY = "Acconciature Simone di Simone Ferraresi"
+TITOLARE_PARTITA_IVA = "09951190967"
+TITOLARE_SEDE = "viale Matteotti 25/H, 20095 Cusano Milanino (MI)"
 
 # Fissa e non calcolata da `date.today()`: la data dice quando l'informativa è
 # stata cambiata l'ultima volta, non quando la si sta leggendo. Aggiornarla a
@@ -320,6 +330,9 @@ async def condizioni(request: Request):
         {
             "request": request,
             "titolare": TITOLARE_PRIVACY,
+            "nome_salone": NOME_SALONE,
+            "partita_iva": TITOLARE_PARTITA_IVA,
+            "sede": TITOLARE_SEDE,
             "email_salone": settings.smtp_user,
             "telefono_salone": settings.salone_telefono,
             "aggiornata": CONDIZIONI_AGGIORNATE,
@@ -350,6 +363,9 @@ async def privacy(request: Request):
         {
             "request": request,
             "titolare": TITOLARE_PRIVACY,
+            "nome_salone": NOME_SALONE,
+            "partita_iva": TITOLARE_PARTITA_IVA,
+            "sede": TITOLARE_SEDE,
             "email_salone": settings.smtp_user,
             "telefono_salone": settings.salone_telefono,
             "aggiornata": PRIVACY_AGGIORNATA,

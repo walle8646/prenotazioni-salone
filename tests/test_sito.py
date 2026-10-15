@@ -123,3 +123,51 @@ def test_senza_numero_il_link_whatsapp_non_compare(client, monkeypatch):
 
     assert "wa.me" not in pagina
     assert "data-apri-chat" in pagina, "la chat resta, non dipende dal numero"
+
+
+# ------------------------------------------- chi risponde davanti alla legge
+
+
+def _pagina(percorso: str) -> str:
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from routers import website
+
+    app = FastAPI()
+    app.include_router(website.router)
+    return TestClient(app).get(percorso).text
+
+
+@pytest.mark.parametrize("percorso", ["/privacy", "/condizioni"])
+def test_il_titolare_e_identificato_per_intero(percorso):
+    """Il nome di insegna da solo non basta: un'informativa che non dice chi e'
+    giuridicamente il titolare, con partita IVA e sede, vale poco."""
+    pagina = _pagina(percorso)
+
+    assert "Acconciature Simone di Simone Ferraresi" in pagina
+    assert "09951190967" in pagina
+    assert "Cusano Milanino" in pagina
+
+
+def test_la_partita_iva_e_valida():
+    """Una cifra sbagliata non da' nessun errore da nessuna parte: si scopre
+    quando un documento non combacia, e a quel punto e' tardi."""
+    from routers.website import TITOLARE_PARTITA_IVA
+
+    cifre = [int(c) for c in TITOLARE_PARTITA_IVA]
+    assert len(cifre) == 11
+
+    somma = sum(cifre[0:10:2])
+    for cifra in cifre[1:10:2]:
+        doppio = cifra * 2
+        somma += doppio - 9 if doppio > 9 else doppio
+
+    assert cifre[10] == (10 - somma % 10) % 10
+
+
+def test_nelle_frasi_si_usa_il_nome_di_insegna():
+    """La ragione sociale per esteso in mezzo a una frase si legge male."""
+    pagina = _pagina("/condizioni")
+
+    assert "assistente automatico</strong> di\n            Acconciature Simone," in pagina

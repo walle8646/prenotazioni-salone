@@ -32,7 +32,8 @@
 
         <h2>Chi tratta i tuoi dati</h2>
         <p>
-            Titolare del trattamento è <strong>{{ titolare }}</strong>.
+            Titolare del trattamento è <strong>{{ titolare }}</strong>,
+            partita IVA {{ partita_iva }}, con sede in {{ sede }}.
             Per qualsiasi richiesta puoi scrivere a
             {% if email_salone %}<a href="mailto:{{ email_salone }}">{{ email_salone }}</a>{% else %}l'indirizzo email del salone{% endif %}{% if telefono_salone %}
             o telefonare al {{ telefono_salone }}{% endif %}.

@@ -8,6 +8,16 @@ suo nome non va dato all'assistente, che infatti non ne ha nessuno. Un bot che
 si presenta col nome di una persona vera fa credere a chi scrive di stare
 parlando con lei.
 
+Per esteso è **Acconciature Simone di Simone Ferraresi**, partita IVA
+`09951190967`, sede in viale Matteotti 25/H, 20095 Cusano Milanino (MI). Sono
+i dati di `routers/website.py` (`TITOLARE_PRIVACY`, `TITOLARE_PARTITA_IVA`,
+`TITOLARE_SEDE`) e compaiono nell'informativa e nelle condizioni: il nome di
+insegna da solo non identifica chi risponde davanti alla legge. Nelle frasi
+invece si usa `NOME_SALONE`, perché la ragione sociale per esteso in mezzo a
+un periodo si legge male. La partita IVA ha un test che ne verifica la cifra
+di controllo — una cifra sbagliata non dà nessun errore da nessuna parte, si
+scopre quando un documento non combacia, e lì è tardi.
+
 Bot conversazionale che gestisce le prenotazioni di un salone da barbiere dal
 sito e (in futuro) via WhatsApp, con i calendari Google degli operatori e un
 pannello per la receptionist.
@@ -1023,9 +1033,6 @@ degli operatori stanno nel database.
   dentro per intero. Oggi si usano email e notifiche push, con il sollecito a
   dieci minuti. Telegram sarebbe gratuito e immediato ma richiede che il
   personale ce l'abbia; gli SMS costano di più e dicono meno.
-- **Il titolare nell'informativa privacy è solo "Acconciature Simone"**
-  (`TITOLARE_PRIVACY` in `routers/website.py`): va completato con ragione
-  sociale, sede e partita IVA.
 - I clienti senza email vanno avvisati a voce anche quando un operatore manca:
   su WhatsApp si potrebbe, ma fuori dalle 24 ore serve un template approvato
   da Meta, che non abbiamo.
