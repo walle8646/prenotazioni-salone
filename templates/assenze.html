@@ -5,10 +5,118 @@
 <div class="gestione">
     <h2>Un operatore non viene</h2>
     <p class="nota">
-        Da usare quando qualcuno salta una giornata all'improvviso: si annullano
-        i suoi appuntamenti di quel giorno e si avvisano i clienti per email.
-        Per gli orari di tutte le settimane non è questa la schermata, è
-        <a href="/admin/presenze">Presenze</a>.
+        Qui si segna chi manca: un giorno solo o una settimana di ferie. Per
+        gli orari di tutte le settimane non è questa la schermata, è
+        <a href="/admin/presenze">Presenze</a>; per un giorno in cui non apre
+        <em>nessuno</em> ci sono i giorni di chiusura, sempre in Presenze.
+    </p>
+
+    {# In cima e non in fondo: le ferie si segnano qui sopra, e una risposta
+       che compare sotto al modulo della giornata resterebbe fuori schermo. #}
+    {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
+    {% if spostato %}<div class="avviso-buono">{{ spostato }}</div>{% endif %}
+
+    <h3>Ferie, malattia, giorni di assenza</h3>
+    <p class="nota">
+        Segnare qui un periodo fa <strong>due cose</strong>: toglie quella
+        persona dalle disponibilità in quei giorni — il bot e il pannello
+        smettono di proporla, subito — e dice quanti clienti avevano già
+        prenotato con lei, giorno per giorno.
+        <strong>Non annulla niente da solo</strong>: quelli già prenotati si
+        spostano o si disdicono qui sotto, uno per uno, perché quasi sempre
+        un altro posto c'è.
+    </p>
+
+    <div class="scheda-presenze">
+        <form class="riga-numero" method="POST" action="/admin/assenze/periodo">
+            <div>
+                <label for="periodo-chi">Chi</label>
+                <select id="periodo-chi" name="operatore_id" required>
+                    <option value="">Chi manca…</option>
+                    {% for o in operatori %}
+                    <option value="{{ o.id }}">{{ o.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="periodo-dal">Dal</label>
+                <input type="date" id="periodo-dal" name="dal" min="{{ oggi }}" required>
+            </div>
+            <div>
+                <label for="periodo-al">Al (compreso)</label>
+                <input type="date" id="periodo-al" name="al" min="{{ oggi }}">
+            </div>
+            <div>
+                <label for="periodo-motivo">Perché (facoltativo)</label>
+                <input type="text" id="periodo-motivo" name="motivo" maxlength="120"
+                       autocomplete="off" placeholder="es. ferie">
+            </div>
+            <button type="submit" class="btn-small">Salva</button>
+        </form>
+        <p class="nota" style="margin-top:.8rem">
+            <strong>Al</strong> è compreso: dal 20 al 24 sono cinque giorni.
+            Per un giorno solo basta lasciarlo vuoto.
+        </p>
+    </div>
+
+    {% if assenze %}
+    <table class="app-table">
+        <thead>
+            <tr>
+                <th>Chi</th>
+                <th>Quando</th>
+                <th>Perché</th>
+                <th>Clienti già prenotati</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in assenze %}
+            {# Rosso chiaro quando dentro il periodo c'e' ancora qualcuno:
+               e' l'unica riga che chiede di fare qualcosa. #}
+            <tr class="{{ 'riga-critica' if a.quanti }}">
+                <td data-label="Chi"><strong>{{ a.operatore }}</strong></td>
+                <td data-label="Quando">
+                    {{ a.dal.strftime('%d/%m/%Y') }}
+                    {%- if a.al != a.dal %} → {{ a.al.strftime('%d/%m/%Y') }}{% endif %}
+                </td>
+                <td data-label="Perché">{{ a.motivo or "—" }}</td>
+                <td data-label="Clienti già prenotati">
+                    {% if not a.quanti %}
+                    nessuno
+                    {% else %}
+                    {# Ogni giorno porta alla schermata di sotto, che e' quella
+                       che sa spostare e disdire: due modi di sistemare gli
+                       stessi appuntamenti finirebbero per comportarsi in due
+                       modi diversi. #}
+                    {% for g in a.giorni %}
+                    <a class="btn-small"
+                       href="/admin/assenze?operatore_id={{ a.parrucchiere_id }}&amp;data={{ g.giorno }}">
+                        {{ g.giorno.strftime('%d/%m') }} · {{ g.quanti }}
+                    </a>
+                    {% endfor %}
+                    {% endif %}
+                </td>
+                <td data-label="">
+                    <form method="POST" action="/admin/assenze/periodo/{{ a.id }}/togli">
+                        <button type="submit" class="btn-small">Torna</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="nota">
+        <strong>Torna</strong> rimette quella persona fra le disponibilità in
+        quei giorni. Quello che è già stato disdetto non torna indietro.
+    </p>
+    {% endif %}
+
+    <h3>Sistemare i clienti di una giornata</h3>
+    <p class="nota">
+        Di qui si guarda la giornata di chi manca: per ogni cliente si vede
+        chi altro è libero a quell'ora, lo si sposta, e solo se non c'è
+        proprio nessuno si annulla avvisando per email.
     </p>
 
     <ol class="passi">
@@ -28,8 +136,6 @@
         <button type="submit" class="btn-small">Vedi gli appuntamenti di quel giorno</button>
     </form>
 
-    {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
-    {% if spostato %}<div class="avviso-buono">{{ spostato }}</div>{% endif %}
 
     {% if resoconto %}
     <div class="resoconto">

@@ -960,6 +960,174 @@ async def togli_chiusura(chiusura_id: int) -> None:
         await db.commit()
 
 
+# ------------------------------------------------- assenze degli operatori
+
+
+async def assenze_operatore(da: date | None = None) -> list[dict]:
+    """I periodi di assenza, dal giorno indicato in avanti.
+
+    `da` filtra su `al` e non su `dal`: una settimana di ferie cominciata
+    lunedi' e' ancora in corso il mercoledi', e sparire dall'elenco a meta'
+    vorrebbe dire non poterla piu' correggere proprio mentre vale.
+    """
+    from models.orm import AssenzaOperatore, Parrucchiere
+
+    async with async_session() as db:
+        query = (
+            select(AssenzaOperatore, Parrucchiere.nome)
+            .join(Parrucchiere, Parrucchiere.id == AssenzaOperatore.parrucchiere_id)
+            .order_by(AssenzaOperatore.dal)
+        )
+        if da is not None:
+            query = query.where(AssenzaOperatore.al >= da)
+        righe = await db.execute(query)
+        return [
+            {
+                "id": a.id,
+                "parrucchiere_id": a.parrucchiere_id,
+                "operatore": nome,
+                "dal": a.dal,
+                "al": a.al,
+                "motivo": a.motivo,
+            }
+            for a, nome in righe.all()
+        ]
+
+
+async def assenze_in_memoria() -> dict[str, list[tuple[str, str]]]:
+    """Le assenze nella forma che tiene la copia in memoria: nome → periodi.
+
+    Solo quelle non ancora finite: le passate restano in tabella perche' sono
+    la storia di un buco in agenda, ma per sapere chi lavora domani non
+    servono.
+    """
+    periodi: dict[str, list[tuple[str, str]]] = {}
+    for riga in await assenze_operatore(da=date.today()):
+        periodi.setdefault(riga["operatore"], []).append(
+            (riga["dal"].isoformat(), riga["al"].isoformat())
+        )
+    return periodi
+
+
+async def aggiungi_assenza(
+    parrucchiere_id: int, dal: date, al: date, motivo: str | None = None
+) -> bool:
+    """Segna che quell'operatore non c'e' da `dal` a `al`, estremi compresi.
+
+    False se un periodo che si sovrappone c'era gia': due righe per gli stessi
+    giorni non fanno danno al calcolo — basta che una copra — ma nell'elenco
+    chi legge non sa piu' quale togliere.
+    """
+    from models.orm import AssenzaOperatore
+
+    async with async_session() as db:
+        esistente = await db.execute(
+            select(AssenzaOperatore.id).where(
+                AssenzaOperatore.parrucchiere_id == parrucchiere_id,
+                AssenzaOperatore.dal <= al,
+                AssenzaOperatore.al >= dal,
+            )
+        )
+        if esistente.scalar_one_or_none() is not None:
+            return False
+        db.add(
+            AssenzaOperatore(
+                parrucchiere_id=parrucchiere_id,
+                dal=dal,
+                al=al,
+                motivo=(motivo or "").strip() or None,
+            )
+        )
+        await db.commit()
+        return True
+
+
+async def togli_assenza(assenza_id: int) -> None:
+    """Quell'operatore quei giorni c'e' di nuovo."""
+    from models.orm import AssenzaOperatore
+
+    async with async_session() as db:
+        await db.execute(
+            delete(AssenzaOperatore).where(AssenzaOperatore.id == assenza_id)
+        )
+        await db.commit()
+
+
+async def appuntamenti_nel_periodo(
+    parrucchiere_id: int, dal: date, al: date
+) -> list[dict]:
+    """Gli appuntamenti confermati di un operatore in quei giorni.
+
+    Serve a dire **quanti clienti restano da sistemare** quando si segnano
+    delle ferie: segnarle e basta blocca le prenotazioni nuove, ma quelli che
+    avevano gia' preso l'appuntamento continuerebbero a presentarsi.
+    """
+    from models.orm import Appuntamento
+
+    async with async_session() as db:
+        righe = await db.execute(
+            select(Appuntamento)
+            .where(
+                Appuntamento.parrucchiere_id == parrucchiere_id,
+                Appuntamento.data_ora >= datetime.combine(dal, datetime.min.time()),
+                Appuntamento.data_ora <= datetime.combine(al, datetime.max.time()),
+                Appuntamento.stato == "Confermato",
+            )
+            .order_by(Appuntamento.data_ora)
+        )
+        return [
+            {"id": a.id, "data_ora": a.data_ora, "giorno": a.data_ora.date()}
+            for a in righe.scalars().all()
+        ]
+
+
+async def appuntamenti_per_assenze(assenze: list[dict]) -> dict[int, list[dict]]:
+    """Per ogni periodo, i clienti che ci sono ancora dentro. Una query sola.
+
+    Una per periodo sarebbero dieci query per disegnare un elenco di dieci
+    righe: si chiede l'intervallo che le copre tutte e si divide qui, come fa
+    il carico dei quattro mesi.
+    """
+    from models.orm import Appuntamento
+
+    if not assenze:
+        return {}
+
+    dal = min(a["dal"] for a in assenze)
+    al = max(a["al"] for a in assenze)
+    async with async_session() as db:
+        righe = (
+            (
+                await db.execute(
+                    select(Appuntamento)
+                    .where(
+                        Appuntamento.parrucchiere_id.in_(
+                            {a["parrucchiere_id"] for a in assenze}
+                        ),
+                        Appuntamento.data_ora
+                        >= datetime.combine(dal, datetime.min.time()),
+                        Appuntamento.data_ora
+                        <= datetime.combine(al, datetime.max.time()),
+                        Appuntamento.stato == "Confermato",
+                    )
+                    .order_by(Appuntamento.data_ora)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    return {
+        a["id"]: [
+            {"id": r.id, "data_ora": r.data_ora, "giorno": r.data_ora.date()}
+            for r in righe
+            if r.parrucchiere_id == a["parrucchiere_id"]
+            and a["dal"] <= r.data_ora.date() <= a["al"]
+        ]
+        for a in assenze
+    }
+
+
 # ------------------------------------------------------------ notifiche push
 
 

@@ -1267,6 +1267,19 @@ async def _ricarica_presenze() -> None:
     set_presenze_cache(await get_presenze())
 
 
+async def _ricarica_assenze() -> None:
+    """Chi e' in ferie, rimesso in memoria appena cambia.
+
+    Stessa ragione del listino, con una conseguenza peggiore: senza questa
+    riga le ferie segnate adesso varrebbero dal riavvio successivo, e nel
+    frattempo il bot continuerebbe a dare appuntamenti a chi e' al mare.
+    """
+    from services.db_service import assenze_in_memoria
+    from services.presenze import set_assenze_cache
+
+    set_assenze_cache(await assenze_in_memoria())
+
+
 async def _ricarica_orari() -> None:
     """Rimette in memoria orari e chiusure appena cambiati.
 
@@ -1632,11 +1645,138 @@ async def assenze_form(
             "operatore_id": operatore_id,
             "giorno": giorno,
             "appuntamenti": appuntamenti,
+            "assenze": await _periodi_con_chi_resta(adesso.date()),
+            "oggi": adesso.date().isoformat(),
             "resoconto": None,
             "spostato": spostato,
             "errore": errore,
         },
     )
+
+
+async def _periodi_con_chi_resta(oggi: date) -> list[dict]:
+    """Le assenze in programma, ognuna con i giorni che hanno ancora clienti.
+
+    Segnare le ferie blocca le prenotazioni nuove, ma chi aveva gia' preso
+    l'appuntamento continua a presentarsi: senza questo elenco il salone
+    crederebbe di aver finito, e il primo a scoprirlo sarebbe il cliente
+    davanti alla porta.
+    """
+    from services.db_service import appuntamenti_per_assenze, assenze_operatore
+
+    assenze = await assenze_operatore(da=oggi)
+    dentro = await appuntamenti_per_assenze(assenze)
+    for periodo in assenze:
+        per_giorno: dict[date, int] = {}
+        for app in dentro.get(periodo["id"], ()):
+            per_giorno[app["giorno"]] = per_giorno.get(app["giorno"], 0) + 1
+        periodo["quanti"] = sum(per_giorno.values())
+        periodo["giorni"] = [
+            {"giorno": g, "quanti": n} for g, n in sorted(per_giorno.items())
+        ]
+    return assenze
+
+
+@router.post("/assenze/periodo")
+async def assenza_periodo_aggiungi(
+    operatore_id: int = Form(),
+    dal: str = Form(),
+    al: str = Form(""),
+    motivo: str = Form(""),
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Segna che un operatore non c'e' per un periodo: ferie, malattia, corso.
+
+    **Non annulla niente.** Toglie quei giorni dalle disponibilita' — il bot
+    e il pannello smettono di proporlo — e dice quanti clienti erano gia'
+    prenotati, giorno per giorno, perche' quelli si spostano a mano: un
+    annullamento in blocco di una settimana manderebbe una raffica di email di
+    scuse a gente che un altro posto ce l'aveva.
+
+    Un giorno solo e' un periodo con `al` vuoto: la malattia di domani e la
+    settimana di ferie non devono essere due cose diverse da ricordare.
+    """
+    from services.assenze import controlla_periodo
+    from services.db_service import aggiungi_assenza, appuntamenti_nel_periodo
+    from services.slots import adesso_salone
+
+    def torna(messaggio: str, errore: bool = True) -> RedirectResponse:
+        chiave = "errore" if errore else "spostato"
+        return RedirectResponse(f"/admin/assenze?{chiave}={quote(messaggio)}", 303)
+
+    try:
+        primo = datetime.strptime(dal, "%Y-%m-%d").date()
+        ultimo = datetime.strptime(al, "%Y-%m-%d").date() if al.strip() else primo
+    except (TypeError, ValueError):
+        return torna("Non ho capito le date.")
+
+    guasto = controlla_periodo(primo, ultimo, adesso_salone().date())
+    if guasto:
+        return torna(guasto)
+
+    operatore = (
+        await db.execute(select(Parrucchiere.nome).where(Parrucchiere.id == operatore_id))
+    ).scalar_one_or_none()
+    if operatore is None:
+        return torna("Quell'operatore non c'e' piu'.")
+
+    if not await aggiungi_assenza(operatore_id, primo, ultimo, motivo):
+        return torna(
+            f"{operatore} ha gia' un'assenza che copre quei giorni: "
+            "togli quella prima, o cambia le date."
+        )
+
+    # La copia in memoria **prima** della risposta: senza, le ferie segnate
+    # adesso varrebbero dal riavvio successivo, e nel frattempo il bot
+    # continuerebbe a dare appuntamenti a chi e' al mare.
+    await _ricarica_assenze()
+
+    restano = await appuntamenti_nel_periodo(operatore_id, primo, ultimo)
+    logger.info(
+        "%s assente dal %s al %s (%s appuntamenti gia' presi)",
+        operatore,
+        primo,
+        ultimo,
+        len(restano),
+    )
+    quando = (
+        f"il {_in_italiano(primo)}"
+        if primo == ultimo
+        else f"dal {_in_italiano(primo)} al {_in_italiano(ultimo)}"
+    )
+    if not restano:
+        return torna(
+            f"{operatore} non c'e' {quando}. Nessuno aveva prenotato con lui: "
+            "non c'e' altro da fare.",
+            errore=False,
+        )
+    return torna(
+        f"{operatore} non c'e' {quando}. Da adesso nessuno puo' piu' prenotare "
+        f"con lui in quei giorni, ma {len(restano)} client"
+        f"{'e aveva' if len(restano) == 1 else 'i avevano'} gia' preso "
+        "l'appuntamento: li trovi qui sotto, giorno per giorno.",
+        errore=False,
+    )
+
+
+@router.post("/assenze/periodo/{assenza_id}/togli")
+async def assenza_periodo_togli(
+    assenza_id: int,
+    utente=Depends(utente_del_pannello),
+):
+    """Quell'operatore quei giorni c'e' di nuovo.
+
+    Gli appuntamenti annullati nel frattempo non tornano indietro: toglierla
+    riapre le prenotazioni, non rimette a posto quello che e' gia' stato
+    disdetto.
+    """
+    from services.db_service import togli_assenza
+
+    await togli_assenza(assenza_id)
+    await _ricarica_assenze()
+    logger.info("Assenza %s tolta dal pannello", assenza_id)
+    return RedirectResponse("/admin/assenze", 303)
 
 
 @router.get("/sposta/{app_id}", response_class=HTMLResponse)

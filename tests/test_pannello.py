@@ -499,3 +499,78 @@ def test_la_settimana_di_chi_c_e_non_si_tocca():
 
     assert togli_il_giorno_che_manca(liberi, "Andrea", "Bario", "2026-10-16") == liberi
     assert togli_il_giorno_che_manca(liberi, None, "Bario", "2026-10-16") == liberi
+
+
+# ------------------------------------- ferie e assenze di piu' giorni
+
+
+def test_un_periodo_al_contrario_si_rifiuta():
+    """Invertire le due caselle e' l'errore piu' facile da fare, e salvato
+    com'e' non toglierebbe nemmeno un giorno."""
+    from datetime import date
+
+    from services.assenze import controlla_periodo
+
+    oggi = date(2026, 10, 15)
+    assert controlla_periodo(date(2026, 10, 24), date(2026, 10, 20), oggi)
+    assert controlla_periodo(date(2026, 10, 20), date(2026, 10, 24), oggi) is None
+
+
+def test_un_solo_giorno_e_un_periodo_valido():
+    """La malattia di domani e la settimana di ferie devono essere la stessa
+    cosa, o diventano due funzioni da ricordare."""
+    from datetime import date
+
+    from services.assenze import controlla_periodo
+
+    giorno = date(2026, 10, 20)
+    assert controlla_periodo(giorno, giorno, date(2026, 10, 15)) is None
+
+
+def test_un_periodo_gia_passato_non_serve_a_niente():
+    from datetime import date
+
+    from services.assenze import controlla_periodo
+
+    nota = controlla_periodo(date(2026, 10, 1), date(2026, 10, 5), date(2026, 10, 15))
+
+    assert nota and "passato" in nota
+
+
+def test_un_periodo_finito_oggi_si_accetta_ancora():
+    """Chi rientra domani ha ancora oggi scoperto: rifiutarlo vorrebbe dire
+    non poter segnare l'assenza proprio nel giorno in cui vale."""
+    from datetime import date
+
+    from services.assenze import controlla_periodo
+
+    oggi = date(2026, 10, 15)
+    assert controlla_periodo(date(2026, 10, 12), oggi, oggi) is None
+
+
+def test_un_anno_sbagliato_si_riconosce_dalla_lunghezza():
+    """2027 al posto di 2026 toglie un operatore per dodici mesi senza nessun
+    errore: semplicemente non gli arriva piu' nessun cliente."""
+    from datetime import date
+
+    from services.assenze import controlla_periodo
+
+    nota = controlla_periodo(
+        date(2026, 10, 20), date(2027, 10, 24), date(2026, 10, 15)
+    )
+
+    assert nota and "anno" in nota
+
+
+def test_i_giorni_del_periodo_hanno_dentro_gli_estremi():
+    """"Dal 20 al 24" sono cinque giorni, come li direbbe chiunque in salone:
+    esclusivo si leggerebbe uguale e varrebbe un giorno di meno."""
+    from datetime import date
+
+    from services.assenze import giorni_del_periodo
+
+    giorni = giorni_del_periodo(date(2026, 10, 20), date(2026, 10, 24))
+
+    assert len(giorni) == 5
+    assert giorni[0] == date(2026, 10, 20)
+    assert giorni[-1] == date(2026, 10, 24)

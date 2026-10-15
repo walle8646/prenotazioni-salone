@@ -143,3 +143,40 @@ def togli_il_giorno_che_manca(
         giorno: (set() if giorno.isoformat() == giorno_assenza else ore)
         for giorno, ore in liberi.items()
     }
+
+
+# --------------------------------------------- ferie e assenze di piu' giorni
+
+# Oltre questo, non e' un'assenza: e' un anno sbagliato nella casella della
+# data. Un operatore tolto dalle disponibilita' per dodici mesi non da'
+# nessun errore da nessuna parte — semplicemente non gli arriva piu' nessun
+# cliente, ed e' il tipo di guasto che si scopre quando qualcuno chiede
+# "perche' ad Andrea non prenota piu' nessuno?".
+MASSIMO_GIORNI = 180
+
+
+def controlla_periodo(dal, al, oggi) -> str | None:
+    """Cosa c'e' che non va in un periodo di assenza, o None se va bene.
+
+    Logica pura coi suoi test: sbagliarla costa in silenzio da tutte e due le
+    parti — un periodo piu' corto del vero lascia dare appuntamenti in giorni
+    in cui il salone non ha nessuno, uno piu' lungo toglie dalle scelte
+    qualcuno che invece c'e'.
+    """
+    if al < dal:
+        return "Il primo giorno viene dopo l'ultimo: ho invertito qualcosa?"
+    if al < oggi:
+        return "Quel periodo e' gia' passato: si segna da oggi in avanti."
+    if (al - dal).days + 1 > MASSIMO_GIORNI:
+        return (
+            f"Sono piu' di {MASSIMO_GIORNI} giorni: controlla l'anno, "
+            "di solito e' quello."
+        )
+    return None
+
+
+def giorni_del_periodo(dal, al) -> list:
+    """Tutti i giorni del periodo, estremi compresi."""
+    from datetime import timedelta
+
+    return [dal + timedelta(days=i) for i in range((al - dal).days + 1)]

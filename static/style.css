@@ -330,6 +330,17 @@ body.barra-ridotta .barra-stringi .ic {
     background: var(--arancio-cupo);
 }
 
+/* Un bottone resta un bottone anche dentro una tabella. `.app-table a` e' piu'
+   specifico di `.btn-small` e rimetteva il verde dei link sopra l'arancio:
+   1,2 contro 1, cioe' illeggibile. Si vedeva su "Cerca un altro orario", che
+   compare proprio sulle righe rosse — quelle in cui bisogna fare qualcosa.
+   Con :link e :visited vince a prescindere dall'ordine nel foglio, invece che
+   per il punto in cui e' scritto. */
+a.btn-small:link,
+a.btn-small:visited {
+    color: white;
+}
+
 .error {
     background: #fdecea;
     color: var(--allarme);

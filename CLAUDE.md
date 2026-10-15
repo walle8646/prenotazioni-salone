@@ -821,7 +821,54 @@ uno da dimenticare. Chiudere un giorno **non avvisa** chi aveva già prenotato:
 per quello serve **Assenze**, operatore per operatore. Annullare in silenzio
 sarebbe il danno peggiore.
 
-**Assenze** (`services/assenze.py`) annulla in blocco la giornata di un
+**Assenze** fa due cose diverse, e la prima è nuova: **segnare che qualcuno
+non c'è** (tabella `assenze_operatore`, un periodo con `dal` e `al`) e
+**sistemare i clienti** già prenotati in quei giorni.
+
+Prima esisteva solo la seconda, e l'assenza **non si salvava da nessuna
+parte**: `annulla_giornata()` toglieva gli eventi, avvisava i clienti, e la
+richiesta finiva lì. Conseguenza misurata: annullata la giornata di Francesco
+alle nove, alle nove e un quarto il bot poteva ridargli un appuntamento per
+lo stesso pomeriggio. Con un giorno solo si nota — c'è chi guarda l'agenda —
+ma una settimana di ferie nessuno la ricontrolla per sette giorni, e il
+rientro è una giornata piena di clienti che l'operatore non sa di avere.
+
+Cinque scelte, tutte con un perché.
+
+**Il periodo sta in `presenze.e_in_salone()`**, non in un controllo a parte.
+Quella funzione è l'unico posto che risponde a "quel giorno lavora", e da lì
+passano la disponibilità del bot, il verde di Prenota, la griglia della
+giornata e quella della settimana: messo altrove, una delle quattro
+continuerebbe a dare appuntamenti a chi è al mare. Le colonne a righe
+sull'agenda vengono da sola, perché le disegna la stessa funzione.
+
+**Gli estremi sono compresi**: "dal 20 al 24" sono cinque giorni, come li
+direbbe chiunque in salone. Esclusivo si leggerebbe uguale e varrebbe un
+giorno di meno — e lo scoprirebbe il cliente trovando la poltrona vuota. Un
+giorno solo è un periodo con `al` vuoto: la malattia di domani e la settimana
+di ferie non devono essere due schermate da ricordare.
+
+**Segnare un'assenza non annulla niente.** Blocca le prenotazioni nuove e
+dice quanti clienti erano già prenotati, giorno per giorno, con un link alla
+schermata che sa spostarli. Annullare in blocco una settimana manderebbe una
+raffica di email di scuse a gente che un altro posto ce l'aveva: con sette
+giorni di anticipo spostare è quasi sempre possibile, ed è il motivo per cui
+l'elenco dei giorni ancora da sistemare colora la riga di rosso finché non è
+vuoto.
+
+**La copia in memoria si ricarica nello stesso giro** (`_ricarica_assenze()`),
+come listino e operatori: senza, le ferie segnate adesso varrebbero dal
+riavvio successivo — cioè mai, nel momento in cui servono.
+
+**Un periodo più lungo di `MASSIMO_GIORNI` si rifiuta** (180): non è
+un'assenza, è un anno sbagliato nella casella della data. Un operatore tolto
+dalle disponibilità per dodici mesi non dà nessun errore da nessuna parte,
+semplicemente non gli arriva più nessun cliente. Il controllo è
+`controlla_periodo()`, logica pura coi suoi test, perché sbaglia in silenzio
+da tutte e due le parti: più corto del vero lascia dare appuntamenti in
+giorni scoperti, più lungo toglie dalle scelte qualcuno che c'è.
+
+La seconda metà, quella di prima, annulla in blocco la giornata di un
 operatore che non viene: toglie gli eventi da Google, annulla nel database e
 manda ai clienti un'email diversa da quella della disdetta normale — qui la
 colpa non è loro, e il salone si scusa. Si vede sempre prima l'elenco di chi
@@ -844,6 +891,14 @@ giornata le durate diverse sono due o tre mentre gli appuntamenti sono dieci.
 vuota quando davvero non c'è nessuno: **"non lo so" e "non c'è nessuno" non
 sono la stessa cosa**, e mostrarli uguali farebbe annullare appuntamenti che
 si potevano salvare. Solo la lista vuota colora la riga di rosso.
+
+**Un bottone resta un bottone anche dentro una tabella.** `.app-table a` è
+più specifico di `.btn-small` e gli rimetteva addosso il verde dei link sopra
+l'arancio: **1,2 contro 1**, illeggibile. Si vedeva su "Cerca un altro
+orario", che compare proprio sulle righe rosse — quelle in cui bisogna fare
+qualcosa. Ora `a.btn-small:link, a.btn-small:visited` tiene il bianco (4,5),
+e con le pseudo-classi vince per specificità invece che per il punto in cui è
+scritto nel foglio.
 
 **Un parametro scritto vuoto non è un parametro assente** (`coda_query()`).
 `&operatore_id=` arriva alla rotta come stringa vuota, e un campo dichiarato

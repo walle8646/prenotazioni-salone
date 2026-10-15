@@ -78,12 +78,21 @@ async def lifespan(app: FastAPI):
     chiusure = await get_chiusure(da=_date.today())
     set_chiusure({c["data"].isoformat() for c in chiusure})
 
+    # Chi e' in ferie: dopo gli orari, perche' sono le date in cui quegli
+    # orari non valgono.
+    from services.db_service import assenze_in_memoria
+    from services.presenze import set_assenze_cache
+
+    assenze = await assenze_in_memoria()
+    set_assenze_cache(assenze)
+
     from services.slots import orari_in_parole
 
     logging.getLogger(__name__).info(
-        "Orari del salone: %s | chiusure future: %s",
+        "Orari del salone: %s | chiusure future: %s | operatori assenti: %s",
         orari_in_parole(orari),
         len(chiusure),
+        ", ".join(sorted(assenze)) or "nessuno",
     )
 
     # L'interruttore del bot, prima di aprire la porta ai messaggi: se qualcuno

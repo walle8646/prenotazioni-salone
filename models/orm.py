@@ -91,6 +91,32 @@ class Presenza(Base):
     parrucchiere = relationship("Parrucchiere", back_populates="presenze")
 
 
+class AssenzaOperatore(Base):
+    """Un periodo in cui un operatore non c'e': ferie, malattia, un corso.
+
+    E' il contrario di `Presenza`, che dice gli orari di tutte le settimane:
+    qui ci sono le date in cui quegli orari non valgono. Un giorno solo e' un
+    periodo in cui `dal` e `al` coincidono, cosi' la malattia di domani e la
+    settimana di ferie non sono due cose diverse da ricordare.
+
+    **Gli estremi sono compresi**: "dal 20 al 24" sono cinque giorni, come li
+    direbbe chiunque in salone. Esclusivo si leggerebbe uguale e varrebbe un
+    giorno di meno — il tipo di errore che si scopre dal cliente che trova la
+    poltrona vuota.
+    """
+
+    __tablename__ = "assenze_operatore"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    parrucchiere_id = Column(
+        Integer, ForeignKey("parrucchieri.id"), nullable=False, index=True
+    )
+    dal = Column(Date, nullable=False, index=True)
+    al = Column(Date, nullable=False, index=True)
+    motivo = Column(String(120))
+    creato_il = Column(DateTime, nullable=False, default=datetime.now)
+
+
 class ServizioListino(Base):
     """Voce di listino: nome, prezzo e durata.
 
