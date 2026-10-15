@@ -14,39 +14,12 @@
     {# Chi cerca posto per una persona sola non vuole sei colonne: ne vuole
        sette, una per giorno. La scelta sta in cima perché e' la prima cosa che
        si sa al telefono — "vorrei da Andrea" — e cambia tutta la schermata. #}
-    <nav class="chips" aria-label="Per chi stai prenotando">
-        <a class="chip{{ ' chip-scelta' if not operatore_scelto }}"
-           href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}">Tutti</a>
-        {% for o in operatori %}
-        <a class="chip{{ ' chip-scelta' if operatore_scelto == o }}"
-           href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}&amp;operatore={{ o | urlencode }}">
-            <img src="/operatori/{{ o | urlencode }}/foto" alt="" width="22" height="22">
-            {{ o }}
-        </a>
-        {% endfor %}
-    </nav>
+    {% include "_chips_operatori.html" %}
 
     {% include "_calendario_mesi.html" %}
 
     <div class="barra-giornata">
-        {% if operatore_scelto %}
-        {# Scelto un operatore si guarda la sua settimana; toccando un giorno
-           sul calendario si scende su quel giorno solo. Le due viste si
-           dichiarano, invece di dipendere da come ci si è arrivati. #}
-        <nav class="scelta-vista" aria-label="Come guardare">
-            <a href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}{{ filtro }}"
-               {% if vista_settimana %}aria-current="page"{% endif %}>Settimana</a>
-            <a href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}&amp;vista=giorno{{ filtro }}"
-               {% if not vista_settimana %}aria-current="page"{% endif %}>Solo questo giorno</a>
-        </nav>
-        {% endif %}
-
-        {% if vista_settimana %}
-        <nav class="scelta-vista" aria-label="Cambia settimana">
-            <a href="{{ dove }}?data={{ settimana_prima }}{{ filtro }}">‹ Prima</a>
-            <a href="{{ dove }}?data={{ settimana_dopo }}{{ filtro }}">Dopo ›</a>
-        </nav>
-        {% endif %}
+        {% include "_scelta_vista.html" %}
 
         <a class="btn-small btn-neutro"
            href="/admin/dashboard?data={{ data_selezionata.strftime('%Y-%m-%d') }}">Vedi la giornata</a>

@@ -468,3 +468,34 @@ def test_senza_un_assente_non_si_toglie_niente():
     liberi = {"Andrea": {"2026-10-16T09:30"}}
 
     assert togli_chi_non_viene(liberi, None, "2026-10-16", "2026-10-16") == liberi
+
+
+def test_nella_sua_settimana_il_giorno_che_manca_resta_vuoto():
+    """La stessa regola vista dall'altra parte. Filtrando per l'operatore che
+    non viene, le chiavi sono i giorni e non i nomi: il giorno dell'assenza
+    deve restare senza verde, o la schermata che serve a salvare
+    l'appuntamento propone di rimetterlo dov'era."""
+    from datetime import date
+
+    from services.assenze import togli_il_giorno_che_manca
+
+    liberi = {
+        date(2026, 10, 16): {"2026-10-16T09:30"},
+        date(2026, 10, 17): {"2026-10-17T09:30"},
+    }
+
+    restano = togli_il_giorno_che_manca(liberi, "Andrea", "Andrea", "2026-10-16")
+
+    assert restano[date(2026, 10, 16)] == set()
+    assert restano[date(2026, 10, 17)] == {"2026-10-17T09:30"}
+
+
+def test_la_settimana_di_chi_c_e_non_si_tocca():
+    from datetime import date
+
+    from services.assenze import togli_il_giorno_che_manca
+
+    liberi = {date(2026, 10, 16): {"2026-10-16T09:30"}}
+
+    assert togli_il_giorno_che_manca(liberi, "Andrea", "Bario", "2026-10-16") == liberi
+    assert togli_il_giorno_che_manca(liberi, None, "Bario", "2026-10-16") == liberi

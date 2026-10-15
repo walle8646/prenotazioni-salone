@@ -1,0 +1,17 @@
+{# Le chips in cima: "Tutti" oppure una persona sola. Estratto perche' le
+   mostrano due schermate — Prenota e lo spostamento di un appuntamento — e
+   due copie prima o poi portano in due posti diversi.
+   Variabili attese: `dove`, `data_selezionata`, `operatori`, `operatore_scelto`,
+   e `coda` con quello che la pagina deve portarsi appresso (senza l'operatore,
+   che lo dichiarano le chips stesse). #}
+<nav class="chips" aria-label="Per chi stai cercando posto">
+    <a class="chip{{ ' chip-scelta' if not operatore_scelto }}"
+       href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}{{ coda }}">Tutti</a>
+    {% for o in operatori %}
+    <a class="chip{{ ' chip-scelta' if operatore_scelto == o }}"
+       href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}&amp;operatore={{ o | urlencode }}{{ coda }}">
+        <img src="/operatori/{{ o | urlencode }}/foto" alt="" width="22" height="22">
+        {{ o }}
+    </a>
+    {% endfor %}
+</nav>

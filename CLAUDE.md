@@ -862,7 +862,31 @@ tutto il calendario nasconderebbe metà dei posti liberi della settimana.
 
 Chi non si può spostare alla stessa ora ha comunque **Cerca un altro
 orario**, che apre quella pagina per quell'appuntamento solo: lì una
-casella verde lo sposta invece di aprire il modulo. La griglia e il calendario
+casella verde lo sposta invece di aprire il modulo.
+
+**Anche lì ci sono le chips e la settimana**, identiche a Prenota: "con
+Andrea quando me lo dai?" è la stessa domanda sia che si stia prenotando sia
+che si stia spostando, e senza la settimana vuol dire aprire sette schermate
+col cliente in linea. Le chips (`_chips_operatori.html`) e l'interruttore
+fra settimana e giorno (`_scelta_vista.html`) sono **due include**, per la
+stessa ragione della griglia: due copie prima o poi portano in due posti
+diversi. I link portano `coda` — quello che la pagina si trascina: da dove
+tornare, chi è l'assente — mentre `filtro` è `coda` più l'operatore scelto.
+Separati perché **le chips l'operatore lo dichiarano loro**: portandosi
+dietro anche quello di adesso, toccarne una non cambierebbe niente.
+
+Nella settimana le ore libere si chiedono per la **durata di
+quell'appuntamento** come nella giornata (`_posti_della_settimana(durata=)`):
+restava a trenta minuti fissi, e il verde sarebbe comparso dove un colore da
+due ore non ci sta. E se l'operatore filtrato è proprio quello che non viene,
+il **giorno dell'assenza resta senza verde** (`togli_il_giorno_che_manca()`),
+mentre gli altri sei restano: spostarlo lì vorrebbe dire rimetterlo dov'era,
+ma cancellargli la settimana vorrebbe dire non poterglielo più dare nemmeno
+quando c'è.
+
+Cosa fa una casella verde lo dichiara la pagina (`verbo_casella`): su Prenota
+apre il modulo, qui sposta. Scritto "Prenota" in tutte e due, la seconda
+prometterebbe una cosa diversa da quella che fa. La griglia e il calendario
 dei quattro mesi sono due **include** (`_agenda_griglia.html`,
 `_calendario_mesi.html`), non due copie, per la stessa ragione per cui la
 geometria sta in una funzione sola: due pezzi che disegnano le ore libere in

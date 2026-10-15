@@ -1,0 +1,23 @@
+{# Settimana o giorno singolo, e le frecce per cambiare settimana. Estratto
+   per la stessa ragione delle chips: le due schermate che lo mostrano devono
+   comportarsi allo stesso modo.
+   Variabili attese: `dove`, `data_selezionata`, `filtro` (coda + operatore),
+   `operatore_scelto`, `vista_settimana`, `settimana_prima`, `settimana_dopo`. #}
+{% if operatore_scelto %}
+{# Scelto un operatore si guarda la sua settimana; toccando un giorno sul
+   calendario si scende su quel giorno solo. Le due viste si dichiarano,
+   invece di dipendere da come ci si e' arrivati. #}
+<nav class="scelta-vista" aria-label="Come guardare">
+    <a href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}{{ filtro }}"
+       {% if vista_settimana %}aria-current="page"{% endif %}>Settimana</a>
+    <a href="{{ dove }}?data={{ data_selezionata.strftime('%Y-%m-%d') }}&amp;vista=giorno{{ filtro }}"
+       {% if not vista_settimana %}aria-current="page"{% endif %}>Solo questo giorno</a>
+</nav>
+{% endif %}
+
+{% if vista_settimana %}
+<nav class="scelta-vista" aria-label="Cambia settimana">
+    <a href="{{ dove }}?data={{ settimana_prima }}{{ filtro }}">‹ Prima</a>
+    <a href="{{ dove }}?data={{ settimana_dopo }}{{ filtro }}">Dopo ›</a>
+</nav>
+{% endif %}

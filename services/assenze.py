@@ -120,3 +120,26 @@ def togli_chi_non_viene(
     if not assente or giorno != giorno_assenza:
         return liberi
     return {nome: ore for nome, ore in liberi.items() if nome != assente}
+
+
+def togli_il_giorno_che_manca(
+    liberi: dict, assente: str | None, operatore: str | None, giorno_assenza: str
+) -> dict:
+    """Le ore libere di una settimana, senza il giorno in cui quello non c'e'.
+
+    E' la stessa regola di `togli_chi_non_viene` vista dall'altra parte.
+    Guardando la settimana di una persona sola le chiavi sono i giorni e non i
+    nomi: se quella persona e' proprio chi non viene, il giorno dell'assenza
+    deve restare senza verde — altrimenti la schermata che serve a salvare
+    l'appuntamento propone di rimetterlo esattamente dov'era.
+
+    Gli altri sei giorni restano: l'assenza e' di un giorno, e cancellargli
+    tutta la settimana vorrebbe dire non poterglielo piu' dare nemmeno
+    quando c'e'.
+    """
+    if not assente or operatore != assente:
+        return liberi
+    return {
+        giorno: (set() if giorno.isoformat() == giorno_assenza else ore)
+        for giorno, ore in liberi.items()
+    }

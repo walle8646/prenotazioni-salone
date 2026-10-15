@@ -378,7 +378,11 @@ async def prenota(
             **contenuto,
             "mesi": await _mesi_davanti(db, target_date, adesso, scelto),
             "dove": "/admin/prenota",
-            "filtro": f"&operatore={quote(scelto)}" if scelto else "",
+            # Le chips dichiarano loro l'operatore, quindi non devono
+            # portarsi dietro quello scelto adesso: con `filtro` addosso,
+            # toccarne una non cambierebbe niente.
+            "coda": "",
+            "filtro": coda_query(operatore=scelto),
             "settimana_prima": (target_date - timedelta(days=7)).isoformat(),
             "settimana_dopo": (target_date + timedelta(days=7)).isoformat(),
             "intestazione_settimana": _intestazione_settimana(target_date),
@@ -552,7 +556,7 @@ async def _settimana_di(
 
 
 async def _posti_della_settimana(
-    operatore: str, giorni: list[date], adesso: datetime
+    operatore: str, giorni: list[date], adesso: datetime, durata: int = 30
 ) -> tuple[dict, str | None]:
     """Gli orari liberi di un operatore giorno per giorno.
 
@@ -562,7 +566,7 @@ async def _posti_della_settimana(
     import asyncio
 
     esiti = await asyncio.gather(
-        *[_liberi_da_google(g, adesso, operatore) for g in giorni]
+        *[_liberi_da_google(g, adesso, operatore, durata) for g in giorni]
     )
     liberi = {g: (trovati.get(operatore) or set()) for g, (trovati, _) in zip(giorni, esiti)}
     motivi = {motivo for _, motivo in esiti}
@@ -1648,6 +1652,8 @@ async def assenze_sposta_scegli(
     giorno_assenza: str = None,
     torna: str = None,
     errore: str = None,
+    operatore: str = None,
+    vista: str = None,
     utente=Depends(utente_del_pannello),
     db=Depends(get_db),
 ):
@@ -1705,8 +1711,6 @@ async def assenze_sposta_scegli(
     giorno = (
         datetime.strptime(data, "%Y-%m-%d").date() if data else riga.data_ora.date()
     )
-    liberi, nota_liberi = await _dove_c_e_posto(giorno, adesso, durata=durata)
-
     giorno_assenza = giorno_assenza or riga.data_ora.date().isoformat()
 
     # Chi non viene non puo' prendersi l'appuntamento che stiamo spostando
@@ -1717,19 +1721,42 @@ async def assenze_sposta_scegli(
     assente = (
         await db.execute(select(Parrucchiere.nome).where(Parrucchiere.id == operatore_id))
     ).scalar_one_or_none() if operatore_id else None
-    from services.assenze import togli_chi_non_viene
+    from services.assenze import togli_chi_non_viene, togli_il_giorno_che_manca
 
-    liberi = togli_chi_non_viene(
-        liberi, assente, giorno.isoformat(), giorno_assenza
-    )
-    if assente and giorno.isoformat() == giorno_assenza:
-        if not liberi:
+    # Le stesse chips di Prenota, e per lo stesso motivo: "con Andrea quando
+    # me lo dai?" non e' una domanda sulla giornata, e aprire sette schermate
+    # per rispondere col cliente in linea non si puo' fare.
+    from prompts.system_prompt import get_parrucchieri_map_cached
+
+    operatori = list(get_parrucchieri_map_cached())
+    scelto = operatore if operatore in operatori else None
+    settimanale = bool(scelto) and vista != "giorno"
+
+    if settimanale:
+        giorni = [giorno + timedelta(days=i) for i in range(7)]
+        liberi, nota_liberi = await _posti_della_settimana(
+            scelto, giorni, adesso, durata
+        )
+        liberi = togli_il_giorno_che_manca(liberi, assente, scelto, giorno_assenza)
+        if assente and scelto == assente:
             nota_liberi = (
-                f"Quel giorno, a parte {assente}, non c'e' nessun altro libero: "
+                f"{assente} quel giorno non c'e': gli altri sei si possono "
+                "usare, per il giorno dell'assenza scegli un altro operatore."
+            )
+        contenuto = await _settimana_di(db, scelto, giorni, adesso, liberi)
+    else:
+        liberi, nota_liberi = await _dove_c_e_posto(
+            giorno, adesso, operatore=scelto, durata=durata
+        )
+        liberi = togli_chi_non_viene(liberi, assente, giorno.isoformat(), giorno_assenza)
+        if assente and giorno.isoformat() == giorno_assenza and not liberi:
+            nota_liberi = (
+                f"{assente} quel giorno non c'e'."
+                if scelto == assente
+                else f"Quel giorno, a parte {assente}, non c'e' nessun altro libero: "
                 "prova un altro giorno dal calendario qui sopra."
             )
-
-    contenuto = await _giornata(db, giorno, adesso, liberi=liberi)
+        contenuto = await _giornata(db, giorno, adesso, liberi=liberi, solo=scelto)
 
     # Da dove si e' arrivati, per sapere dove tornare: la stessa pagina la
     # aprono l'assenza di un operatore e il dettaglio di un appuntamento, e
@@ -1741,6 +1768,15 @@ async def assenze_sposta_scegli(
         else f"/admin/dashboard?data={riga.data_ora.date().isoformat()}"
     )
     dove = f"/admin/sposta/{app_id}"
+    # `coda` e' quello che va portato appresso da ogni link di questa pagina;
+    # `filtro` e' la stessa cosa piu' l'operatore scelto. Separati perche' le
+    # chips l'operatore lo dichiarano loro: portandosi dietro anche quello
+    # vecchio, toccarne una non cambierebbe niente.
+    coda = coda_query(
+        operatore_id=operatore_id,
+        giorno_assenza=giorno_assenza,
+        torna=torna_a,
+    )
     return templates.TemplateResponse(
         "sposta_appuntamento.html",
         {
@@ -1748,16 +1784,19 @@ async def assenze_sposta_scegli(
             **contenuto,
             "app": app,
             "data_selezionata": giorno,
-            "mesi": await _mesi_davanti(db, giorno, adesso, None),
+            "mesi": await _mesi_davanti(db, giorno, adesso, scelto),
             "dove": dove,
-            "filtro": coda_query(
-                operatore_id=operatore_id,
-                giorno_assenza=giorno_assenza,
-                torna=torna_a,
-            ),
+            "coda": coda,
+            "filtro": coda + coda_query(operatore=scelto),
+            "operatori": operatori,
+            "settimana_prima": (giorno - timedelta(days=7)).isoformat(),
+            "settimana_dopo": (giorno + timedelta(days=7)).isoformat(),
+            "intestazione_settimana": _intestazione_settimana(giorno),
+            "titolo_giornata": _in_italiano(giorno),
             "nota_liberi": nota_liberi,
-            "operatore_scelto": None,
-            "vista_settimana": False,
+            "operatore_scelto": scelto,
+            "vista_settimana": settimanale,
+            "verbo_casella": "Sposta",
             "operatore_id": operatore_id or "",
             "giorno_assenza": giorno_assenza,
             "torna_a": torna_a,

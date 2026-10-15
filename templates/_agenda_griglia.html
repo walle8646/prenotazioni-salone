@@ -1,7 +1,10 @@
 {# La griglia della giornata, con le caselle libere. Estratto perche' lo mostrano due schermate — Prenota e
    lo spostamento di un appuntamento — e disegnarlo in due posti vuol dire
    due pezzi che prima o poi dicono due cose diverse sullo stesso orario.
-   Variabili attese: `agenda`, `operatore_scelto`, `vista_settimana`. #}
+   Variabili attese: `agenda`, `operatore_scelto`, `vista_settimana`, e
+   `verbo_casella` — cosa fa una casella verde: su Prenota apre il modulo, sulla
+   pagina dello spostamento sposta. Scritto "Prenota" in tutte e due, la
+   seconda prometterebbe un'altra cosa da quella che fa. #}
     <div class="agenda-scorre">
         <div class="agenda{{ ' agenda-stretta' if agenda.colonne | length == 1 }}"
              style="--righe: {{ agenda.righe }}; --colonne: {{ agenda.colonne | length }};">
@@ -48,7 +51,7 @@
                             style="--da: {{ l.da }};"
                             data-slot="{{ l.slot }}" data-operatore="{{ chi }}"
                             data-etichetta="{% if col_giorno %}{{ c.nome }} · {% endif %}{{ l.ora }} con {{ chi }}"
-                            title="Prenota alle {{ l.ora }} con {{ chi }}">
+                            title="{{ verbo_casella | default('Prenota') }} alle {{ l.ora }} con {{ chi }}">
                         <span>{{ l.ora }}</span>
                     </button>
                     {% endfor %}

@@ -234,10 +234,11 @@ APERTO = ("09:00", "19:00")
 @pytest.fixture
 def salone(monkeypatch):
     """Salone aperto tutti i giorni, tutti in servizio, Google che risponde."""
-    risposta = {"slot": [], "esplode": False, "anticipo": "mai chiesto"}
+    risposta = {"slot": [], "esplode": False, "anticipo": "mai chiesto", "durate": []}
 
     async def finta_disponibilita(self, date_str, cal_id, durata, anticipo=None):
         risposta["anticipo"] = anticipo
+        risposta["durate"].append(durata)
         if risposta["esplode"]:
             raise RuntimeError("Google irraggiungibile")
         return risposta["slot"]
@@ -498,3 +499,18 @@ def test_un_operatore_scritto_vuoto_non_fa_esplodere_la_pagina(pannello):
     risposta = pannello.get("/admin/sposta/1492?data=2026-10-16&operatore_id=")
 
     assert risposta.status_code == 303, risposta.text
+
+
+@pytest.mark.asyncio
+async def test_la_settimana_si_chiede_per_la_durata_giusta(salone):
+    """La settimana la apre anche lo spostamento di un appuntamento, e li' la
+    durata e' la sua: con i trenta minuti di default il verde comparirebbe
+    dove un colore da due ore non ci sta."""
+    giorni = [_domani() + timedelta(days=i) for i in range(7)]
+
+    await admin._posti_della_settimana(
+        "Andrea", giorni, _adesso_alle(date.today()), 120
+    )
+
+    assert set(salone["durate"]) == {120}
+    assert len(salone["durate"]) == 7, "un giorno per volta, tutti insieme"

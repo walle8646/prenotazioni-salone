@@ -26,9 +26,15 @@
 
     {% if errore %}<p class="avviso-grave">{{ errore }}</p>{% endif %}
 
+    {# Le stesse chips di Prenota: "con Andrea quando me lo dai?" non e' una
+       domanda sulla giornata, e senza la settimana vorrebbe dire aprire sette
+       schermate con il cliente in linea. #}
+    {% include "_chips_operatori.html" %}
+
     {% include "_calendario_mesi.html" %}
 
     <div class="barra-giornata">
+        {% include "_scelta_vista.html" %}
         <a class="btn-small btn-neutro" href="{{ torna_a }}">‹ Torna indietro</a>
     </div>
 
@@ -42,7 +48,7 @@
     <p class="nota-liberi">
         <span class="nota-verde"></span>
         Verdi sono le ore in cui ci stanno tutti i {{ app.durata_min }} minuti del servizio,
-        con quell'operatore.
+        con quell'operatore{% if vista_settimana %}, giorno per giorno{% endif %}.
     </p>
     {% endif %}
 
