@@ -1233,3 +1233,55 @@ async def chiudi_conversazioni_aperte_dal_bot_spento(motivo: str) -> int:
         )
         await db.commit()
         return risultato.rowcount or 0
+
+
+# --------------------------------------- numeri a cui risponde solo una persona
+
+
+async def numeri_a_mano() -> list[dict]:
+    """L'elenco, dal piu' recente: chi l'ha appena aggiunto lo vede in cima."""
+    from models.orm import NumeroAMano
+
+    async with async_session() as db:
+        righe = await db.execute(
+            select(NumeroAMano).order_by(NumeroAMano.creato_il.desc())
+        )
+        return [
+            {"telefono": r.telefono, "nota": r.nota, "creato_il": r.creato_il}
+            for r in righe.scalars().all()
+        ]
+
+
+async def aggiungi_numero_a_mano(telefono: str, nota: str | None = None) -> bool:
+    """Mette un numero nell'elenco. False se c'era gia'.
+
+    Il numero arriva gia' normalizzato: normalizzarlo qui vorrebbe dire due
+    posti che devono restare d'accordo per sempre.
+    """
+    from models.orm import NumeroAMano
+
+    async with async_session() as db:
+        gia_presente = (
+            await db.execute(
+                select(NumeroAMano).where(NumeroAMano.telefono == telefono)
+            )
+        ).scalar_one_or_none()
+        if gia_presente is not None:
+            if nota and nota != gia_presente.nota:
+                gia_presente.nota = nota
+                await db.commit()
+            return False
+        db.add(NumeroAMano(telefono=telefono, nota=nota or None))
+        await db.commit()
+        return True
+
+
+async def togli_numero_a_mano(telefono: str) -> None:
+    """Toglie un numero dall'elenco: da quel momento il bot gli risponde."""
+    from models.orm import NumeroAMano
+
+    async with async_session() as db:
+        await db.execute(
+            delete(NumeroAMano).where(NumeroAMano.telefono == telefono)
+        )
+        await db.commit()

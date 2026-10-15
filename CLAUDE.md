@@ -520,7 +520,7 @@ con la striscia dei sette giorni da cui si salta a un'altra data: un conteggio
 solo per tutta la settimana, non sette query), **Prenota**,
 **Conversazioni**, **Clienti** (elenco con ricerca e scheda singola),
 **Listino** e **Operatori** (modifica in linea, una riga per form),
-**Presenze**, **Assenze**.
+**Presenze**, **Assenze**, **Solo a mano**.
 
 **Appuntamenti** mostra la giornata come la vista giornaliera di Google
 Calendar: ore in verticale, una colonna per operatore, un blocco alto quanto
@@ -851,6 +851,38 @@ pixel: sotto quella misura iOS ingrandisce la pagina appena si tocca un campo e
 poi la lascia ingrandita. Verificato a 375 e a 320 pixel su tutte e nove le
 schermate, misurando che niente sbordi — a occhio non si vede, e uno screenshot
 può mentire.
+
+**Solo a mano** (`services/numeri_a_mano.py`, tabella `numeri_a_mano`) è
+l'elenco dei numeri che il bot non tocca. Non è l'interruttore generale, che
+spegne tutto: è lo stesso trattamento su un numero alla volta, per chi ha
+chiesto di parlare solo col salone o per un contatto che non è un cliente.
+
+Tre cose non sono semplificabili.
+
+**Il numero si normalizza prima di salvarlo**, e un numero che non si
+riconosce viene **rifiutato** invece di essere salvato com'è. In tabella deve
+finire nella forma che manda WhatsApp — solo cifre, col prefisso, senza il
+più — o starebbe lì senza corrispondere a nessun mittente: l'elenco
+sembrerebbe a posto e il bot continuerebbe a rispondere. È lo stesso guasto
+silenzioso già visto con le eco. Il prefisso `39` lo aggiunge il codice quando
+manca, perché chi lavora in salone scrive il numero come ce l'ha in rubrica;
+un numero straniero col suo prefisso non si tocca, indovinarlo sarebbe peggio.
+
+**Il controllo sta prima di `_in_mano_a_una_persona`, e non dentro.** Un
+passaggio a una persona scade: dopo 24 ore senza risposta torna al bot. Un
+numero messo in elenco no — deve restare fuori finché qualcuno non lo toglie,
+e legarlo al passaggio vorrebbe dire vederlo tornare a parlare da solo il
+giorno dopo.
+
+**Il messaggio non si perde**: la conversazione si apre in `Conversazioni` con
+il suo motivo e la notifica parte, o mettere un numero in elenco sarebbe un
+modo di perdere clienti in silenzio. Al cliente non si manda niente: su quel
+numero risponde una persona, e un messaggio automatico mentre lei sta già
+leggendo sarebbe rumore.
+
+L'elenco vive in una copia in memoria come listino e operatori, ricaricata a
+ogni modifica dal pannello: il controllo si fa a ogni messaggio in arrivo, e
+una query per messaggio si paga per sempre.
 
 ## Listino e operatori
 

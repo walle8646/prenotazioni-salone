@@ -663,6 +663,32 @@ body.barra-ridotta .barra-stringi .ic {
 }
 
 /* Presenze */
+/* Il modulo dei numeri seguiti a mano: numero, motivo e bottone in riga, e
+   impilati quando lo schermo non li regge. `min-width: 0` sui campi, o il
+   segnaposto piu' lungo spinge il bottone fuori dalla scheda. */
+.riga-numero {
+    display: flex;
+    gap: 0.8rem;
+    align-items: flex-end;
+    flex-wrap: wrap;
+}
+
+.riga-numero > div {
+    display: grid;
+    gap: 0.2rem;
+    flex: 1 1 14rem;
+    min-width: 0;
+}
+
+.riga-numero input {
+    width: 100%;
+    min-width: 0;
+    padding: 0.55rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
 .scheda-presenze {
     background: white;
     padding: 1rem 1.2rem;

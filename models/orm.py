@@ -232,6 +232,25 @@ class ChiusuraSalone(Base):
     motivo = Column(String(120))
 
 
+class NumeroAMano(Base):
+    """I numeri a cui risponde solo una persona.
+
+    Il telefono e' la chiave, nella forma in cui lo manda WhatsApp: solo
+    cifre, col prefisso e senza il piu'. Scritto in un altro modo starebbe in
+    tabella senza corrispondere a nessun mittente, l'elenco sembrerebbe a
+    posto e il bot continuerebbe a rispondere.
+
+    La nota non e' un di piu': fra sei mesi, davanti a un numero senza
+    spiegazione, nessuno sa piu' se toglierlo.
+    """
+
+    __tablename__ = "numeri_a_mano"
+
+    telefono = Column(String(20), primary_key=True)
+    nota = Column(String(200))
+    creato_il = Column(DateTime, default=datetime.now)
+
+
 class ContattoRubrica(Base):
     """La rubrica del telefono del salone, cosi' com'e' sull'app WhatsApp.
 

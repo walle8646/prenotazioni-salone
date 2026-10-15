@@ -99,6 +99,18 @@ async def lifespan(app: FastAPI):
             "in automatico"
         )
 
+    # I numeri a cui risponde solo una persona, in memoria come il listino:
+    # il controllo si fa a ogni messaggio in arrivo.
+    from services.db_service import numeri_a_mano as _leggi_numeri_a_mano
+    from services.numeri_a_mano import set_cache as _set_numeri_a_mano
+
+    _elenco_a_mano = await _leggi_numeri_a_mano()
+    _set_numeri_a_mano(n["telefono"] for n in _elenco_a_mano)
+    if _elenco_a_mano:
+        logging.getLogger(__name__).info(
+            "Numeri seguiti solo a mano: %s", len(_elenco_a_mano)
+        )
+
     from services.presenze import set_presenze_cache
 
     presenze = await get_presenze()

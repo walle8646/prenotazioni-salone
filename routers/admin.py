@@ -180,6 +180,91 @@ async def _ricarica_operatori() -> None:
     set_parrucchieri_cache(await get_parrucchieri_map())
 
 
+async def _ricarica_numeri_a_mano() -> list[dict]:
+    """Rimette in memoria l'elenco appena cambiato, e lo restituisce.
+
+    Stessa ragione del listino: il bot legge una copia in memoria, e senza
+    questa riga un numero aggiunto varrebbe solo dal riavvio successivo —
+    cioe' mai, nel momento in cui serve.
+    """
+    from services.db_service import numeri_a_mano
+    from services.numeri_a_mano import set_cache
+
+    elenco = await numeri_a_mano()
+    set_cache(n["telefono"] for n in elenco)
+    return elenco
+
+
+@router.get("/numeri-a-mano", response_class=HTMLResponse, include_in_schema=False)
+async def numeri_a_mano_pagina(
+    request: Request, errore: str = None, aggiunto: str = None,
+    utente=Depends(utente_del_pannello),
+):
+    from services import numeri_a_mano as modulo
+
+    return templates.TemplateResponse(
+        "numeri_a_mano.html",
+        {
+            "request": request,
+            "numeri": await _ricarica_numeri_a_mano(),
+            "come_si_scrive": modulo.come_si_scrive(),
+            "errore": errore,
+            "aggiunto": aggiunto,
+        },
+    )
+
+
+@router.post("/numeri-a-mano", include_in_schema=False)
+async def numeri_a_mano_aggiungi(
+    request: Request, utente=Depends(utente_del_pannello)
+):
+    """Aggiunge un numero, dopo averlo ridotto alla forma che usa WhatsApp.
+
+    Un numero scritto in un altro modo starebbe in tabella senza corrispondere
+    a nessun mittente: l'elenco sembrerebbe a posto e il bot continuerebbe a
+    rispondere. Per questo un numero che non si riconosce viene **rifiutato**
+    invece di essere salvato com'e'.
+    """
+    from services.db_service import aggiungi_numero_a_mano
+    from services.numeri_a_mano import normalizza
+
+    modulo = await request.form()
+    scritto = (modulo.get("telefono") or "").strip()
+    nota = (modulo.get("nota") or "").strip()
+
+    telefono = normalizza(scritto)
+    if not telefono:
+        return RedirectResponse(
+            "/admin/numeri-a-mano?errore="
+            + quote(
+                f"{scritto!r} non sembra un numero di telefono. "
+                "Controlla che ci siano solo cifre, prefisso compreso."
+            ),
+            303,
+        )
+
+    nuovo = await aggiungi_numero_a_mano(telefono, nota or None)
+    await _ricarica_numeri_a_mano()
+    logger.warning(
+        "Numero %s %s all'elenco 'solo a mano' da %s",
+        telefono,
+        "aggiunto" if nuovo else "gia' presente, nota aggiornata",
+        utente,
+    )
+    return RedirectResponse(f"/admin/numeri-a-mano?aggiunto={quote(telefono)}", 303)
+
+
+@router.post("/numeri-a-mano/{telefono}/togli", include_in_schema=False)
+async def numeri_a_mano_togli(telefono: str, utente=Depends(utente_del_pannello)):
+    """Toglie un numero: da quel momento il bot gli risponde di nuovo."""
+    from services.db_service import togli_numero_a_mano
+
+    await togli_numero_a_mano(telefono)
+    await _ricarica_numeri_a_mano()
+    logger.warning("Numero %s tolto dall'elenco 'solo a mano' da %s", telefono, utente)
+    return RedirectResponse("/admin/numeri-a-mano", 303)
+
+
 def _decimale(testo: str) -> float:
     """Legge un prezzo scritto all'italiana o all'inglese: 13,50 o 13.50."""
     return float((testo or "").strip().replace(",", ".").replace("€", "").strip())

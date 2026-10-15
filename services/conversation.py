@@ -124,9 +124,12 @@ async def risponde_una_persona(phone: str, backends=None) -> bool:
 
     from services.interruttore import bot_attivo
 
-    # Col bot spento a rispondere e' per forza una persona: i puntini
-    # prometterebbero una risposta che non arrivera' da sola.
-    if not bot_attivo():
+    # Col bot spento, o su un numero seguito a mano, a rispondere e' per forza
+    # una persona: i puntini prometterebbero una risposta fra pochi secondi
+    # che non arrivera' da sola.
+    from services.numeri_a_mano import risponde_solo_una_persona
+
+    if not bot_attivo() or risponde_solo_una_persona(phone):
         return True
 
     backends = backends if backends is not None else _backends_reali()
@@ -149,8 +152,14 @@ async def risponde_una_persona(phone: str, backends=None) -> bool:
 # conversazione ma l'interruttore generale.
 MOTIVO_BOT_SPENTO = "Bot disattivato dal pannello."
 
+# Quello che si legge nel pannello per un numero messo nell'elenco "Solo a
+# mano": non e' un passaggio chiesto dal cliente, e' una decisione del salone.
+MOTIVO_SOLO_A_MANO = "Numero seguito solo a mano."
 
-async def _bot_spento_prende_in_carico(phone: str, text: str | None, backends) -> None:
+
+async def _bot_spento_prende_in_carico(
+    phone: str, text: str | None, backends, motivo: str = MOTIVO_BOT_SPENTO
+) -> None:
     """Col bot spento il messaggio non riceve risposta, ma non si perde.
 
     Al cliente non si manda niente. In coexistence il numero e' sul telefono
@@ -167,7 +176,7 @@ async def _bot_spento_prende_in_carico(phone: str, text: str | None, backends) -
         conversazione = await backends.conversazione_operatore_aperta(phone)
         if not conversazione:
             conversazione = await backends.apri_conversazione_operatore(
-                telefono=phone, canale="whatsapp", motivo=MOTIVO_BOT_SPENTO
+                telefono=phone, canale="whatsapp", motivo=motivo
             )
         await backends.registra_messaggio_conversazione(
             conversazione["id"], "cliente", text or "[messaggio senza testo]"
@@ -737,6 +746,18 @@ async def handle_incoming_message(
 
     if not bot_attivo():
         await _bot_spento_prende_in_carico(phone, text, backends)
+        return
+
+    # E lo stesso per un numero solo. Sta qui e non dentro
+    # `_in_mano_a_una_persona` perche' quello scade: un passaggio che nessuno
+    # segue torna al bot dopo 24 ore, mentre un numero messo in elenco deve
+    # restare fuori finche' qualcuno non lo toglie.
+    from services.numeri_a_mano import risponde_solo_una_persona
+
+    if risponde_solo_una_persona(phone):
+        await _bot_spento_prende_in_carico(
+            phone, text, backends, motivo=MOTIVO_SOLO_A_MANO
+        )
         return
 
     if msg_type not in ("text", "image", "interactive"):

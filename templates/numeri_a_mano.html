@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Solo a mano - Acconciature Simone{% endblock %}
+
+{% block content %}
+<div class="gestione">
+    <h2>Solo a mano</h2>
+    <p class="nota">
+        I numeri in questo elenco il bot non li tocca: non risponde, non
+        propone orari, non prenota. Quello che scrivono arriva comunque in
+        <a href="/admin/conversazioni">Conversazioni</a>, e risponde una
+        persona dal telefono o da lì.
+        Serve per chi ha chiesto di parlare solo con il salone, per una
+        situazione delicata, o per un contatto che non è un cliente.
+    </p>
+    <p class="nota">
+        Non è l'interruttore generale, che spegne il bot per tutti: qui si
+        tratta un numero alla volta. E non scade — un passaggio a una persona
+        torna al bot dopo 24 ore senza risposta, un numero di questo elenco
+        resta fuori finché non lo togli tu.
+    </p>
+
+    {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
+    {% if aggiunto %}
+    <div class="avviso-buono">
+        Salvato come <strong>{{ aggiunto }}</strong>. Da adesso il bot non
+        risponde a questo numero.
+    </div>
+    {% endif %}
+
+    <h3>Aggiungi un numero</h3>
+    <div class="scheda-presenze">
+        <form method="POST" action="/admin/numeri-a-mano" class="riga-numero">
+            <div>
+                <label for="telefono">Numero di telefono</label>
+                <input type="text" id="telefono" name="telefono"
+                       inputmode="tel" autocomplete="off"
+                       placeholder="349 102 1925" required>
+            </div>
+            <div>
+                <label for="nota">Perché (facoltativo)</label>
+                <input type="text" id="nota" name="nota" maxlength="200"
+                       autocomplete="off"
+                       placeholder="es. preferisce parlare con Nadia">
+            </div>
+            <button type="submit" class="btn-small">Aggiungi</button>
+        </form>
+
+        <p class="nota" style="margin-top:.8rem">
+            <strong>Come si scrive.</strong> {{ come_si_scrive }}
+        </p>
+        <p class="nota">
+            Un numero fisso va scritto con lo zero: <code>0362 123456</code>.
+            Per un numero straniero serve il prefisso del paese, per esempio
+            <code>+33</code> per la Francia: quello il sistema non lo indovina.
+        </p>
+        <p class="nota">
+            La nota non è un di più: fra sei mesi, davanti a un numero senza
+            spiegazione, nessuno sa più se si può togliere.
+        </p>
+    </div>
+
+    <h3>Numeri nell'elenco</h3>
+    {% if not numeri %}
+    <p class="nota">Nessun numero: il bot risponde a tutti.</p>
+    {% else %}
+    <table class="app-table">
+        <thead>
+            <tr>
+                <th>Numero</th>
+                <th>Perché</th>
+                <th>Dal</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for n in numeri %}
+            <tr>
+                <td data-label="Numero"><code>{{ n.telefono }}</code></td>
+                <td data-label="Perché">{{ n.nota or "—" }}</td>
+                <td data-label="Dal">
+                    {{ n.creato_il.strftime("%d/%m/%Y") if n.creato_il else "—" }}
+                </td>
+                <td data-label="">
+                    <form method="POST"
+                          action="/admin/numeri-a-mano/{{ n.telefono }}/togli">
+                        <button type="submit" class="btn-small">
+                            Togli
+                        </button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    <p class="nota">
+        Togliendo un numero il bot ricomincia a rispondergli dal messaggio
+        successivo. Se in quel momento la sua conversazione è ancora aperta in
+        Conversazioni, chiudila: finché resta aperta risponde comunque una
+        persona.
+    </p>
+    {% endif %}
+</div>
+{% endblock %}
