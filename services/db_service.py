@@ -1046,3 +1046,95 @@ async def scrivi_bot_attivo(valore: bool) -> None:
             riga.valore = a_testo(valore)
             riga.aggiornato_il = datetime.now()
         await db.commit()
+
+
+# ------------------------------------------------------------------ rubrica
+
+
+async def salva_contatti_rubrica(contatti: list[dict]) -> int:
+    """Scrive o aggiorna i contatti arrivati dall'app WhatsApp del salone.
+
+    Un contatto senza numero si scarta: il numero e' la sola cosa che serve,
+    perche' e' quella con cui si cerca quando arriva un messaggio.
+
+    Restituisce quanti ne ha salvati, cosi' chi chiede la sincronizzazione
+    puo' dire quanti ne sono arrivati invece di un generico "fatto".
+    """
+    from models.orm import ContattoRubrica
+
+    salvati = 0
+    async with async_session() as db:
+        for contatto in contatti or ():
+            telefono = (contatto.get("phone_number") or "").strip().lstrip("+")
+            if not telefono:
+                continue
+            riga = (
+                await db.execute(
+                    select(ContattoRubrica).where(
+                        ContattoRubrica.telefono == telefono
+                    )
+                )
+            ).scalar_one_or_none()
+            nome = contatto.get("first_name")
+            nome_completo = contatto.get("full_name")
+            if riga is None:
+                db.add(
+                    ContattoRubrica(
+                        telefono=telefono,
+                        nome=nome,
+                        nome_completo=nome_completo,
+                    )
+                )
+            else:
+                riga.nome = nome or riga.nome
+                riga.nome_completo = nome_completo or riga.nome_completo
+                riga.aggiornato_il = datetime.now()
+            salvati += 1
+        await db.commit()
+    return salvati
+
+
+async def togli_contatto_rubrica(telefono: str) -> None:
+    """Il salone ha cancellato un contatto: sparisce anche da qui."""
+    from models.orm import ContattoRubrica
+
+    numero = (telefono or "").strip().lstrip("+")
+    if not numero:
+        return
+    async with async_session() as db:
+        await db.execute(
+            delete(ContattoRubrica).where(ContattoRubrica.telefono == numero)
+        )
+        await db.commit()
+
+
+async def nome_in_rubrica(telefono: str) -> str | None:
+    """Come il salone ha salvato questo numero, se ce l'ha."""
+    from models.orm import ContattoRubrica
+
+    numero = (telefono or "").strip().lstrip("+")
+    if not numero:
+        return None
+    try:
+        async with async_session() as db:
+            riga = (
+                await db.execute(
+                    select(ContattoRubrica).where(
+                        ContattoRubrica.telefono == numero
+                    )
+                )
+            ).scalar_one_or_none()
+    except Exception:  # noqa: BLE001
+        logger.warning("Rubrica non leggibile per %s", telefono, exc_info=True)
+        return None
+    if riga is None:
+        return None
+    return riga.nome_completo or riga.nome
+
+
+async def quanti_in_rubrica() -> int:
+    from models.orm import ContattoRubrica
+
+    async with async_session() as db:
+        righe = await db.execute(select(ContattoRubrica.telefono))
+        return len(righe.scalars().all())

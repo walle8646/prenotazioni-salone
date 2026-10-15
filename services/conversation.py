@@ -1740,6 +1740,17 @@ async def _riconosci_cliente(phone: str, session: dict, backends) -> None:
         return
 
     if not trovato:
+        # Non ha mai prenotato con noi, ma il salone potrebbe averlo in
+        # rubrica: non basta a dire chi e' — quello lo dira' prenotando — ma
+        # basta perche' nel pannello compaia "Marco" invece di un numero, che
+        # e' quello che la receptionist ha davanti quando deve rispondere.
+        try:
+            nome = await backends.nome_in_rubrica(phone)
+        except Exception:  # noqa: BLE001
+            logger.warning("Rubrica non consultabile per %s", phone, exc_info=True)
+            nome = None
+        if nome:
+            session["dati_temp"]["nome_profilo_wa"] = nome
         return
 
     cliente = trovato.get("cliente") or {}

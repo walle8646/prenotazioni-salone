@@ -96,7 +96,9 @@ def e_un_nostro_invio(message_id: str | None) -> bool:
     return time.time() - quando <= MEMORIA_INVII_SECONDI
 
 
-async def _invia_con_motivo(payload: dict, descrizione: str) -> tuple[bool, str]:
+async def _invia_con_motivo(
+    payload: dict, descrizione: str, percorso: str = "messages"
+) -> tuple[bool, str]:
     """Manda il payload a Meta e restituisce esito e motivo del rifiuto.
 
     Ignorare la risposta faceva credere consegnato un messaggio che Meta aveva
@@ -110,7 +112,7 @@ async def _invia_con_motivo(payload: dict, descrizione: str) -> tuple[bool, str]
     """
     async with httpx.AsyncClient() as client:
         risposta = await client.post(
-            f"{_base_url()}/messages",
+            f"{_base_url()}/{percorso}",
             headers=_headers(),
             json=payload,
             timeout=10,
@@ -314,6 +316,26 @@ async def send_template(to: str, template_name: str, parameters: list[str]) -> b
         },
         f"il template {template_name}",
     )
+
+
+async def chiedi_sincronizzazione_rubrica() -> tuple[bool, str]:
+    """Chiede a Meta i contatti dell'app WhatsApp Business del salone.
+
+    Si puo' chiedere **una volta sola e entro 24 ore** dal collegamento del
+    numero: dopo, per riaverli, bisognerebbe scollegare e rifare tutto. Per
+    questo non parte da sola da nessuna parte — la preme una persona, quando
+    sa che le variabili su Render sono gia' quelle nuove.
+
+    La risposta dice solo che la richiesta e' stata presa in carico: i
+    contatti arrivano dopo, sul webhook, come `smb_app_state_sync`. Una
+    risposta positiva qui non vuol dire che siano arrivati.
+    """
+    partito, motivo = await _invia_con_motivo(
+        {"messaging_product": "whatsapp", "sync_type": "smb_app_state_sync"},
+        "richiesta della rubrica",
+        percorso="smb_app_data",
+    )
+    return partito, motivo
 
 
 async def download_media(media_id: str) -> bytes:

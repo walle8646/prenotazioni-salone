@@ -225,6 +225,27 @@ class ChiusuraSalone(Base):
     motivo = Column(String(120))
 
 
+class ContattoRubrica(Base):
+    """La rubrica del telefono del salone, cosi' com'e' sull'app WhatsApp.
+
+    Separata dai `clienti` di proposito: in quella rubrica non ci sono solo
+    clienti, ci sono il fornitore, il commercialista, la cognata. Metterli in
+    anagrafica vorrebbe dire sporcare l'elenco dei clienti e aprire schede di
+    persone che non hanno mai prenotato. Qui serve a una cosa sola: mettere un
+    nome su un numero che scrive.
+
+    Si riempie una volta, entro 24 ore dal collegamento del numero, e poi si
+    aggiorna da se' quando il salone aggiunge o cambia un contatto.
+    """
+
+    __tablename__ = "rubrica"
+
+    telefono = Column(String(20), primary_key=True)
+    nome = Column(String(100))
+    nome_completo = Column(String(200))
+    aggiornato_il = Column(DateTime, default=datetime.now, onupdate=datetime.now)
+
+
 class Impostazione(Base):
     """Interruttori del sistema, uno per riga.
 

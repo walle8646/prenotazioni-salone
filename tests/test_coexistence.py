@@ -342,13 +342,12 @@ def test_senza_numero_configurato_non_si_filtra_niente(client, monkeypatch):
 # ------------------------------- le sincronizzazioni della coexistence
 
 
-@pytest.mark.parametrize("evento", ["history", "smb_app_state_sync"])
-def test_le_sincronizzazioni_non_sembrano_un_difetto_nostro(client, evento):
-    """Arrivano in un'altra forma e non ci servono, ma devono essere ignorate
-    per scelta e non finire fra gli errori di lettura del payload."""
+def test_la_cronologia_non_sembra_un_difetto_nostro(client):
+    """Arriva in un'altra forma e non ci serve, ma dev'essere ignorata per
+    scelta e non finire fra gli errori di lettura del payload."""
     risposta = client.post(
         "/webhook/whatsapp",
-        json={"id": "DM1", "event": evento, "data": {"id": "1234"}},
+        json={"id": "DM1", "event": "history", "data": {"id": "1234"}},
     )
 
     assert risposta.status_code == 200

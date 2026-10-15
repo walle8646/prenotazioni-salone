@@ -92,6 +92,44 @@ def _testo_della_eco(eco: dict) -> str | None:
     return f"[{tipo} inviato dal telefono]" if tipo else None
 
 
+# Le azioni con cui Meta dice che un contatto non c'e' piu'. Tutto il resto
+# (aggiunta, modifica, o un nome nuovo che non conosciamo) e' una scrittura:
+# un contatto in piu' non fa danno, uno perso si rivede solo riscollegando il
+# numero.
+AZIONI_DI_RIMOZIONE = {"remove", "removed", "delete", "deleted"}
+
+
+async def _sincronizza_rubrica(sincronizzazioni: list) -> None:
+    """Scrive in rubrica i contatti dell'app WhatsApp del salone.
+
+    Arriva in due momenti: in blocco quando qualcuno chiede la
+    sincronizzazione dal pannello — una volta sola, entro 24 ore dal
+    collegamento — e poi uno per volta ogni volta che il salone aggiunge o
+    cambia un contatto sul telefono.
+    """
+    from services.db_service import salva_contatti_rubrica, togli_contatto_rubrica
+
+    da_salvare = []
+    da_togliere = []
+    for voce in sincronizzazioni or ():
+        if not isinstance(voce, dict) or voce.get("type") != "contact":
+            continue
+        contatto = voce.get("contact") or {}
+        if (voce.get("action") or "").lower() in AZIONI_DI_RIMOZIONE:
+            da_togliere.append(contatto.get("phone_number"))
+        else:
+            da_salvare.append(contatto)
+
+    try:
+        if da_salvare:
+            quanti = await salva_contatti_rubrica(da_salvare)
+            logger.info("Rubrica: %s contatti salvati", quanti)
+        for numero in da_togliere:
+            await togli_contatto_rubrica(numero)
+    except Exception:  # noqa: BLE001
+        logger.exception("Sincronizzazione della rubrica non riuscita")
+
+
 async def _registra_eco(phone: str, text: str | None) -> None:
     """Mette da parte il bot dopo che ha risposto una persona dal telefono."""
     try:
@@ -175,7 +213,12 @@ async def receive_message(request: Request, background: BackgroundTasks):
     # altrimenti finirebbe fra gli errori di lettura del payload, dove
     # sembrerebbe un difetto nostro ogni volta che Meta sincronizza.
     if isinstance(body, dict) and "entry" not in body and body.get("event"):
-        logger.info("Evento di coexistence ignorato: %s", body.get("event"))
+        evento = body.get("event")
+        dati = body.get("data") or {}
+        if evento == "smb_app_state_sync":
+            background.add_task(_sincronizza_rubrica, dati.get("state_sync"))
+            return {"status": "ok"}
+        logger.info("Evento di coexistence ignorato: %s", evento)
         return {"status": "ignored"}
 
     # Estrai il messaggio dal payload Meta
@@ -191,6 +234,13 @@ async def receive_message(request: Request, background: BackgroundTasks):
         # indietro come eco, ed e' l'unico modo che abbiamo di sapere che su
         # quella conversazione sta rispondendo una persona: il numero e' sul
         # telefono del salone, e il bot non vede quello che parte da li'.
+        # La rubrica del telefono: Meta la manda in due forme diverse a
+        # seconda di come e' configurato il webhook, quindi si guardano
+        # entrambe invece di indovinare quale.
+        if "state_sync" in value:
+            background.add_task(_sincronizza_rubrica, value.get("state_sync"))
+            return {"status": "ok"}
+
         if "message_echoes" in value:
             for eco in value.get("message_echoes") or ():
                 cliente = eco.get("to")

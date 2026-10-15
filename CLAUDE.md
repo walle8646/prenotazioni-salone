@@ -1084,15 +1084,42 @@ non ricevere niente. Senza `META_PHONE_NUMBER_ID` non si filtra nulla, o nei
 test e nel simulatore — dove i payload non portano `metadata` — non si
 elaborerebbe piu' niente.
 
-**Contatti e cronologia non si iscrivono nemmeno** (`history`,
-`smb_app_state_sync`). Accenderli vorrebbe dire farsi mandare la rubrica del
-salone e le conversazioni passate su un server che le butta via: e' la stessa
-regola per cui in database finiscono solo le conversazioni passate a una
-persona e non tutte. Il webhook li gestisce lo stesso, perche' un'iscrizione
-puo' comparire per altre strade: arrivano in un'altra forma —
-`{"event": ..., "data": ...}` invece di `entry`/`changes` — e si dichiarano
-ignorati prima della lettura del payload, o finirebbero fra gli errori di
-parsing e sembrerebbero un difetto nostro a ogni sincronizzazione. Il bot non tiene la rubrica del
+**La cronologia non si iscrive** (`history`): sono le conversazioni passate
+del salone, fino a sei mesi, e non abbiamo dove metterle ne' motivo di
+tenerle — la stessa regola per cui in database finiscono solo le conversazioni
+passate a una persona e non tutte. Il webhook la gestisce lo stesso, perche'
+un'iscrizione puo' comparire per altre strade: arriva in un'altra forma —
+`{"event": ..., "data": ...}` invece di `entry`/`changes` — e si dichiara
+ignorata prima della lettura del payload, o finirebbe fra gli errori di
+parsing e sembrerebbe un difetto nostro a ogni sincronizzazione.
+
+**La rubrica invece si prende** (`smb_app_state_sync`, tabella `rubrica`). E'
+quello che permette al bot di sapere chi sta scrivendo dal primo messaggio,
+invece di chiedere nome e cognome a chi viene da tre anni. Tre cose da sapere.
+
+Si chiede **una volta sola e entro 24 ore** dal collegamento del numero
+(`chiedi_sincronizzazione_rubrica()`, `POST /{numero}/smb_app_data`), e per
+riaverla bisognerebbe scollegare e rifare tutto: per questo non parte da
+nessuna automazione, la preme una persona da `/admin/collega-whatsapp` quando
+sa che le variabili su Render sono gia' quelle nuove. Premuta col token
+vecchio brucerebbe il tentativo sul numero sbagliato. La risposta positiva
+dice solo che la richiesta e' stata accettata: i contatti arrivano dopo, sul
+webhook.
+
+Il payload arriva in **due forme** — la busta `{"event", "data"}` e quella
+`entry`/`changes` — a seconda di com'e' configurato il webhook, e si guardano
+entrambe: guardarne una sola vorrebbe dire perdere la rubrica a seconda di
+come e' andata la configurazione, senza poterla richiedere. Un'azione che non
+conosciamo vale come scrittura e non come cancellazione, per lo stesso motivo:
+un contatto di troppo non fa danno, uno perso si rivede solo riscollegando.
+
+**I contatti non sono clienti**, e stanno in una tabella loro. In quella
+rubrica ci sono il fornitore, il commercialista, la cognata: metterli in
+anagrafica vorrebbe dire sporcare l'elenco dei clienti e aprire schede di
+persone che non hanno mai prenotato. Servono a una cosa sola — mettere un nome
+su un numero che scrive — e oggi li usa `_riconosci_cliente()` per chi non ha
+mai prenotato con noi, cosi' nel pannello compare "Marco" invece di un numero.
+La scheda cliente continua a nascerla chi prenota. Il bot non tiene la rubrica del
 salone ne' le conversazioni di prima. Da sapere: la sincronizzazione si
 potrebbe chiedere **una volta sola ed entro 24 ore** dal collegamento, quindi
 cambiare idea vuol dire scollegare e rifare.

@@ -76,6 +76,8 @@ class FakeBackends(Backends):
         # Le conversazioni passate a una persona, con dentro il loro scambio:
         # nei finti stanno insieme, in database sono due tabelle.
         self.conversazioni_operatore: list[dict] = []
+        # La rubrica del telefono del salone: numero -> nome.
+        self.rubrica: dict[str, str] = {}
         self.email_handoff: list[dict] = []
         self._contatore = 0
 
@@ -394,6 +396,9 @@ class FakeBackends(Backends):
         )
 
     # ------------------------------------ passaggio della conversazione a una persona
+
+    async def nome_in_rubrica(self, telefono):
+        return self.rubrica.get((telefono or "").lstrip("+"))
 
     async def conversazione_operatore_aperta(self, telefono):
         for conversazione in reversed(self.conversazioni_operatore):

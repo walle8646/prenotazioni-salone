@@ -193,3 +193,39 @@ async def scambia(request: Request, utente=Depends(utente_del_pannello)):
     if avvisi:
         esito["avvisi"] = avvisi
     return JSONResponse(esito)
+
+
+@router.post("/rubrica", include_in_schema=False)
+async def importa_rubrica(utente=Depends(utente_del_pannello)):
+    """Chiede a Meta i contatti dell'app WhatsApp del salone.
+
+    Si puo' chiedere **una volta sola e entro 24 ore** dal collegamento: per
+    questo non parte da sola: la preme una persona, quando sa che le variabili
+    su Render sono gia' quelle del numero nuovo. Partendo da sola col token
+    vecchio brucerebbe l'unico tentativo chiedendo la rubrica del numero
+    sbagliato.
+
+    La risposta di Meta dice solo che la richiesta e' stata presa in carico. I
+    contatti arrivano dopo, sul webhook, e per questo si restituisce anche
+    quanti ce ne sono adesso in tabella: e' l'unico numero che dice davvero
+    com'e' andata, e va riguardato dopo qualche minuto.
+    """
+    from services.db_service import quanti_in_rubrica
+    from services.whatsapp_service import chiedi_sincronizzazione_rubrica
+
+    partito, motivo = await chiedi_sincronizzazione_rubrica()
+    try:
+        quanti = await quanti_in_rubrica()
+    except Exception:  # noqa: BLE001
+        logger.warning("Conteggio della rubrica non riuscito", exc_info=True)
+        quanti = None
+
+    logger.info("Richiesta della rubrica da %s: %s", utente, "accettata" if partito else motivo)
+    return JSONResponse(
+        {
+            "ok": partito,
+            "errore": motivo,
+            "in_rubrica": quanti,
+            "numero": settings.meta_phone_number_id,
+        }
+    )

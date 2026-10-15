@@ -118,6 +118,24 @@
         </div>
         <div id="dettagli" style="margin-top:1rem"></div>
     </div>
+
+    <div class="scheda">
+        <strong>La rubrica del telefono</strong>
+        <p style="margin:.4rem 0 1rem">
+            Meta puo' mandarci i contatti salvati sull'app WhatsApp Business del
+            salone: nome e numero, cos&igrave; il bot sa chi sta scrivendo dal primo
+            messaggio invece di chiedere nome e cognome a chi viene da tre anni.
+        </p>
+        <div class="attenzione" style="margin-bottom:1rem">
+            <strong>Si chiede una volta sola, entro 24 ore dal collegamento.</strong>
+            Dopo, per riaverla, bisogna scollegare il numero e rifare tutto da capo.
+            E premi <em>dopo</em> aver messo su Render il numero e il token nuovi:
+            con quelli vecchi chiederesti la rubrica del numero sbagliato, e il
+            tentativo si brucia lo stesso.
+        </div>
+        <button type="button" class="avvia" id="rubrica">Importa la rubrica</button>
+        <div id="esito-rubrica" style="margin-top:1rem"></div>
+    </div>
 </div>
 {% endblock %}
 
@@ -269,6 +287,37 @@
             override_default_response_type: true,
             extras: extras
         });
+    });
+
+    document.getElementById("rubrica").addEventListener("click", function () {
+        var dove = document.getElementById("esito-rubrica");
+        var bottone = this;
+        bottone.disabled = true;
+        dove.textContent = "Chiedo i contatti a Meta...";
+
+        fetch("/admin/collega-whatsapp/rubrica", { method: "POST" })
+            .then(function (r) { return r.json(); })
+            .then(function (r) {
+                if (!r.ok) {
+                    // Rifiutata: il tentativo non e' andato, quindi il bottone
+                    // torna premibile.
+                    bottone.disabled = false;
+                    dove.textContent = "Meta ha rifiutato: " + (r.errore || "nessun dettaglio");
+                    return;
+                }
+                // Accettata non vuol dire arrivata: i contatti li porta il
+                // webhook, e l'unico numero che dice come e' andata e' quanti
+                // ce ne sono in tabella fra qualche minuto.
+                dove.textContent =
+                    "Richiesta accettata per il numero " + (r.numero || "?") +
+                    ". I contatti arrivano sul webhook nei prossimi minuti: " +
+                    "adesso in rubrica ce ne sono " + (r.in_rubrica != null ? r.in_rubrica : "?") +
+                    ". Ricarica fra un po' per rivedere il conto.";
+            })
+            .catch(function (e) {
+                bottone.disabled = false;
+                dove.textContent = "Richiesta non riuscita: " + e;
+            });
     });
 
     document.querySelectorAll("[data-copia]").forEach(function (bottone) {

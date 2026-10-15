@@ -77,22 +77,29 @@ Da `developers.facebook.com/apps`, aperta l'app **Qubi Prenotazioni**.
     o la verifica non passa.
 15. Salva (Meta chiama subito l'indirizzo per verificarlo: deve rispondere
     **Verificato**).
-16. Sempre li', nella tabella **Campi del webhook**, servono tre iscrizioni
-    attive. Meta ne accende gia' parecchie da se', fra cui due delle nostre:
+16. Sempre li', nella tabella **Campi del webhook**, servono quattro
+    iscrizioni attive. Meta ne accende gia' parecchie da se', fra cui due
+    delle nostre:
     - `messages` — di solito gia' attivo
     - `account_update` — di solito gia' attivo
-    - `smb_message_echoes` — **questo va acceso a mano**, ed e' quello che fa
-      tacere il bot quando risponde Nadia
+    - `smb_message_echoes` — **va acceso a mano**, ed e' quello che fa tacere
+      il bot quando risponde Nadia
+    - `smb_app_state_sync` — **va acceso a mano**, ed e' quello che porta la
+      rubrica del telefono del salone
 
     Attenzione: nell'elenco c'e' anche **`message_echoes`** senza `smb_`.
     Quello e' di Messenger e non serve: lascialo spento.
 
-    `history` e `smb_app_state_sync` **si lasciano spenti**. Accenderli
-    vorrebbe dire farsi mandare la rubrica del salone e le conversazioni
-    passate su un server che le butta via, perche' il bot non ha dove metterle
-    ne' motivo di tenerle — ed e' la stessa regola per cui in database
-    finiscono solo le conversazioni passate a una persona e non tutte. Il
-    codice le ignora comunque, se un giorno si accendessero.
+    `history` **si lascia spento**: sono le conversazioni passate, e non
+    abbiamo dove metterle ne' motivo di tenerle — e' la stessa regola per cui
+    in database finiscono solo le conversazioni passate a una persona e non
+    tutte. Il codice la ignora comunque, se un giorno si accendesse.
+
+    La rubrica invece la vogliamo, ed e' una decisione presa sapendo il
+    prezzo: in quella rubrica non ci sono solo clienti, ci sono il fornitore
+    e il commercialista. Per questo i contatti finiscono in una tabella loro
+    e **non** fra i clienti: servono a mettere un nome su un numero che
+    scrive, non ad aprire schede di gente che non ha mai prenotato.
 
     Le altre che Meta accende da se' (`calls`, `security`,
     `phone_number_quality_update`, quelle sui template) si lasciano stare: il
@@ -190,14 +197,30 @@ Da `developers.facebook.com/apps`, aperta l'app **Qubi Prenotazioni**.
     - `.../admin/collega-whatsapp?feature=coexistence`
     - `.../admin/collega-whatsapp?feature=` (senza niente)
 28. Inserisci il numero del salone.
-29. Sul loro telefono arriva un messaggio da Facebook. Devono toccare, in
-    quest'ordine:
-    **Connect** → **Connect to the Business Platform** → **Confirm**.
-    Quel bottone funziona **solo dentro la loro chat**: inoltrato a te e'
-    un'immagine e non fa niente.
-30. Al **Confirm** scelgono anche se condividere le conversazioni passate.
-    **Non ci serve** e non abbiamo dove metterla: possono dire di no.
-31. Il codice si scrive nella finestra del browser, da te.
+29. Dal telefono del salone si arriva al collegamento in **due modi**, e il
+    secondo e' piu' semplice.
+
+    **Col QR (consigliato).** Sul telefono: *Impostazioni → Collegati alla
+    piattaforma Business*. Dice "Inquadra il codice QR": tu mostri lo schermo
+    del portatile, loro lo inquadrano. Nessun codice da dettare.
+
+    **Col messaggio.** Nella loro chat arriva un messaggio da Facebook e
+    toccano, in quest'ordine: **Connect** → **Connect to the Business
+    Platform** → **Confirm**. Quel bottone funziona solo dentro la loro chat:
+    inoltrato a te e' un'immagine e non fa niente.
+
+    Che la voce *Collegati alla piattaforma Business* esista gia' nelle
+    impostazioni vuol dire che l'app e' abbastanza aggiornata: il punto 21 si
+    verifica da li' in due secondi.
+30. Alla conferma scelgono cosa condividere, e qui **serve un si'**.
+    - **Contatti: si'.** E' la rubrica, e per noi passa da qui. Si puo'
+      chiedere una volta sola, entro 24 ore: se dicono di no, per riaverla
+      bisogna scollegare il numero e rifare tutto.
+    - **Cronologia chat: non ci serve.** L'app offre fino a 6 mesi di chat
+      passate (quelle di gruppo non si condividono comunque). Noi non la
+      chiediamo e non abbiamo dove metterla.
+31. Se siete andati col messaggio, il codice si scrive nella finestra del
+    browser, da te. Col QR questo passaggio non c'e'.
 32. **Non chiudete l'app** finche' non ha finito di sincronizzare.
 
 > Un codice sbagliato, o richiesto troppe volte, **blocca tutto per circa 12
@@ -210,6 +233,19 @@ Da `developers.facebook.com/apps`, aperta l'app **Qubi Prenotazioni**.
 33. La pagina mostra `META_PHONE_NUMBER_ID` e `META_WA_TOKEN`: copiali nelle
     variabili d'ambiente su Render (quelle esistenti, da sostituire).
     **Finche' non li cambi, il bot continua a rispondere dal numero di prima.**
+
+    **Poi torna sulla pagina e premi *Importa la rubrica*.** In fondo alla
+    schermata c'e' il bottone. Va premuto **dopo** aver salvato le variabili:
+    con quelle vecchie chiederesti la rubrica del numero sbagliato, e il
+    tentativo si brucia lo stesso — si puo' chiedere una volta sola, entro 24
+    ore dal collegamento.
+
+    La pagina dice "richiesta accettata" ma non vuol dire che siano arrivati:
+    i contatti li porta il webhook nei minuti dopo. Ricarica la pagina e
+    guarda che il conto dei contatti in rubrica sia salito. Se resta a zero
+    dopo dieci minuti, qualcosa non va — con ogni probabilita'
+    `smb_app_state_sync` non e' iscritto (punto 16) o alla conferma hanno
+    detto di no ai contatti (punto 30).
 34. Nella stessa pagina, controlla che fra le **app iscritte all'account** ci
     sia *Qubi Prenotazioni*, e non solo *WA DevX Webhook Events 1P App*, che e'
     di Meta.
