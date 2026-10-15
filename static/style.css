@@ -666,6 +666,32 @@ body.barra-ridotta .barra-stringi .ic {
 /* Il modulo dei numeri seguiti a mano: numero, motivo e bottone in riga, e
    impilati quando lo schermo non li regge. `min-width: 0` sui campi, o il
    segnaposto piu' lungo spinge il bottone fuori dalla scheda. */
+/* La riga di un appuntamento che nessun altro operatore puo' prendere: e'
+   l'unico caso, in quella schermata, in cui si perde davvero un cliente. Il
+   rosso qui vuol dire attenzione, come dappertutto nel pannello. */
+.riga-critica {
+    background: #fdecea;
+}
+
+.riga-critica td {
+    border-color: #f3c9c4;
+}
+
+.riga-sposta {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.riga-sposta select {
+    min-width: 0;
+    padding: 0.35rem;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    font-size: 16px;
+}
+
 .riga-numero {
     display: flex;
     gap: 0.8rem;

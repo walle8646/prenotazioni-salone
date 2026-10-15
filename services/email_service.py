@@ -250,6 +250,37 @@ async def send_change_email(
     )
 
 
+async def send_operatore_cambiato_email(
+    to: str, nome: str, data_ora: str, da_chi: str, a_chi: str, servizi: list
+):
+    """L'appuntamento resta, cambia la persona.
+
+    Un messaggio suo e non quello dello spostamento: li' la frase barra la
+    vecchia data e scrive la nuova, e con giorno e ora identici si leggerebbe
+    come un errore. Qui quello che cambia e' chi lo fara', e dirlo e'
+    necessario: chi si presenta aspettandosi Andrea e trova Francesco pensa a
+    uno sbaglio del salone, e ha ragione se nessuno gliel'ha detto.
+    """
+    servizi_str = ", ".join(servizi or [])
+    await _invia(
+        to,
+        "Cambio di operatore - Acconciature Simone",
+        f"""
+            <h2>Ciao {nome}!</h2>
+            <p>Il tuo appuntamento di <strong>{_quando(data_ora)}</strong>
+            resta confermato, allo stesso orario.</p>
+            <p>Cambia solo chi ti seguira': {da_chi} non c'e' quel giorno, e
+            al suo posto ci sara' <strong>{a_chi}</strong>.</p>
+            <ul>
+                <li><strong>Servizio:</strong> {servizi_str}</li>
+            </ul>
+            <p>Se preferisci aspettare {da_chi}, scrivici pure e ti troviamo
+            un altro orario.</p>
+            <p>A presto!<br>Acconciature Simone</p>
+        """,
+    )
+
+
 async def send_verification_code(to: str, codice: str):
     """Invia il codice che sblocca lo storico dalla chat del sito."""
     await _invia(

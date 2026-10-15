@@ -1512,6 +1512,9 @@ async def _appuntamenti_da_annullare(db, operatore_id: int, giorno: date) -> lis
                 "data_ora": app.data_ora.strftime("%Y-%m-%dT%H:%M"),
                 "ora": app.data_ora.strftime("%H:%M"),
                 "servizi": app.servizi or [],
+                # Serve a sapere chi puo' prenderlo: un colore da due ore
+                # entra solo dove ci sono due ore libere di fila.
+                "durata_min": app.durata_min or settings.slot_duration_min,
                 "cliente_nome": (
                     f"{cliente.nome or ''} {cliente.cognome or ''}".strip()
                     if cliente
@@ -1529,11 +1532,69 @@ async def _appuntamenti_da_annullare(db, operatore_id: int, giorno: date) -> lis
     return appuntamenti
 
 
+async def _chi_puo_prenderli(
+    appuntamenti: list[dict], giorno: date, adesso: datetime, assente: str | None
+) -> None:
+    """Per ogni appuntamento, chi altro e' libero a quell'ora. Scrive in posto.
+
+    Si chiede a Google **una volta per durata** e non una per appuntamento:
+    in una giornata le durate diverse sono due o tre, gli appuntamenti anche
+    dieci, e ogni domanda sono sei calendari interrogati.
+
+    La durata conta davvero: un colore da due ore entra solo dove ci sono due
+    ore libere di fila, e proporre un operatore che ha mezz'ora vuol dire
+    scoprirlo quando il cliente e' gia' seduto.
+
+    Se Google non risponde, `alternative` resta `None` e non una lista vuota:
+    "non lo so" e "non c'e' nessuno" non sono la stessa cosa, e mostrarli
+    uguali farebbe annullare appuntamenti che si potevano salvare.
+    """
+    from services.backends import RealBackends
+    from services.presenze import solo_chi_e_in_salone
+
+    for app in appuntamenti:
+        app["alternative"] = None
+
+    durate = {app["durata_min"] for app in appuntamenti}
+    liberi_per_durata: dict[int, dict[str, set[str]]] = {}
+    for durata in durate:
+        try:
+            slot = await RealBackends().check_availability(
+                giorno.isoformat(), None, durata
+            )
+            # Google dice se e' occupato, non se quel giorno lavora.
+            slot = solo_chi_e_in_salone(slot)
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "Disponibilita' non leggibile per %s (%s minuti)",
+                giorno,
+                durata,
+                exc_info=True,
+            )
+            continue
+        per_nome: dict[str, set[str]] = {}
+        for s in slot:
+            per_nome.setdefault(s["parrucchiere"], set()).add(s["slot"])
+        liberi_per_durata[durata] = per_nome
+
+    for app in appuntamenti:
+        liberi = liberi_per_durata.get(app["durata_min"])
+        if liberi is None:
+            continue
+        app["alternative"] = sorted(
+            nome
+            for nome, orari in liberi.items()
+            if nome != assente and app["data_ora"] in orari
+        )
+
+
 @router.get("/assenze", response_class=HTMLResponse)
 async def assenze_form(
     request: Request,
     operatore_id: int = None,
     data: str = None,
+    spostato: str = None,
+    errore: str = None,
     utente=Depends(utente_del_pannello),
     db=Depends(get_db),
 ):
@@ -1549,6 +1610,9 @@ async def assenze_form(
         if operatore_id
         else None
     )
+    if appuntamenti:
+        assente = next((o.nome for o in operatori if o.id == operatore_id), None)
+        await _chi_puo_prenderli(appuntamenti, giorno, datetime.now(), assente)
 
     return templates.TemplateResponse(
         "assenze.html",
@@ -1559,7 +1623,152 @@ async def assenze_form(
             "giorno": giorno,
             "appuntamenti": appuntamenti,
             "resoconto": None,
+            "spostato": spostato,
+            "errore": errore,
         },
+    )
+
+
+@router.post("/assenze/sposta")
+async def assenze_sposta(
+    request: Request,
+    utente=Depends(utente_del_pannello),
+    db=Depends(get_db),
+):
+    """Passa un appuntamento a un altro operatore, stessa ora.
+
+    L'ordine e' lo stesso di una prenotazione nuova, e per gli stessi motivi.
+    Prima si **ricontrolla che quell'ora sia ancora libera** per chi lo
+    prende: fra quando la pagina ha disegnato l'elenco e adesso possono
+    passare minuti, e Google accetta le sovrapposizioni in silenzio — il
+    secondo cliente se ne accorge arrivando in salone.
+
+    Poi l'evento si sposta davvero di calendario, perche' su Google un evento
+    appartiene a un calendario solo: si crea sul nuovo e **solo dopo** si
+    toglie dal vecchio. L'ordine opposto, se la creazione fallisse, lascerebbe
+    un appuntamento che non esiste piu' da nessuna parte mentre in agenda
+    risulta confermato.
+
+    L'email al cliente e' l'ultima cosa e non puo' far fallire niente: a quel
+    punto lo spostamento e' avvenuto, e raccontarlo fallito e' il modo
+    peggiore di sbagliare.
+    """
+    from prompts.system_prompt import get_cal_id_for_parrucchiere
+    from services.backends import RealBackends
+    from services.conversation import _slot_ancora_libero
+
+    modulo = await request.form()
+    app_id = int(modulo.get("app_id") or 0)
+    nuovo_nome = (modulo.get("operatore") or "").strip()
+    operatore_id = modulo.get("operatore_id") or ""
+    giorno_txt = modulo.get("data") or date.today().isoformat()
+
+    def torna(messaggio: str | None = None, errore: bool = False):
+        chiave = "errore" if errore else "spostato"
+        coda = f"&{chiave}={quote(messaggio)}" if messaggio else ""
+        return RedirectResponse(
+            f"/admin/assenze?operatore_id={operatore_id}&data={giorno_txt}{coda}", 303
+        )
+
+    if not app_id or not nuovo_nome:
+        return torna("Mi serve sapere quale appuntamento e a chi darlo.", errore=True)
+
+    cal_id = get_cal_id_for_parrucchiere(nuovo_nome)
+    if not cal_id:
+        return torna(f"Non so su quale calendario scrivere per {nuovo_nome}.", errore=True)
+
+    riga = (
+        await db.execute(
+            select(Appuntamento)
+            .options(
+                selectinload(Appuntamento.cliente),
+                selectinload(Appuntamento.parrucchiere),
+            )
+            .where(Appuntamento.id == app_id)
+        )
+    ).scalar_one_or_none()
+    if riga is None or riga.stato != "Confermato":
+        return torna("Quell'appuntamento non c'e' piu'.", errore=True)
+
+    nuovo_operatore = (
+        await db.execute(select(Parrucchiere).where(Parrucchiere.nome == nuovo_nome))
+    ).scalar_one_or_none()
+    if nuovo_operatore is None:
+        return torna(f"{nuovo_nome} non e' fra gli operatori.", errore=True)
+
+    da_chi = riga.parrucchiere.nome if riga.parrucchiere else "chi non c'e'"
+    quando = riga.data_ora.strftime("%Y-%m-%dT%H:%M")
+    durata = riga.durata_min or settings.slot_duration_min
+    backends = RealBackends()
+
+    if not await _slot_ancora_libero(quando, cal_id, durata, backends):
+        return torna(
+            f"{nuovo_nome} nel frattempo non e' piu' libero alle "
+            f"{riga.data_ora.strftime('%H:%M')}. Ricarica e riprova.",
+            errore=True,
+        )
+
+    cliente = riga.cliente
+    nome_cliente = (
+        f"{cliente.nome or ''} {cliente.cognome or ''}".strip() if cliente else "Cliente"
+    )
+    vecchio_evento = riga.gcal_event_id
+    vecchio_cal = riga.parrucchiere.gcal_calendar_id if riga.parrucchiere else None
+
+    try:
+        nuovo_evento = await backends.create_event(
+            slot=quando,
+            parrucchiere_cal_id=cal_id,
+            servizi=riga.servizi or [],
+            durata=durata,
+            cliente_nome=nome_cliente,
+            descrizione=f"Spostato da {da_chi}, che non c'e' quel giorno.",
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception("Spostamento di %s non riuscito su Google", app_id)
+        return torna("Google non ha accettato lo spostamento. Riprova.", errore=True)
+
+    riga.parrucchiere_id = nuovo_operatore.id
+    riga.gcal_event_id = nuovo_evento
+    await db.commit()
+
+    # Solo adesso: l'appuntamento nuovo c'e' gia', quindi il peggio che puo'
+    # succedere e' un evento di troppo sul calendario di chi non c'e' — che
+    # qualcuno vedra'. Il contrario sarebbe un cliente senza posto.
+    if vecchio_evento and vecchio_cal:
+        try:
+            await backends.delete_event(vecchio_evento, vecchio_cal)
+        except Exception:  # noqa: BLE001
+            logger.error(
+                "Evento %s rimasto sul calendario di %s: va tolto a mano",
+                vecchio_evento,
+                da_chi,
+            )
+
+    if cliente and cliente.email:
+        try:
+            await backends.send_operatore_cambiato_email(
+                to=cliente.email,
+                nome=cliente.nome or nome_cliente,
+                data_ora=quando,
+                da_chi=da_chi,
+                a_chi=nuovo_nome,
+                servizi=riga.servizi or [],
+            )
+        except Exception:  # noqa: BLE001
+            logger.warning("Email del cambio operatore non inviata", exc_info=True)
+
+    logger.info(
+        "Appuntamento %s spostato da %s a %s da %s", app_id, da_chi, nuovo_nome, utente
+    )
+    avvisato = (
+        "e il cliente e' stato avvisato per email"
+        if cliente and cliente.email
+        else "ma il cliente non ha email: va avvisato a voce"
+    )
+    return torna(
+        f"{nome_cliente} delle {riga.data_ora.strftime('%H:%M')} ora e' con "
+        f"{nuovo_nome}, {avvisato}."
     )
 
 
@@ -1603,6 +1812,8 @@ async def assenze_annulla(
             "giorno": giorno,
             "appuntamenti": [],
             "resoconto": resoconto,
+            "spostato": None,
+            "errore": None,
         },
     )
 

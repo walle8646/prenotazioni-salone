@@ -88,6 +88,13 @@ class Backends:
         """Annullamento deciso dal salone perché l'operatore non c'è."""
         raise NotImplementedError
 
+    async def send_operatore_cambiato_email(
+        self, to: str, nome: str, data_ora: str, da_chi: str, a_chi: str,
+        servizi: list,
+    ) -> None:
+        """L'appuntamento resta, cambia chi lo fa."""
+        raise NotImplementedError
+
     async def send_change_email(
         self, to: str, nome: str, da: str, a: str, parrucchiere: str, servizi: list
     ) -> None:
@@ -244,6 +251,20 @@ class RealBackends(Backends):
             nome=nome,
             data_ora=data_ora,
             parrucchiere=parrucchiere,
+            servizi=servizi,
+        )
+
+    async def send_operatore_cambiato_email(
+        self, to, nome, data_ora, da_chi, a_chi, servizi
+    ):
+        from services.email_service import send_operatore_cambiato_email
+
+        await send_operatore_cambiato_email(
+            to=to,
+            nome=nome,
+            data_ora=data_ora,
+            da_chi=da_chi,
+            a_chi=a_chi,
             servizi=servizi,
         )
 

@@ -306,3 +306,116 @@ def test_l_aggiornamento_dice_anche_se_la_finestra_e_ancora_aperta(pannello_aper
 
 def test_una_conversazione_inesistente_non_esplode(pannello_aperto):
     assert pannello_aperto.get("/admin/conversazioni/99/messaggi").status_code == 404
+
+
+# ------------------------------- l'assenza di un operatore: chi puo' salvarlo
+
+
+@pytest.mark.asyncio
+async def test_chi_e_libero_a_quell_ora_viene_proposto(monkeypatch):
+    """Prima di annullare un appuntamento vale la pena guardare se qualcun
+    altro puo' prenderlo: annullare e' l'ultima risorsa, non la prima."""
+    from routers.admin import _chi_puo_prenderli
+
+    async def finta_disponibilita(self, data, cal_id, durata):
+        assert durata == 30
+        return [
+            {"slot": "2026-10-16T10:00", "parrucchiere": "Francesco"},
+            {"slot": "2026-10-16T10:00", "parrucchiere": "Andrea"},
+            {"slot": "2026-10-16T11:00", "parrucchiere": "Giava"},
+        ]
+
+    from services.backends import RealBackends
+
+    monkeypatch.setattr(RealBackends, "check_availability", finta_disponibilita)
+    monkeypatch.setattr("services.presenze.solo_chi_e_in_salone", lambda s: s)
+
+    appuntamenti = [
+        {"data_ora": "2026-10-16T10:00", "durata_min": 30},
+        {"data_ora": "2026-10-16T11:00", "durata_min": 30},
+    ]
+    from datetime import date as _date, datetime as _datetime
+
+    await _chi_puo_prenderli(
+        appuntamenti, _date(2026, 10, 16), _datetime(2026, 10, 15, 9, 0), "Andrea"
+    )
+
+    # Andrea e' l'assente: non si propone da solo.
+    assert appuntamenti[0]["alternative"] == ["Francesco"]
+    assert appuntamenti[1]["alternative"] == ["Giava"]
+
+
+@pytest.mark.asyncio
+async def test_chi_non_ha_nessuno_libero_resta_senza_alternative(monkeypatch):
+    from routers.admin import _chi_puo_prenderli
+    from services.backends import RealBackends
+
+    async def niente(self, data, cal_id, durata):
+        return []
+
+    monkeypatch.setattr(RealBackends, "check_availability", niente)
+    monkeypatch.setattr("services.presenze.solo_chi_e_in_salone", lambda s: s)
+
+    appuntamenti = [{"data_ora": "2026-10-16T10:00", "durata_min": 30}]
+    from datetime import date as _date, datetime as _datetime
+
+    await _chi_puo_prenderli(
+        appuntamenti, _date(2026, 10, 16), _datetime(2026, 10, 15, 9, 0), "Andrea"
+    )
+
+    # Lista vuota, non None: vuol dire "nessuno", ed e' la riga da segnare.
+    assert appuntamenti[0]["alternative"] == []
+
+
+@pytest.mark.asyncio
+async def test_se_google_non_risponde_non_si_dice_che_non_c_e_nessuno(monkeypatch):
+    """"Non lo so" e "non c'e' nessuno" non sono la stessa cosa: mostrarli
+    uguali farebbe annullare appuntamenti che si potevano salvare."""
+    from routers.admin import _chi_puo_prenderli
+    from services.backends import RealBackends
+
+    async def esplode(self, data, cal_id, durata):
+        raise RuntimeError("Google non risponde")
+
+    monkeypatch.setattr(RealBackends, "check_availability", esplode)
+
+    appuntamenti = [{"data_ora": "2026-10-16T10:00", "durata_min": 30}]
+    from datetime import date as _date, datetime as _datetime
+
+    await _chi_puo_prenderli(
+        appuntamenti, _date(2026, 10, 16), _datetime(2026, 10, 15, 9, 0), "Andrea"
+    )
+
+    assert appuntamenti[0]["alternative"] is None
+
+
+@pytest.mark.asyncio
+async def test_si_chiede_una_volta_per_durata_e_non_per_appuntamento(monkeypatch):
+    """Ogni domanda sono sei calendari interrogati: con dieci appuntamenti e
+    due durate, dieci domande invece di due sono quarantotto chiamate in
+    piu'."""
+    from routers.admin import _chi_puo_prenderli
+    from services.backends import RealBackends
+
+    durate_chieste = []
+
+    async def conta(self, data, cal_id, durata):
+        durate_chieste.append(durata)
+        return []
+
+    monkeypatch.setattr(RealBackends, "check_availability", conta)
+    monkeypatch.setattr("services.presenze.solo_chi_e_in_salone", lambda s: s)
+
+    appuntamenti = [
+        {"data_ora": "2026-10-16T09:00", "durata_min": 30},
+        {"data_ora": "2026-10-16T10:00", "durata_min": 30},
+        {"data_ora": "2026-10-16T11:00", "durata_min": 120},
+        {"data_ora": "2026-10-16T15:00", "durata_min": 30},
+    ]
+    from datetime import date as _date, datetime as _datetime
+
+    await _chi_puo_prenderli(
+        appuntamenti, _date(2026, 10, 16), _datetime(2026, 10, 15, 9, 0), "Andrea"
+    )
+
+    assert sorted(durate_chieste) == [30, 120]

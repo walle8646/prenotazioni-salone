@@ -72,3 +72,16 @@ async def test_tutte_le_altre_email_reggono_la_chiamata_vera():
         parrucchiere="Francesco", servizi=["Taglio"],
     )
     await backends.send_verification_code(to="c@example.invalid", codice="123456")
+
+
+@pytest.mark.asyncio
+async def test_il_cambio_di_operatore_ha_la_sua_firma():
+    """L'appuntamento resta, cambia chi lo fa: sei parametri, non cinque."""
+    await RealBackends().send_operatore_cambiato_email(
+        to="cliente@example.invalid",
+        nome="Valerio",
+        data_ora=QUANDO,
+        da_chi="Andrea",
+        a_chi="Francesco",
+        servizi=["Taglio"],
+    )

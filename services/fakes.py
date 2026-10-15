@@ -71,6 +71,7 @@ class FakeBackends(Backends):
         self.email_cancellazioni: list[dict] = []
         self.email_assenze: list[dict] = []
         self.email_spostamenti: list[dict] = []
+        self.email_operatore_cambiato: list[dict] = []
         self.foto_salvate: list[str] = []
         self.giorni_chiusi: set[str] = set()
         # Le conversazioni passate a una persona, con dentro il loro scambio:
@@ -372,6 +373,13 @@ class FakeBackends(Backends):
                 "parrucchiere": parrucchiere,
                 "servizi": servizi,
             }
+        )
+
+    async def send_operatore_cambiato_email(
+        self, to, nome, data_ora, da_chi, a_chi, servizi
+    ):
+        self.email_operatore_cambiato.append(
+            {"to": to, "nome": nome, "data_ora": data_ora, "da": da_chi, "a": a_chi}
         )
 
     async def send_change_email(self, to, nome, da, a, parrucchiere, servizi):

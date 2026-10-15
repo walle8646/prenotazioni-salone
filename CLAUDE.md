@@ -776,6 +776,34 @@ manda ai clienti un'email diversa da quella della disdetta normale — qui la
 colpa non è loro, e il salone si scusa. Si vede sempre prima l'elenco di chi
 si sta per annullare: il bottone compare solo sotto quell'elenco.
 
+**Prima di annullare si guarda chi altro può prenderlo**: per ogni
+appuntamento l'elenco mostra gli operatori liberi a quella stessa ora, e un
+bottone lo sposta. Annullare è l'ultima risorsa, non la prima — un cliente
+spostato a un altro parrucchiere alla stessa ora è un cliente che non si
+perde. Quattro scelte dietro una colonna.
+
+La durata conta: si chiede la disponibilità **per la durata vera**
+dell'appuntamento, perché un colore da due ore entra solo dove ci sono due
+ore libere di fila, e proporre chi ha mezz'ora vuol dire scoprirlo col
+cliente già seduto. Si chiede **una volta per durata e non una per
+appuntamento**: ogni domanda sono sei calendari interrogati, e in una
+giornata le durate diverse sono due o tre mentre gli appuntamenti sono dieci.
+
+`alternative` vale `None` quando Google non si è potuto leggere, e lista
+vuota quando davvero non c'è nessuno: **"non lo so" e "non c'è nessuno" non
+sono la stessa cosa**, e mostrarli uguali farebbe annullare appuntamenti che
+si potevano salvare. Solo la lista vuota colora la riga di rosso.
+
+Lo spostamento ricontrolla che l'ora sia ancora libera (Google accetta le
+sovrapposizioni in silenzio), crea l'evento sul calendario nuovo **prima** di
+togliere il vecchio — l'ordine opposto, se la creazione fallisse, lascerebbe
+un appuntamento che non esiste più da nessuna parte mentre in agenda risulta
+confermato — e avvisa il cliente con un'email sua, diversa da quella dello
+spostamento: lì la frase barra la vecchia data e scrive la nuova, e con
+giorno e ora identici si leggerebbe come un errore. Dire chi lo farà è
+necessario: chi si presenta aspettandosi Andrea e trova Francesco pensa a uno
+sbaglio del salone, e ha ragione se nessuno gliel'ha detto.
+
 Ogni appuntamento va per conto suo. Un'email che non parte non impedisce
 l'annullamento degli altri; un evento che Google non trova non lascia in
 agenda i rimanenti; se invece è il database a non rispondere il cliente

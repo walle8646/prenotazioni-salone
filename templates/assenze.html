@@ -28,6 +28,9 @@
         <button type="submit" class="btn-small">Vedi gli appuntamenti di quel giorno</button>
     </form>
 
+    {% if errore %}<div class="error">{{ errore }}</div>{% endif %}
+    {% if spostato %}<div class="avviso-buono">{{ spostato }}</div>{% endif %}
+
     {% if resoconto %}
     <div class="resoconto">
         <h3>Fatto</h3>
@@ -63,11 +66,12 @@
                 <th>Cliente</th>
                 <th>Servizi</th>
                 <th>Come lo avvisiamo</th>
+                <th>Si può salvare?</th>
             </tr>
         </thead>
         <tbody>
             {% for a in appuntamenti %}
-            <tr>
+            <tr{% if a.alternative is not none and not a.alternative %} class="riga-critica"{% endif %}>
                 <td data-label="Ora"><strong>{{ a.ora }}</strong></td>
                 <td data-label="Cliente">{{ a.cliente_nome or 'Senza nome' }}</td>
                 <td data-label="Servizi">{{ a.servizi | join(', ') if a.servizi else '-' }}</td>
@@ -80,10 +84,40 @@
                         <span class="da-chiamare">Nessun recapito</span>
                     {% endif %}
                 </td>
+                <td data-label="Si può salvare?">
+                    {% if a.alternative is none %}
+                        <span class="nota">Non riesco a leggere i calendari:
+                        riprova fra poco prima di annullare.</span>
+                    {% elif a.alternative %}
+                        <form method="POST" action="/admin/assenze/sposta"
+                              class="riga-sposta">
+                            <input type="hidden" name="app_id" value="{{ a.app_id }}">
+                            <input type="hidden" name="operatore_id" value="{{ operatore_id }}">
+                            <input type="hidden" name="data" value="{{ giorno.strftime('%Y-%m-%d') }}">
+                            <select name="operatore" aria-label="A chi darlo">
+                                {% for nome in a.alternative %}
+                                <option value="{{ nome }}">{{ nome }}</option>
+                                {% endfor %}
+                            </select>
+                            <button type="submit" class="btn-small">Sposta</button>
+                        </form>
+                    {% else %}
+                        <strong class="da-chiamare">Nessuno è libero a quell'ora.</strong>
+                        <span class="nota">Va annullato, o spostato a un altro
+                        orario da <a href="/admin/prenota?data={{ giorno.strftime('%Y-%m-%d') }}">Prenota</a>.</span>
+                    {% endif %}
+                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
+
+    <p class="nota">
+        Prima di annullare, guarda l'ultima colonna: chi può essere passato a
+        un altro operatore alla stessa ora non ha bisogno di essere disdetto.
+        Le righe <strong>in rosso</strong> sono quelle che nessuno può
+        prendere, ed è lì che si perde un cliente.
+    </p>
 
     <form method="POST" action="/admin/assenze" class="conferma-assenza"
           onsubmit="return confirm('Annullo {{ appuntamenti|length }} appuntamenti e mando le email. Confermi?');">
