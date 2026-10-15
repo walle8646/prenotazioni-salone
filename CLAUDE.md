@@ -436,8 +436,8 @@ codice e non il modello, per la stessa ragione di "Indifferente": il prompt
 viene rispettato quasi sempre, e "quasi" non basta per l'informazione da dare
 prima di raccogliere i dati di qualcuno.
 
-Quattro scelte, tutte con un perché. Parte **quando il cliente ha scelto
-servizio, orario e operatore** — da lì il passo dopo è confermare — e **una
+Quattro scelte, tutte con un perché. Parte **quando il cliente ha detto cosa
+e quando** (`servizio` e `giorno`, che scrive `CHECK_DISPONIBILITA`) e **una
 volta sola per conversazione**: ripeterlo a ogni messaggio è rumore, e il
 rumore si smette di leggerlo. Arriva **prima** del riepilogo e non dopo,
 perché un avviso che compare sotto ai bottoni si tocca prima di leggerlo. Va
@@ -459,6 +459,21 @@ template: quanto in anticipo si prenota, entro quando si disdice. Scritti a
 mano direbbero una cosa mentre il bot ne fa un'altra, ed è il genere di
 difetto che si scopre da un cliente che protesta citando una pagina che gli
 abbiamo dato noi.
+
+**Non si guardano né l'operatore né lo slot**, e il perché è costato una
+giornata. L'operatore resta vuoto per chiunque risponda "Indifferente", che è
+una voce che il bot offre apposta: legarci l'avviso lo spegnerebbe per tutti
+loro. E `slot` lo scrive `CREA_APPUNTAMENTO`, cioè quando l'appuntamento
+esiste già — la prima versione lo guardava, quindi **non poteva scattare mai,
+per nessuno**. I test non l'hanno visto perché costruivano `dati_temp` a mano:
+provavano il meccanismo, non l'innesco. Da qui la regola: una condizione che
+dipende dallo stato della sessione va provata con una sessione che il motore
+ha riempito, non con una scritta a mano.
+
+**L'accettazione si registra solo se l'avviso è davvero uscito.** Annotarla per
+qualcosa che non è stato mostrato non è solo falso: zittisce l'avviso per
+sempre su quel cliente, e così il difetto si nasconde da sé — è esattamente
+quello che è successo alle prime prenotazioni di prova.
 
 **Chi ha già accettato non se lo rivede, finché le condizioni non cambiano.**
 Un avviso che compare sempre non lo legge più nessuno, e a quel punto non

@@ -33,13 +33,27 @@ PERCORSO = "/condizioni"
 # rivede alla prima prenotazione.
 VERSIONE = "15 ottobre 2026"
 
-# Il cliente ha scelto tutto: il prossimo messaggio del bot e' il riepilogo da
-# confermare. Sono le stesse chiavi delle fasi in `conversation.py`.
-_DATI_COMPLETI = ("servizio", "slot", "parrucchiere")
+# Il cliente ha detto **che cosa** e **quando**: da qui in poi sta prenotando,
+# e il riepilogo da confermare arriva uno o due messaggi dopo.
+#
+# Non si guarda l'operatore, e non si guarda lo slot. L'operatore resta vuoto
+# per chiunque risponda "Indifferente", che e' una scelta che il bot offre
+# apposta. E lo slot viene scritto **dentro CREA_APPUNTAMENTO**, cioe' quando
+# l'appuntamento esiste gia': una condizione che lo guardava non poteva
+# scattare mai, per nessuno. Scoperto da una prenotazione vera in cui l'avviso
+# non e' comparso, e non dai test, che costruivano la sessione a mano invece
+# di farla nascere da una conversazione.
+#
+# Queste due le scrive CHECK_DISPONIBILITA, che e' il primo passo obbligato di
+# qualunque prenotazione.
+_DATI_COMPLETI = ("servizio", "giorno")
 
+# Senza "prima di confermare": nel caso raro in cui l'avviso scattasse solo
+# insieme alla conferma, quella formula sarebbe falsa — e una frase che si
+# smentisce da sola e' peggio di una piu' secca.
 TESTO = (
-    "Prima di confermare: prenotando accetti le condizioni del servizio e "
-    "l'informativa sui dati personali.\n{link}"
+    "Prenotando accetti le condizioni del servizio e l'informativa sui dati "
+    "personali.\n{link}"
 )
 
 

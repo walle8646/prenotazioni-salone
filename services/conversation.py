@@ -1641,10 +1641,16 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
     try:
         from services.condizioni import VERSIONE as _VERSIONE_CONDIZIONI
 
-        await backends.registra_accettazione_condizioni(
-            client["id"], _VERSIONE_CONDIZIONI
-        )
-        session["condizioni_accettate"] = _VERSIONE_CONDIZIONI
+        # Solo se l'avviso e' davvero partito in questa conversazione.
+        # Registrare un'accettazione per qualcosa che non e' stato mostrato non
+        # e' solo falso: zittisce l'avviso per sempre su quel cliente, e cosi'
+        # il difetto si nasconde da se'. Chi aveva gia' accettato prima non
+        # viene toccato, il suo valore e' gia' in anagrafica.
+        if session.get("condizioni_avvisate"):
+            await backends.registra_accettazione_condizioni(
+                client["id"], _VERSIONE_CONDIZIONI
+            )
+            session["condizioni_accettate"] = _VERSIONE_CONDIZIONI
     except Exception:  # noqa: BLE001
         logger.warning(
             "Accettazione delle condizioni non registrata per %s", phone, exc_info=True

@@ -27,29 +27,43 @@ def indirizzo(monkeypatch):
 # ------------------------------------------------------- quando avvisare
 
 
-def test_si_avvisa_quando_ha_scelto_tutto():
-    """Scelti servizio, orario e operatore, il passo dopo e' confermare."""
-    sessione = {
-        "dati_temp": {"servizio": "Taglio", "slot": "2026-10-20T10:00", "parrucchiere": "Andrea"}
-    }
+def test_si_avvisa_quando_ha_detto_cosa_e_quando():
+    """Da li' in poi sta prenotando: il riepilogo arriva uno o due messaggi
+    dopo."""
+    sessione = {"dati_temp": {"servizio": "Taglio", "giorno": "2026-10-20"}}
 
     assert condizioni.serve_avviso(sessione) is True
 
 
-@pytest.mark.parametrize("manca", ["servizio", "slot", "parrucchiere"])
+@pytest.mark.parametrize("manca", ["servizio", "giorno"])
 def test_non_si_avvisa_finche_manca_qualcosa(manca):
-    """Prima della scelta completa non c'e' niente da confermare, e un avviso
-    a meta' conversazione e' solo rumore."""
-    dati = {"servizio": "Taglio", "slot": "2026-10-20T10:00", "parrucchiere": "Andrea"}
+    """Prima non sta ancora prenotando, e un avviso a meta' conversazione e'
+    solo rumore."""
+    dati = {"servizio": "Taglio", "giorno": "2026-10-20"}
     del dati[manca]
 
     assert condizioni.serve_avviso({"dati_temp": dati}) is False
 
 
+def test_l_operatore_non_conta():
+    """Chi risponde "Indifferente" non sceglie nessun operatore, e quella voce
+    il bot la offre apposta: legarci l'avviso lo spegnerebbe per tutti loro."""
+    sessione = {"dati_temp": {"servizio": "Taglio", "giorno": "2026-10-20"}}
+
+    assert "parrucchiere" not in condizioni._DATI_COMPLETI
+    assert condizioni.serve_avviso(sessione) is True
+
+
+def test_lo_slot_non_conta():
+    """`slot` lo scrive CREA_APPUNTAMENTO, cioe' quando l'appuntamento esiste
+    gia': una condizione che lo guardasse non scatterebbe mai."""
+    assert "slot" not in condizioni._DATI_COMPLETI
+
+
 def test_non_si_ripete():
     """Ripeterlo a ogni messaggio e' rumore, e il rumore si smette di leggerlo."""
     sessione = {
-        "dati_temp": {"servizio": "Taglio", "slot": "x", "parrucchiere": "Andrea"},
+        "dati_temp": {"servizio": "Taglio", "giorno": "2026-10-20"},
         "condizioni_avvisate": True,
     }
 
@@ -103,9 +117,7 @@ async def test_l_avviso_arriva_prima_del_riepilogo(indirizzo):
     from services.session_manager import get_session, save_session
 
     sessione = await get_session(redis, CLIENTE)
-    sessione["dati_temp"].update(
-        {"servizio": "Taglio", "slot": "2026-10-20T10:00", "parrucchiere": "Andrea"}
-    )
+    sessione["dati_temp"].update({"servizio": "Taglio", "giorno": "2026-10-20"})
     await save_session(redis, CLIENTE, sessione)
 
     await handle_incoming_message(
@@ -132,9 +144,7 @@ async def test_l_avviso_non_torna_al_messaggio_dopo(indirizzo):
     from services.session_manager import get_session, save_session
 
     sessione = await get_session(redis, CLIENTE)
-    sessione["dati_temp"].update(
-        {"servizio": "Taglio", "slot": "2026-10-20T10:00", "parrucchiere": "Andrea"}
-    )
+    sessione["dati_temp"].update({"servizio": "Taglio", "giorno": "2026-10-20"})
     await save_session(redis, CLIENTE, sessione)
 
     for risposta in ("Confermi?", "Allora confermi?"):
@@ -192,9 +202,7 @@ async def test_un_avviso_non_partito_non_ferma_la_prenotazione(indirizzo):
     from services.session_manager import get_session, save_session
 
     sessione = await get_session(redis, CLIENTE)
-    sessione["dati_temp"].update(
-        {"servizio": "Taglio", "slot": "2026-10-20T10:00", "parrucchiere": "Andrea"}
-    )
+    sessione["dati_temp"].update({"servizio": "Taglio", "giorno": "2026-10-20"})
     await save_session(redis, CLIENTE, sessione)
 
     await handle_incoming_message(
@@ -257,7 +265,7 @@ def test_chi_ha_accettato_questa_versione_non_la_rivede():
     """Un avviso che compare sempre non lo legge piu' nessuno, e a quel punto
     non protegge nessuno."""
     sessione = {
-        "dati_temp": {"servizio": "Taglio", "slot": "x", "parrucchiere": "Andrea"},
+        "dati_temp": {"servizio": "Taglio", "giorno": "2026-10-20"},
         "condizioni_accettate": condizioni.VERSIONE,
     }
 
@@ -268,7 +276,7 @@ def test_chi_ha_accettato_una_versione_vecchia_la_rivede():
     """Senza versione, "accettato una volta" vorrebbe dire accettato per
     sempre un testo che nel frattempo dice altro."""
     sessione = {
-        "dati_temp": {"servizio": "Taglio", "slot": "x", "parrucchiere": "Andrea"},
+        "dati_temp": {"servizio": "Taglio", "giorno": "2026-10-20"},
         "condizioni_accettate": "1 gennaio 2020",
     }
 
@@ -291,7 +299,11 @@ async def test_prenotando_si_registra_l_accettazione():
     cliente = await backends.find_or_create_client(
         phone=CLIENTE, nome="Mario", cognome="Rossi"
     )
-    session = {"dati_temp": {"nome": "Mario", "cognome": "Rossi"}, "history": []}
+    session = {
+        "dati_temp": {"nome": "Mario", "cognome": "Rossi"},
+        "history": [],
+        "condizioni_avvisate": True,
+    }
 
     risultato = await execute_action(
         {
@@ -358,3 +370,110 @@ def test_senza_indirizzo_pubblico_l_email_non_porta_un_link_rotto(monkeypatch):
     monkeypatch.setattr(settings, "public_base_url", "")
 
     assert _riga_condizioni() == ""
+
+
+# ------------------------------- l'innesco provato su una conversazione vera
+
+
+@pytest.mark.asyncio
+async def test_l_avviso_esce_in_una_prenotazione_normale(indirizzo):
+    """La prova che mancava, ed e' il motivo per cui il difetto e' arrivato in
+    produzione: gli altri test costruivano `dati_temp` a mano, quindi
+    provavano il meccanismo e non l'innesco. Qui la sessione la riempie il
+    motore, come in una conversazione vera.
+    """
+    from .conftest import prossimo_giorno_aperto
+
+    giorno = prossimo_giorno_aperto()
+    backends = FakeBackends()
+    channel = CollectorChannel()
+
+    claude = ScriptedClaude(
+        [
+            ScriptedClaude.azione(
+                action="CHECK_DISPONIBILITA",
+                data=giorno,
+                servizi=["Taglio"],
+                durata_min=30,
+            ),
+            "Ci sono questi orari. Quale preferisci?",
+        ]
+    )
+
+    await handle_incoming_message(
+        redis=FakeRedis(),
+        phone=CLIENTE,
+        text=f"vorrei un taglio il {giorno}",
+        msg_type="text",
+        channel=channel,
+        backends=backends,
+        claude=claude,
+    )
+
+    assert any(indirizzo in t for t in channel.testi), channel.testi
+
+
+@pytest.mark.asyncio
+async def test_l_avviso_esce_anche_a_chi_dice_indifferente(indirizzo):
+    """Chi non sceglie l'operatore e' il caso piu' frequente, non un caso
+    limite: senza operatore in sessione l'avviso non usciva per nessuno di
+    loro."""
+    from .conftest import prossimo_giorno_aperto
+
+    giorno = prossimo_giorno_aperto()
+    backends = FakeBackends()
+    channel = CollectorChannel()
+
+    claude = ScriptedClaude(
+        [
+            # Senza `parrucchiere`: e' come cerca il bot quando il cliente
+            # risponde "Indifferente".
+            ScriptedClaude.azione(
+                action="CHECK_DISPONIBILITA",
+                data=giorno,
+                servizi=["Taglio"],
+                durata_min=30,
+            ),
+            "Perfetto, scelgo Francesco. Confermi?",
+        ]
+    )
+
+    await handle_incoming_message(
+        redis=FakeRedis(),
+        phone=CLIENTE,
+        text="indifferente",
+        msg_type="text",
+        channel=channel,
+        backends=backends,
+        claude=claude,
+    )
+
+    assert any(indirizzo in t for t in channel.testi), channel.testi
+
+
+@pytest.mark.asyncio
+async def test_senza_avviso_non_si_registra_nessuna_accettazione():
+    """Registrare un'accettazione per qualcosa che non e' stato mostrato non e'
+    solo falso: zittisce l'avviso per sempre su quel cliente, e il difetto si
+    nasconde da se'."""
+    from services.conversation import execute_action
+
+    backends = FakeBackends()
+    await backends.find_or_create_client(phone=CLIENTE, nome="Mario", cognome="Rossi")
+
+    risultato = await execute_action(
+        {
+            "action": "CREA_APPUNTAMENTO",
+            "slot": "2026-10-20T10:00",
+            "servizi": ["Taglio"],
+            "parrucchiere": "Andrea",
+            "nome": "Mario",
+            "cognome": "Rossi",
+        },
+        CLIENTE,
+        {"dati_temp": {"nome": "Mario", "cognome": "Rossi"}, "history": []},
+        backends,
+    )
+
+    assert "errore" not in risultato, risultato
+    assert backends.condizioni_accettate == {}
