@@ -2354,6 +2354,11 @@ _SPIEGAZIONI = {
         "segnati. Le caselle vuote qui sotto potrebbero essere libere lo stesso."
     ),
     "pieno": "Nessuna mezz'ora libera in questa giornata.",
+    "tardi": (
+        "Per oggi non c'è più tempo: l'ultima mezz'ora prima della chiusura è "
+        "già cominciata. Per trovare un posto scegli un altro giorno."
+    ),
+    "fermo": "Il salone è chiuso in questa data: non si prende nessun appuntamento.",
 }
 
 
@@ -2394,17 +2399,33 @@ async def _liberi_da_google(
     per i giorni già andati è normale e non si racconta, "guasto" va detto
     anche se un giorno solo su sette non si è potuto leggere.
     """
-    from services.slots import orari_salone
+    from services.slots import chiusure, generate_slots, orari_salone
 
     orari = orari_salone().get(giorno.weekday(), [])
     if not orari:
         return {}, "chiuso"  # lo dice già la griglia, non serve ripeterlo
+
+    # Una chiusura straordinaria la griglia non la sa: disegna la giornata
+    # normale, e senza questa riga l'unica cosa che si leggeva era "nessuna
+    # mezz'ora libera" — cioè "siamo pieni" per un giorno in cui non apriamo.
+    if giorno.isoformat() in chiusure():
+        return {}, "fermo"
 
     finita = giorno < adesso.date() or (
         giorno == adesso.date() and adesso.strftime("%H:%M") >= max(f for _, f in orari)
     )
     if finita:
         return {}, "passato"
+
+    # Aperti, ma l'ultima mezz'ora è già cominciata: fra le 18:30 e le 19:00
+    # non c'è più niente da dare, e non perché sia pieno. È la quarta delle
+    # risposte possibili, e l'unica che si può dare **senza chiedere niente a
+    # Google**: sei calendari interrogati per una giornata che comunque non
+    # può più prendere nessuno.
+    if not generate_slots(
+        giorno.isoformat(), adesso=adesso, anticipo_minimo_min=ANTICIPO_DAL_PANNELLO
+    ):
+        return {}, "tardi"
 
     try:
         from prompts.system_prompt import get_cal_id_for_parrucchiere

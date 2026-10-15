@@ -618,7 +618,16 @@ per ore.
 calendari illeggibili e giornata piena si somigliano solo a guardarli, e chi
 guarda conclude sempre il terzo: `_dove_c_e_posto()` restituisce anche la
 frase da mostrare. Quello grave è il secondo — un guasto letto come "siamo
-pieni" fa mandare via un cliente che il posto ce l'aveva. Per lo stesso motivo
+pieni" fa mandare via un cliente che il posto ce l'aveva.
+
+I motivi sono cinque, e due si sono aggiunti dopo averli visti travestiti da
+"pieno". **`tardi`**: il salone è aperto ma l'ultima mezz'ora prenotabile è
+già cominciata — fra le 18:30 e le 19:00 non c'è più niente da dare, e non
+perché sia occupato. **`fermo`**: una chiusura straordinaria, che la griglia
+non sa — disegna la giornata normale, e l'unica cosa che si leggeva era
+"nessuna mezz'ora libera" per un giorno in cui non apriamo. Tutti e due si
+decidono **senza chiedere niente a Google**: sei calendari interrogati per una
+giornata che comunque non può prendere nessuno. Per lo stesso motivo
 l'ora dentro la cella verde **si legge sempre**: nascosta fino al passaggio
 del mouse, una giornata piena di posti liberi sembrava una giornata vuota.
 

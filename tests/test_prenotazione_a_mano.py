@@ -338,6 +338,37 @@ async def test_dal_pannello_si_chiede_senza_anticipo(salone):
 
 
 @pytest.mark.asyncio
+async def test_l_ultima_mezz_ora_gia_cominciata_non_e_una_giornata_piena(salone):
+    """Alle 18:40 il salone e' ancora aperto ma l'ultima mezz'ora prenotabile
+    e' partita alle 18:30. Dire "nessuna mezz'ora libera" significa "siamo
+    pieni", e chi legge va a cercare posto domani credendo che oggi fosse
+    tutto occupato."""
+    oggi = date.today()
+
+    liberi, nota = await admin._dove_c_e_posto(oggi, _adesso_alle(oggi, "18:40"))
+
+    assert liberi == {}
+    assert "non c'è più tempo" in nota
+    assert salone["anticipo"] == "mai chiesto", (
+        "sei calendari interrogati per una giornata che non puo' prendere nessuno"
+    )
+
+
+@pytest.mark.asyncio
+async def test_un_giorno_di_chiusura_non_e_un_giorno_pieno(salone, monkeypatch):
+    """La griglia una chiusura straordinaria non la sa: disegna la giornata
+    normale. Senza una frase sua si legge "siamo pieni" per un giorno in cui
+    il salone non apre."""
+    giorno = _domani()
+    monkeypatch.setattr("services.slots._chiusure", {giorno.isoformat()})
+
+    liberi, nota = await admin._dove_c_e_posto(giorno, _adesso_alle(date.today()))
+
+    assert liberi == {}
+    assert "chiuso" in nota
+
+
+@pytest.mark.asyncio
 async def test_una_giornata_piena_lo_dice_con_parole_sue(salone):
     giorno = _domani()
 
