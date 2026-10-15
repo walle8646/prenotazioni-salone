@@ -595,6 +595,20 @@ async def _avvisa_delle_condizioni(session: dict, to: str, channel: Channel) -> 
     from services import condizioni
 
     if not condizioni.serve_avviso(session):
+        # Quando il cliente sta gia' prenotando e l'avviso **non** parte, il
+        # motivo va scritto. Senza, tacere per il motivo giusto e tacere per
+        # un difetto si vedono uguali — cioe' non si vedono — e l'unico modo
+        # di distinguerli e' indovinare. Gia' costato tre giri di prove.
+        dati = session.get("dati_temp") or {}
+        if all(dati.get(chiave) for chiave in condizioni._DATI_COMPLETI):
+            logger.info(
+                "Avviso condizioni non inviato a %s: gia' avvisato=%s, "
+                "versione accettata=%r (corrente %r)",
+                to,
+                bool(session.get("condizioni_avvisate")),
+                session.get("condizioni_accettate"),
+                condizioni.VERSIONE,
+            )
         return
     frase = condizioni.frase()
     if not frase:
@@ -605,6 +619,7 @@ async def _avvisa_delle_condizioni(session: dict, to: str, channel: Channel) -> 
         logger.warning("Avviso sulle condizioni non inviato a %s", to, exc_info=True)
         return
     session["condizioni_avvisate"] = True
+    logger.info("Avviso condizioni inviato a %s", to)
 
 
 async def deliver(channel: Channel, to: str, response: str) -> None:
