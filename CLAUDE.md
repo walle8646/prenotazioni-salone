@@ -560,6 +560,21 @@ di domenica fa perdere tempo a chi ha il cliente in linea. Il conteggio dei
 sessanta giorni è **una query sola** (`_carico()`), per lo stesso motivo per
 cui la striscia dei sette giorni ne fa una.
 
+**Con un operatore scelto, ogni riga del calendario è la sua settimana.**
+Una colonnina a sinistra — dove sui calendari da muro sta il numero della
+settimana — porta alla settimana che quella riga disegna. Senza, per vedere
+sette giorni di una persona bisognava tornare alle chips e poi spostarsi con
+le frecce, che è proprio il girare a vuoto per cui i quattro mesi esistono.
+Compare **solo con una persona scelta**: con tutti e sei in colonna la
+settimana non vorrebbe dire niente, e sarebbe una colonna in più per tutti.
+
+Il lunedì di ogni riga lo calcola `costruisci_mesi()` e non il template: è
+aritmetica sulle date, e soprattutto la prima riga di un mese comincia quasi
+sempre nel mese prima — dove il numero non è nemmeno disegnato. Preso dalla
+prima casella piena, quella settimana comincerebbe di martedì. La riga si
+accende **solo quando la vista è davvero la settimana** e parte da quel
+lunedì: accesa in vista giorno direbbe il falso.
+
 **I quattro mesi sono fissi e partono sempre da oggi**, non dal giorno che si
 sta guardando. Servono a farsi confrontare a colpo d'occhio, e un calendario
 che scorre di un mese ogni volta che si tocca una data costringe a ritrovarsi

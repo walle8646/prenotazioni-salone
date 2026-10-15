@@ -20,13 +20,30 @@
         {% for m in mesi %}
         <div class="mese">
             <p class="mese-nome">{{ m.nome }}</p>
-            <div class="mese-griglia">
+            <div class="mese-griglia{{ ' mese-con-settimane' if operatore_scelto }}">
+                {% if operatore_scelto %}
+                {# La colonnina delle settimane: esiste solo con una persona
+                   scelta, perche' la settimana e' la sua. Con tutti e sei in
+                   colonna non vorrebbe dire niente. #}
+                <span class="mese-testa" aria-hidden="true"></span>
+                {% endif %}
                 {% for g in ["L", "M", "M", "G", "V", "S", "D"] %}
                 <span class="mese-testa" aria-hidden="true">{{ g }}</span>
                 {% endfor %}
 
                 {% for settimana in m.settimane %}
-                {% for c in settimana %}
+                {% if operatore_scelto %}
+                <a class="mese-settimana{{ ' mese-settimana-scelta' if vista_settimana and settimana.lunedi == data_selezionata.strftime('%Y-%m-%d') }}"
+                   href="{{ dove }}?data={{ settimana.lunedi }}{{ filtro }}"
+                   aria-label="La settimana di {{ operatore_scelto }} dal {{ settimana.lunedi }}"
+                   title="Tutta la settimana di {{ operatore_scelto }}">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" width="12" height="12">
+                        <path d="M9 5l7 7-7 7" fill="none" stroke="currentColor"
+                              stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </a>
+                {% endif %}
+                {% for c in settimana.celle %}
                 {% if not c %}
                 <span class="mese-vuoto"></span>
                 {% elif not c.aperto %}

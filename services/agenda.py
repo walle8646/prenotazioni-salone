@@ -13,7 +13,7 @@ poterlo provare con un appuntamento finto e un istante fissato.
 from __future__ import annotations
 
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from services.persone import telefono_da_mostrare
 
@@ -455,11 +455,22 @@ def costruisci_mesi(
         while len(celle) % 7:
             celle.append(None)
 
+        # Ogni riga porta il suo lunedi', anche quando appartiene al mese
+        # prima: con un operatore scelto la riga si puo' toccare per intero e
+        # diventa la sua settimana. Calcolato qui e non nel template perche'
+        # e' aritmetica sulle date, e perche' la prima riga di un mese comincia
+        # quasi sempre nel mese precedente — dove il numero di giorno non c'e'
+        # nemmeno disegnato.
+        settimane = []
+        for i in range(0, len(celle), 7):
+            riga = celle[i : i + 7]
+            qualcuna = next(c for c in riga if c)
+            dentro = date.fromisoformat(qualcuna["iso"])
+            lunedi = dentro - timedelta(days=dentro.weekday())
+            settimane.append({"lunedi": lunedi.isoformat(), "celle": riga})
+
         mesi.append(
-            {
-                "nome": f"{MESI[primo.month - 1]} {primo.year}",
-                "settimane": [celle[i : i + 7] for i in range(0, len(celle), 7)],
-            }
+            {"nome": f"{MESI[primo.month - 1]} {primo.year}", "settimane": settimane}
         )
         primo = date(primo.year + primo.month // 12, primo.month % 12 + 1, 1)
 

@@ -376,7 +376,7 @@ def test_quattro_mesi_attraversano_il_capodanno_senza_perdersi():
 def test_il_mese_comincia_nella_colonna_del_suo_giorno():
     """Il 1° settembre 2026 è un martedì: prima di lui una casella vuota."""
     settembre = costruisci_mesi(date(2026, 9, 10), {}, _aperto_feriale)[0]
-    prima = settembre["settimane"][0]
+    prima = settembre["settimane"][0]["celle"]
 
     assert prima[0] is None
     assert prima[1]["numero"] == 1
@@ -384,12 +384,12 @@ def test_il_mese_comincia_nella_colonna_del_suo_giorno():
 
 def test_ogni_settimana_ha_sette_caselle():
     for mese in costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale):
-        assert all(len(settimana) == 7 for settimana in mese["settimane"])
+        assert all(len(s["celle"]) == 7 for s in mese["settimane"])
 
 
 def test_ci_sono_tutti_i_giorni_del_mese():
     settembre = costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]
-    numeri = [c["numero"] for s in settembre["settimane"] for c in s if c]
+    numeri = [c["numero"] for s in settembre["settimane"] for c in s["celle"] if c]
     assert numeri == list(range(1, 31))
 
 
@@ -400,7 +400,7 @@ def test_il_riempimento_e_relativo_al_giorno_piu_carico():
     celle = {
         c["numero"]: c
         for s in costruisci_mesi(date(2026, 9, 1), carico, _aperto_feriale)[0]["settimane"]
-        for c in s
+        for c in s["celle"]
         if c
     }
 
@@ -411,7 +411,12 @@ def test_il_riempimento_e_relativo_al_giorno_piu_carico():
 
 
 def test_senza_nessun_appuntamento_non_si_divide_per_zero():
-    celle = [c for s in costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]["settimane"] for c in s if c]
+    celle = [
+        c
+        for s in costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]["settimane"]
+        for c in s["celle"]
+        if c
+    ]
     assert all(c["riempimento"] == 0 for c in celle)
 
 
@@ -420,7 +425,7 @@ def test_oggi_il_giorno_scelto_e_i_giorni_passati_si_riconoscono():
         date(2026, 9, 1), {}, _aperto_feriale,
         oggi=date(2026, 9, 17), scelto=date(2026, 9, 22),
     )
-    celle = {c["numero"]: c for s in mesi[0]["settimane"] for c in s if c}
+    celle = {c["numero"]: c for s in mesi[0]["settimane"] for c in s["celle"] if c}
 
     assert celle[17]["oggi"] is True
     assert celle[22]["scelto"] is True
@@ -434,7 +439,29 @@ def test_i_giorni_di_chiusura_si_vedono():
     domeniche = [
         c
         for s in costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]["settimane"]
-        for c in s
+        for c in s["celle"]
         if c and date(2026, 9, c["numero"]).weekday() == 6
     ]
     assert domeniche and all(c["aperto"] is False for c in domeniche)
+
+
+def test_ogni_riga_porta_il_lunedi_della_sua_settimana():
+    """Con un operatore scelto la riga si tocca per intero e diventa la sua
+    settimana: serve la data da cui farla partire."""
+    settembre = costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]
+
+    assert [s["lunedi"] for s in settembre["settimane"]] == [
+        "2026-08-31", "2026-09-07", "2026-09-14", "2026-09-21", "2026-09-28",
+    ]
+
+
+def test_la_prima_riga_guarda_al_mese_prima():
+    """Il 1 settembre 2026 e' martedi': il lunedi' di quella riga e' il 31
+    agosto, un giorno che in quel mese non e' nemmeno disegnato. Preso dalla
+    prima casella piena invece che dal primo del mese, la settimana
+    comincerebbe di martedi'."""
+    settembre = costruisci_mesi(date(2026, 9, 1), {}, _aperto_feriale)[0]
+    prima = settembre["settimane"][0]
+
+    assert prima["celle"][0] is None
+    assert prima["lunedi"] == "2026-08-31"

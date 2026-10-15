@@ -2222,6 +2222,35 @@ body.barra-ridotta .barra-stringi .ic {
     gap: 2px;
 }
 
+/* La colonnina per prendere tutta la riga: compare solo con un operatore
+   scelto, perche' solo allora la settimana si puo' guardare. Sta a sinistra,
+   dove sui calendari da muro sta il numero della settimana: a destra
+   finirebbe oltre la domenica, cioe' fuori da quello che la riga racconta. */
+.mese-con-settimane {
+    grid-template-columns: 1.15rem repeat(7, 1.95rem);
+}
+
+.mese-settimana {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 1.95rem;
+    border-radius: 5px;
+    color: #9aa7b3;
+}
+
+.mese-settimana:hover {
+    background: var(--arancio);
+    color: #fff;
+}
+
+/* Quella che si sta guardando, e solo quando la vista e' davvero la
+   settimana: accesa anche in vista giorno direbbe il falso. */
+.mese-settimana-scelta {
+    background: var(--arancio);
+    color: #fff;
+}
+
 .mese-testa {
     text-align: center;
     font-size: 0.68rem;
@@ -2351,6 +2380,15 @@ a.mese-giorno:hover {
 @media (max-width: 760px) {
     .griglia-persone {
         grid-template-columns: 1fr;
+    }
+
+    /* Sul telefono la colonnina delle settimane si prende piu' spazio: un
+       bersaglio largo diciotto pixel si manca con il dito, e mancarlo vuol
+       dire aprire il giorno accanto. Sta **dopo** la regola di base e non
+       nel blocco telefono in cima al foglio: a parita' di specificita'
+       comanda l'ultima che si legge, e la' sarebbe stata scavalcata. */
+    .mese-con-settimane {
+        grid-template-columns: 1.7rem repeat(7, 1.95rem);
     }
 }
 
