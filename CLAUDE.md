@@ -48,6 +48,8 @@ python tools/fake_webhook.py eco "le confermo"         # il salone risponde dall
 python tools/fake_webhook.py rubrica "Marco Rossi"     # un contatto della rubrica del telefono
 
 python tools/prova_email.py            # prova la posta in uscita e spiega cosa non va
+
+python tools/azzera_condizioni.py      # dimentica chi ha accettato le condizioni
 ```
 
 Le migrazioni non si lanciano a mano. All'avvio (`models/database.py`): se il
