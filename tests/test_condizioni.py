@@ -248,3 +248,113 @@ def test_la_pagina_rimanda_all_informativa():
 
     assert 'href="/privacy"' in pagina
     assert 'href="/cancellazione-dati"' in pagina
+
+
+# ---------------------------------------- accettata una volta, non si ripete
+
+
+def test_chi_ha_accettato_questa_versione_non_la_rivede():
+    """Un avviso che compare sempre non lo legge piu' nessuno, e a quel punto
+    non protegge nessuno."""
+    sessione = {
+        "dati_temp": {"servizio": "Taglio", "slot": "x", "parrucchiere": "Andrea"},
+        "condizioni_accettate": condizioni.VERSIONE,
+    }
+
+    assert condizioni.serve_avviso(sessione) is False
+
+
+def test_chi_ha_accettato_una_versione_vecchia_la_rivede():
+    """Senza versione, "accettato una volta" vorrebbe dire accettato per
+    sempre un testo che nel frattempo dice altro."""
+    sessione = {
+        "dati_temp": {"servizio": "Taglio", "slot": "x", "parrucchiere": "Andrea"},
+        "condizioni_accettate": "1 gennaio 2020",
+    }
+
+    assert condizioni.serve_avviso(sessione) is True
+
+
+def test_la_versione_e_la_data_che_legge_il_cliente():
+    """Scritte in due posti, una delle due resterebbe indietro: il testo
+    cambierebbe senza che l'avviso ricompaia."""
+    from routers import website
+
+    assert website.CONDIZIONI_AGGIORNATE == condizioni.VERSIONE
+
+
+@pytest.mark.asyncio
+async def test_prenotando_si_registra_l_accettazione():
+    from services.conversation import execute_action
+
+    backends = FakeBackends()
+    cliente = await backends.find_or_create_client(
+        phone=CLIENTE, nome="Mario", cognome="Rossi"
+    )
+    session = {"dati_temp": {"nome": "Mario", "cognome": "Rossi"}, "history": []}
+
+    risultato = await execute_action(
+        {
+            "action": "CREA_APPUNTAMENTO",
+            "slot": "2026-10-20T10:00",
+            "servizi": ["Taglio"],
+            "parrucchiere": "Andrea",
+            "nome": "Mario",
+            "cognome": "Rossi",
+        },
+        CLIENTE,
+        session,
+        backends,
+    )
+
+    assert "errore" not in risultato, risultato
+    assert backends.condizioni_accettate[cliente["id"]] == condizioni.VERSIONE
+    # E vale subito, senza aspettare la conversazione dopo.
+    assert session["condizioni_accettate"] == condizioni.VERSIONE
+
+
+@pytest.mark.asyncio
+async def test_se_l_accettazione_non_si_registra_la_prenotazione_resta_buona():
+    """Dire fallito quello che e' riuscito e' il modo peggiore di sbagliare:
+    il cliente riprova."""
+    from services.conversation import execute_action
+
+    class BackendsRotti(FakeBackends):
+        async def registra_accettazione_condizioni(self, cliente_id, versione):
+            raise RuntimeError("database non raggiungibile")
+
+    backends = BackendsRotti()
+    await backends.find_or_create_client(phone=CLIENTE, nome="Mario", cognome="Rossi")
+
+    risultato = await execute_action(
+        {
+            "action": "CREA_APPUNTAMENTO",
+            "slot": "2026-10-20T10:00",
+            "servizi": ["Taglio"],
+            "parrucchiere": "Andrea",
+            "nome": "Mario",
+            "cognome": "Rossi",
+        },
+        CLIENTE,
+        {"dati_temp": {"nome": "Mario", "cognome": "Rossi"}, "history": []},
+        backends,
+    )
+
+    assert "errore" not in risultato, risultato
+
+
+def test_l_email_di_conferma_porta_il_link(indirizzo):
+    """Da quando l'avviso in chat non si ripete, questa e' la via che resta
+    sempre aperta."""
+    from services.email_service import _riga_condizioni
+
+    assert indirizzo in _riga_condizioni()
+
+
+def test_senza_indirizzo_pubblico_l_email_non_porta_un_link_rotto(monkeypatch):
+    from config import settings
+    from services.email_service import _riga_condizioni
+
+    monkeypatch.setattr(settings, "public_base_url", "")
+
+    assert _riga_condizioni() == ""

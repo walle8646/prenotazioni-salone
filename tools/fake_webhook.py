@@ -24,6 +24,17 @@ Esempi:
 
   # messaggio audio (deve ricevere la risposta di tipo non supportato)
   python tools/fake_webhook.py audio
+
+  # il salone risponde dall'app WhatsApp Business (coexistence): il bot deve
+  # mettersi da parte, e il testo deve comparire in Conversazioni
+  python tools/fake_webhook.py eco "Buongiorno, le confermo per giovedi"
+
+  # un contatto della rubrica del telefono del salone
+  python tools/fake_webhook.py rubrica "Marco Rossi"
+
+Le ultime due servono a provare la coexistence senza averla: sono gli unici
+due comportamenti che altrimenti si vedrebbero per la prima volta in salone,
+col cliente davanti.
 """
 
 from __future__ import annotations
@@ -55,10 +66,26 @@ def _envelope(value: dict) -> dict:
     }
 
 
+def _nostro_numero() -> str:
+    """L'id del numero da cui il bot risponde, letto dalla configurazione.
+
+    Il webhook scarta i messaggi arrivati su un numero diverso da quello in
+    `META_PHONE_NUMBER_ID` — allo stesso endpoint ne arrivano due. Un payload
+    finto che dichiarasse un numero qualsiasi verrebbe ignorato in silenzio, e
+    sembrerebbe che il server non funzioni.
+    """
+    from config import settings
+
+    return settings.meta_phone_number_id or "0"
+
+
 def _base_value(phone: str) -> dict:
     return {
         "messaging_product": "whatsapp",
-        "metadata": {"display_phone_number": "390000000000", "phone_number_id": "0"},
+        "metadata": {
+            "display_phone_number": "390000000000",
+            "phone_number_id": _nostro_numero(),
+        },
         "contacts": [{"profile": {"name": PROFILE_NAME}, "wa_id": phone}],
     }
 
@@ -154,6 +181,93 @@ def payload_status(phone: str) -> dict:
     return _envelope(value)
 
 
+def payload_eco(phone: str, testo: str) -> dict:
+    """Il salone ha scritto dall'app del telefono.
+
+    E' l'unico modo che abbiamo di sapere che su quella conversazione sta
+    rispondendo una persona: in coexistence il numero sta sul telefono del
+    salone, e quello che parte da li' non passa da noi. Il bot deve farsi da
+    parte, e il testo deve comparire in Conversazioni.
+
+    L'identificativo cambia a ogni invio: il webhook scarta le eco gia' viste,
+    quindi con un id fisso il secondo tentativo non farebbe niente e sembrerebbe
+    rotto.
+    """
+    import time
+
+    return {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "0",
+                "changes": [
+                    {
+                        "field": "smb_message_echoes",
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "390000000000",
+                                "phone_number_id": _nostro_numero(),
+                            },
+                            "message_echoes": [
+                                {
+                                    "from": "390000000000",
+                                    "to": phone,
+                                    "id": f"wamid.test.eco.{int(time.time())}",
+                                    "timestamp": "1750000000",
+                                    "type": "text",
+                                    "text": {"body": testo},
+                                }
+                            ],
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+
+def payload_rubrica(phone: str, nome: str) -> dict:
+    """Un contatto della rubrica del telefono del salone.
+
+    Nella forma con cui Meta la manda al webhook del numero. Dopo, quel numero
+    deve comparire col nome invece che con le cifre in Conversazioni.
+    """
+    parti = (nome or "").split()
+    return {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "id": "0",
+                "changes": [
+                    {
+                        "field": "smb_app_state_sync",
+                        "value": {
+                            "messaging_product": "whatsapp",
+                            "metadata": {
+                                "display_phone_number": "390000000000",
+                                "phone_number_id": _nostro_numero(),
+                            },
+                            "state_sync": [
+                                {
+                                    "type": "contact",
+                                    "contact": {
+                                        "full_name": nome,
+                                        "first_name": parti[0] if parti else nome,
+                                        "phone_number": phone,
+                                    },
+                                    "action": "add",
+                                    "metadata": {"timestamp": "1750000000"},
+                                }
+                            ],
+                        },
+                    }
+                ],
+            }
+        ],
+    }
+
+
 COSTRUTTORI = {
     "text": lambda p, m: payload_text(p, m or "Vorrei prenotare un taglio"),
     "button": lambda p, m: payload_button(p, m or "Taglio"),
@@ -161,6 +275,8 @@ COSTRUTTORI = {
     "image": lambda p, m: payload_image(p, m or "Vorrei un taglio così"),
     "audio": lambda p, m: payload_audio(p),
     "status": lambda p, m: payload_status(p),
+    "eco": lambda p, m: payload_eco(p, m or "Buongiorno, le confermo per giovedi"),
+    "rubrica": lambda p, m: payload_rubrica(p, m or "Marco Rossi"),
 }
 
 

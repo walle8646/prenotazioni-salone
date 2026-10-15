@@ -334,3 +334,69 @@ async def test_una_giornata_piena_lo_dice_con_parole_sue(salone):
 
     assert liberi == {}
     assert "Nessuna mezz'ora libera" in nota
+
+
+# ------------------------------------------- l'evento che resta orfano
+
+
+def test_se_l_agenda_non_si_scrive_l_evento_su_google_si_toglie(pannello, monkeypatch):
+    """Lasciarlo vorrebbe dire una mezz'ora occupata da un appuntamento che
+    nessuno sa di avere: non il salone, che nel pannello non lo vede, e non il
+    cliente, a cui stiamo per dire che non e' andata.
+
+    La regola c'era gia' nel percorso del bot e qui mancava.
+    """
+    tolti = []
+
+    async def agenda_rotta(**argomenti):
+        raise RuntimeError("database non raggiungibile")
+
+    async def finta_cancellazione(self, event_id, cal_id):
+        tolti.append((event_id, cal_id))
+
+    from services.backends import RealBackends
+
+    monkeypatch.setattr("services.db_service.create_appointment", agenda_rotta)
+    monkeypatch.setattr(RealBackends, "delete_event", finta_cancellazione)
+
+    risposta = _prenota(pannello)
+
+    assert risposta.status_code == 303
+    assert "errore=" in risposta.headers["location"]
+    assert [e for e, _ in tolti] == ["evento_finto"]
+
+
+def test_se_anche_la_cancellazione_fallisce_lo_si_dice_lo_stesso(pannello, monkeypatch):
+    """Resta un evento da togliere a mano, ed e' scritto nei log: quello che
+    non deve succedere e' dire al cliente che e' andata."""
+
+    async def agenda_rotta(**argomenti):
+        raise RuntimeError("database non raggiungibile")
+
+    async def cancellazione_rotta(self, event_id, cal_id):
+        raise RuntimeError("Google non risponde")
+
+    from services.backends import RealBackends
+
+    monkeypatch.setattr("services.db_service.create_appointment", agenda_rotta)
+    monkeypatch.setattr(RealBackends, "delete_event", cancellazione_rotta)
+
+    risposta = _prenota(pannello)
+
+    assert risposta.status_code == 303
+    assert "errore=" in risposta.headers["location"]
+
+
+def test_quando_va_tutto_bene_non_si_cancella_niente(pannello, monkeypatch):
+    tolti = []
+
+    async def finta_cancellazione(self, event_id, cal_id):
+        tolti.append(event_id)
+
+    from services.backends import RealBackends
+
+    monkeypatch.setattr(RealBackends, "delete_event", finta_cancellazione)
+
+    _prenota(pannello)
+
+    assert tolti == []

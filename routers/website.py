@@ -293,9 +293,10 @@ TITOLARE_PRIVACY = "Acconciature Simone"
 PRIVACY_AGGIORNATA = "5 settembre 2026"
 
 
-# Stessa regola della data dell'informativa: dice quando le condizioni sono
-# cambiate, non quando le stai leggendo.
-CONDIZIONI_AGGIORNATE = "15 ottobre 2026"
+# La data e' la stessa cosa della versione accettata dai clienti, e vive in
+# `services/condizioni.py`: scritta due volte, una delle due resterebbe
+# indietro e l'avviso smetterebbe di ricomparire quando il testo cambia.
+from services.condizioni import VERSIONE as CONDIZIONI_AGGIORNATE  # noqa: E402
 
 
 @router.get("/condizioni", response_class=HTMLResponse)

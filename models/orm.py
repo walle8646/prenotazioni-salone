@@ -25,6 +25,13 @@ class Cliente(Base):
     titolare_id = Column(
         Integer, ForeignKey("clienti.id"), nullable=True, index=True
     )
+    # Quali condizioni ha accettato prenotando, e quando. La versione e non
+    # un si'/no: "accettato" senza sapere cosa vorrebbe dire accettato per
+    # sempre un testo che nel frattempo e' cambiato. La data serve a
+    # rispondere a "quando l'avrei accettata?", che e' l'unica domanda che
+    # conta se qualcuno la fa.
+    condizioni_accettate = Column(String(50), nullable=True)
+    condizioni_accettate_il = Column(DateTime, nullable=True)
     note_private = Column(Text)  # allergie, preferenze, note parrucchiere
     parrucchiere_pref_id = Column(Integer, ForeignKey("parrucchieri.id"), nullable=True)
     prima_visita = Column(Date, default=datetime.now)

@@ -2086,16 +2086,37 @@ async def appuntamento_a_mano(
                 ) if p
             ),
         )
-        await create_appointment(
-            client_id=cliente["id"],
-            data_ora=slot,
-            servizi=[servizio],
-            parrucchiere=operatore,
-            richieste_spec=note or None,
-            gcal_event_id=event_id,
-            durata_min=durata,
-            prezzo=prezzo,
-        )
+        try:
+            await create_appointment(
+                client_id=cliente["id"],
+                data_ora=slot,
+                servizi=[servizio],
+                parrucchiere=operatore,
+                richieste_spec=note or None,
+                gcal_event_id=event_id,
+                durata_min=durata,
+                prezzo=prezzo,
+            )
+        except Exception:  # noqa: BLE001
+            # Stessa regola del bot, e qui mancava: l'evento su Google c'e'
+            # gia' e la riga in agenda no. Senza toglierlo, quella mezz'ora
+            # resta occupata da un appuntamento che nessuno sa di avere — non
+            # il salone, che nel pannello non lo vede, e non il cliente, a cui
+            # stiamo per dire che non e' andata. Poi si lascia propagare: a
+            # dirlo fallito ci pensa il gestore qui sotto.
+            logger.exception(
+                "Agenda non scritta dal pannello: tolgo l'evento %s da Google",
+                event_id,
+            )
+            try:
+                await backends.delete_event(event_id, cal_id)
+            except Exception:  # noqa: BLE001
+                logger.error(
+                    "Evento %s rimasto su %s senza appuntamento: va tolto a mano",
+                    event_id,
+                    cal_id,
+                )
+            raise
     except Exception:  # noqa: BLE001
         logger.exception("Appuntamento dal pannello non creato")
         return torna("Non sono riuscito a salvarlo. Riprova o controlla i log.")

@@ -78,6 +78,8 @@ class FakeBackends(Backends):
         self.conversazioni_operatore: list[dict] = []
         # La rubrica del telefono del salone: numero -> nome.
         self.rubrica: dict[str, str] = {}
+        # Chi ha accettato quale versione delle condizioni.
+        self.condizioni_accettate: dict[int, str] = {}
         self.email_handoff: list[dict] = []
         self._contatore = 0
 
@@ -399,6 +401,9 @@ class FakeBackends(Backends):
 
     async def nome_in_rubrica(self, telefono):
         return self.rubrica.get((telefono or "").lstrip("+"))
+
+    async def registra_accettazione_condizioni(self, cliente_id, versione):
+        self.condizioni_accettate[cliente_id] = versione
 
     async def conversazione_operatore_aperta(self, telefono):
         for conversazione in reversed(self.conversazioni_operatore):

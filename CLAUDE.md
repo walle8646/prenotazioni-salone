@@ -34,6 +34,8 @@ python simulate.py --phone 390000000001      # servizi veri, si comporta come Wh
 docker compose up               # app + PostgreSQL + Redis, poi http://localhost:8000
 
 python tools/fake_webhook.py text "vorrei un taglio"   # payload Meta finti al webhook
+python tools/fake_webhook.py eco "le confermo"         # il salone risponde dall'app (coexistence)
+python tools/fake_webhook.py rubrica "Marco Rossi"     # un contatto della rubrica del telefono
 
 python tools/prova_email.py            # prova la posta in uscita e spiega cosa non va
 ```
@@ -448,6 +450,27 @@ mano direbbero una cosa mentre il bot ne fa un'altra, ed è il genere di
 difetto che si scopre da un cliente che protesta citando una pagina che gli
 abbiamo dato noi.
 
+**Chi ha già accettato non se lo rivede, finché le condizioni non cambiano.**
+Un avviso che compare sempre non lo legge più nessuno, e a quel punto non
+protegge nessuno. L'accettazione si annota su `clienti`
+(`condizioni_accettate`, `condizioni_accettate_il`) **quando la prenotazione
+riesce**, non quando l'avviso parte: la frase dice "prenotando accetti", e chi
+legge e abbandona non ha accettato niente. Va sul **titolare del contatto**,
+non su chi si siede: prenotando per il figlio accetta il padre.
+
+Si annota la **versione**, non un sì: senza, "accettato una volta" vorrebbe
+dire accettato per sempre un testo che nel frattempo dice altro. E la versione
+**è** la data che la pagina mostra in cima (`condizioni.VERSIONE`, da cui
+`website.py` la importa): scritte in due posti, una delle due resterebbe
+indietro, e il testo cambierebbe senza che l'avviso ricompaia. La data si legge
+al riconoscimento del cliente, che è una lettura che si fa già.
+
+Da quando l'avviso non si ripete, il link va anche **in fondo all'email di
+conferma**, che parte a ogni prenotazione: è la via che resta sempre aperta.
+Sta dentro `email_service` e non in un parametro, perché una firma nuova va
+cambiata insieme nel vero e nel finto — e un finto che accetta quello che il
+vero rifiuta non nasconde un difetto, lo fabbrica.
+
 ## Pannello di gestione
 
 Sotto `/admin`, protetto da `ADMIN_PASSWORD`: **Appuntamenti** (la giornata,
@@ -563,7 +586,10 @@ creare la stessa cosa divergono al primo cambiamento, e una delle due smette
 di mandare le email senza che nessuno se ne accorga. Restano validi il
 ricontrollo dello slot e la durata decisa dal listino. **Cade invece la regola
 dell'unico appuntamento per cliente**: esiste perché il modello sbagliava da
-solo, mentre chi prenota a mano ha la persona al telefono.
+solo, mentre chi prenota a mano ha la persona al telefono. Vale anche la rimozione
+dell'evento orfano: se Google ha accettato e il database no, l'evento si
+toglie prima di dire che non è andata — mancava qui, e lasciava mezz'ora
+occupata da un appuntamento che non compariva nel pannello.
 
 **Il modulo comincia dalla ricerca, non da campi vuoti**, perché chi telefona
 quasi sempre è già stato qui: due schede per la stessa persona vogliono dire
@@ -655,6 +681,18 @@ fa esplodere la notifica apposta. Un'iscrizione rifiutata con 404 o 410 si
 per sempre. E su **iOS le notifiche arrivano solo all'applicazione aggiunta
 alla schermata Home**: dal browser il permesso non si può nemmeno chiedere,
 quindi il bottone lo dice invece di non fare niente.
+
+**Chi aspetta e smette di scrivere viene sollecitato una seconda volta**
+(`jobs/sollecito_job.py`, ogni cinque minuti). La notifica parte alla richiesta
+e a ogni messaggio successivo del cliente, ma chi aspetta smette di scrivere —
+è quello che fa chi aspetta — e allora ne parte una sola: se in quel momento
+chi è in salone ha le mani nei capelli di qualcuno, il cliente resta lì per 24
+ore. Due vincoli. **Una volta sola**, ottenuto senza una colonna in più con la
+stessa fascia temporale del promemoria a 12 ore: si guardano le conversazioni
+aperte fra dieci e quindici minuti fa, larga quanto l'intervallo fra due giri,
+quindi ognuna ci cade dentro esattamente una volta. E **solo a salone aperto**,
+letto dagli orari veri e non da una costante: una notifica alle undici di sera
+insegna solo a silenziare le notifiche.
 
 **Presenze** (`services/presenze.py`) dice quando ciascuno è in salone, con
 fasce settimanali: la disponibilità toglie prima chi quel giorno non c'è, poi
@@ -979,12 +1017,12 @@ degli operatori stanno nel database.
   possono usare i **template**. Servono per i promemoria, per gli avvisi di
   assenza e per riscrivere a un cliente dopo che sono passate 24 ore dal suo
   ultimo messaggio — cioè le tre cose che oggi mancano.
-- **Chi è in salone viene avvisato solo per email** quando un cliente chiede di
-  parlare con una persona. Le alternative sono state valutate e scartate per
-  ora: su WhatsApp servirebbero un metodo di pagamento e un template approvato
-  (è una conversazione avviata dall'azienda, e col template il messaggio del
-  cliente non ci sta dentro per intero); Telegram sarebbe gratuito e immediato
-  ma richiede che il personale ce l'abbia; gli SMS costano di più e dicono meno.
+- **Avvisare chi è in salone su WhatsApp** resta fuori portata: sarebbe una
+  conversazione avviata dall'azienda, quindi servono un template approvato e un
+  metodo di pagamento — e col template il messaggio del cliente non ci sta
+  dentro per intero. Oggi si usano email e notifiche push, con il sollecito a
+  dieci minuti. Telegram sarebbe gratuito e immediato ma richiede che il
+  personale ce l'abbia; gli SMS costano di più e dicono meno.
 - **Il titolare nell'informativa privacy è solo "Acconciature Simone"**
   (`TITOLARE_PRIVACY` in `routers/website.py`): va completato con ragione
   sociale, sede e partita IVA.

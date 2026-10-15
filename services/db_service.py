@@ -391,6 +391,11 @@ async def _appuntamenti_del_cliente(condizione, limite: int) -> dict | None:
             "nome": cliente.nome,
             "cognome": cliente.cognome,
             "email": cliente.email,
+            # Quali condizioni ha gia' accettato: serve a non ripetergli
+            # l'avviso a ogni prenotazione. Viaggia con il riconoscimento
+            # perche' quella lettura si fa gia', e una query in piu' per
+            # conversazione si pagherebbe per sempre.
+            "condizioni_accettate": cliente.condizioni_accettate,
         },
         "familiari": [
             {"id": f.id, "nome": f.nome, "cognome": f.cognome} for f in familiari
@@ -1138,3 +1143,68 @@ async def quanti_in_rubrica() -> int:
     async with async_session() as db:
         righe = await db.execute(select(ContattoRubrica.telefono))
         return len(righe.scalars().all())
+
+
+# ------------------------------------------------ accettazione delle condizioni
+
+
+async def registra_accettazione_condizioni(cliente_id: int, versione: str) -> None:
+    """Annota che questo contatto ha accettato questa versione, adesso.
+
+    Si scrive **dopo** che la prenotazione e' riuscita, perche' la frase dice
+    "prenotando accetti": chi legge l'avviso e poi abbandona non ha accettato
+    niente.
+
+    Va sul titolare del contatto e non sulla persona per cui si prenota: chi
+    prenota per il figlio accetta lui, e il figlio — che un telefono non ce
+    l'ha — non ha accettato nulla.
+    """
+    from models.orm import Cliente
+
+    if not cliente_id or not versione:
+        return
+    async with async_session() as db:
+        await db.execute(
+            update(Cliente)
+            .where(Cliente.id == cliente_id)
+            .values(
+                condizioni_accettate=versione,
+                condizioni_accettate_il=datetime.now(),
+            )
+        )
+        await db.commit()
+
+
+async def conversazioni_in_attesa_da(da, a) -> list[dict]:
+    """Le conversazioni che nessuno ha ancora preso in mano, aperte in quella fascia.
+
+    Solo lo stato "attesa": "presa" vuol dire che qualcuno ha gia' risposto, e
+    richiamarlo su una conversazione che sta seguendo e' il modo di far
+    silenziare le notifiche.
+    """
+    from models.orm import Cliente, ConversazioneOperatore
+
+    async with async_session() as db:
+        righe = await db.execute(
+            select(ConversazioneOperatore, Cliente.nome, Cliente.cognome)
+            .outerjoin(Cliente, ConversazioneOperatore.cliente_id == Cliente.id)
+            .where(
+                ConversazioneOperatore.stato == "attesa",
+                ConversazioneOperatore.aperta_il >= da,
+                ConversazioneOperatore.aperta_il < a,
+            )
+            .order_by(ConversazioneOperatore.aperta_il)
+        )
+        return [
+            {
+                "id": riga.id,
+                "telefono": riga.telefono,
+                "nome": (
+                    " ".join(p for p in (nome, cognome) if p)
+                    or riga.nome_visualizzato
+                    or None
+                ),
+                "aperta_il": riga.aperta_il,
+            }
+            for riga, nome, cognome in righe.all()
+        ]

@@ -120,6 +120,28 @@ def _riga_per(per: str | None) -> str:
     return f"<li><strong>Per:</strong> {per}</li>" if per else ""
 
 
+def _riga_condizioni() -> str:
+    """Il rimando alle condizioni, in fondo all'email di conferma.
+
+    Sta qui e non in un parametro della funzione perche' una firma nuova va
+    cambiata insieme nel vero e nel finto, e un finto che accetta quello che il
+    vero rifiuta non nasconde un difetto: lo fabbrica. E' gia' costato giorni.
+
+    Serve soprattutto da quando l'avviso in chat non si ripete a chi ha gia'
+    accettato: questa email parte a ogni prenotazione, quindi e' il posto dove
+    l'informazione resta raggiungibile sempre.
+    """
+    from services.condizioni import indirizzo
+
+    link = indirizzo()
+    if not link:
+        return ""
+    return (
+        f'<p style="font-size:12px;color:#666">Prenotando hai accettato le '
+        f'<a href="{link}">condizioni del servizio</a>.</p>'
+    )
+
+
 async def send_confirmation_email(
     to: str, nome: str, data_ora: str, parrucchiere: str, servizi: list,
     per: str | None = None,
@@ -140,6 +162,7 @@ async def send_confirmation_email(
             </ul>
             <p>Per cancellare o modificare, scrivici su WhatsApp o rispondi a questa email.</p>
             <p>A presto!<br>Acconciature Simone</p>
+            {_riga_condizioni()}
         """,
     )
 

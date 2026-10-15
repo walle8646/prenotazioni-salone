@@ -1632,6 +1632,24 @@ async def _crea_appuntamento(action: dict, phone: str, session: dict, backends) 
             )
         raise
 
+    # Prenotando ha accettato le condizioni, e da adesso non gliele si ripete
+    # piu' finche' non cambiano. Si annota sul titolare del contatto e non su
+    # chi si siede: prenotando per il figlio accetta il padre, e il figlio —
+    # che un telefono non ce l'ha — non ha accettato niente. Se la scrittura
+    # fallisce, il cliente si rivedra' l'avviso la prossima volta: un fastidio,
+    # mentre far fallire una prenotazione riuscita e' il danno peggiore.
+    try:
+        from services.condizioni import VERSIONE as _VERSIONE_CONDIZIONI
+
+        await backends.registra_accettazione_condizioni(
+            client["id"], _VERSIONE_CONDIZIONI
+        )
+        session["condizioni_accettate"] = _VERSIONE_CONDIZIONI
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "Accettazione delle condizioni non registrata per %s", phone, exc_info=True
+        )
+
     # Da qui in poi **l'appuntamento esiste**, e niente di quello che segue può
     # più raccontarlo come fallito. Dirlo fallito quando c'è è il modo peggiore
     # di sbagliare: il cliente riprova, e senza la regola dell'appuntamento
@@ -1794,6 +1812,9 @@ async def _riconosci_cliente(phone: str, session: dict, backends) -> None:
         email=cliente.get("email"),
     )
     session["cliente_conosciuto"] = True
+    # Quali condizioni aveva gia' accettato: se sono queste, l'avviso non si
+    # ripete. Arriva con il riconoscimento perche' quella lettura si fa gia'.
+    session["condizioni_accettate"] = cliente.get("condizioni_accettate")
     ultimo = _ultimo_operatore(trovato.get("appuntamenti"))
     if ultimo:
         session["ultimo_operatore"] = ultimo
