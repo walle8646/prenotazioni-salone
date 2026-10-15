@@ -1456,16 +1456,27 @@ async def _appuntamento_futuro_di_chi_prenota(
     }
 
 
-async def _slot_ancora_libero(slot: str, cal_id: str, durata: int, backends) -> bool:
+async def _slot_ancora_libero(
+    slot: str, cal_id: str, durata: int, backends, anticipo_min: int | None = None
+) -> bool:
     """Se quell'ora è davvero libera su quel calendario, adesso.
 
     Se la verifica non si può fare — Google irraggiungibile — si risponde di
     sì: rifiutare ogni prenotazione perché il controllo in più non riesce
     sarebbe peggio del rischio che copre, e il difetto che stiamo evitando è
     raro.
+
+    `anticipo_min` deve essere **lo stesso con cui lo slot è stato offerto**,
+    o il controllo finale smentisce la schermata che l'ha proposto: dal
+    pannello è zero, e senza passarlo anche qui una casella verde toccata alle
+    sei e un quarto risponderebbe "quel posto non è più libero" — che non è
+    vero, ed è la bugia peggiore perché chi la legge chiama il cliente per
+    disdire.
     """
     try:
-        liberi = await backends.check_availability(slot[:10], cal_id, durata)
+        liberi = await backends.check_availability(
+            slot[:10], cal_id, durata, anticipo_min
+        )
     except Exception:  # noqa: BLE001
         logger.warning("Ricontrollo dello slot non riuscito per %s", slot, exc_info=True)
         return True

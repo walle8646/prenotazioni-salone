@@ -622,6 +622,33 @@ pieni" fa mandare via un cliente che il posto ce l'aveva. Per lo stesso motivo
 l'ora dentro la cella verde **si legge sempre**: nascosta fino al passaggio
 del mouse, una giornata piena di posti liberi sembrava una giornata vuota.
 
+**Dal pannello si prenota anche per fra mezz'ora** (`ANTICIPO_DAL_PANNELLO`,
+il parametro `anticipo_min` di `check_availability`). Le due ore di
+`MIN_BOOKING_HOURS_AHEAD` sono la regola per chi scrive al bot: nessuno deve
+potersi prendere da solo un posto per fra dieci minuti, con il salone che se
+lo trova davanti senza saperlo. Applicata qui diceva il contrario di quello
+che serve — alle sei di sera spariva tutto quello che restava della giornata
+e la pagina dichiarava "nessuna mezz'ora libera" con tre poltrone vuote.
+Visto il 15 ottobre alle 18:05, provando a spostare un appuntamento di oggi:
+Google aveva risposto a dovere, era l'anticipo a mangiarsi la sera. Chi
+prenota da qui ha il cliente al telefono o già sulla porta e sa che ore sono.
+Senza anticipo non vuol dire senza orologio: quello che è **già cominciato**
+resta fuori lo stesso.
+
+L'anticipo va passato **anche al controllo prima di scrivere**
+(`_slot_ancora_libero`), con lo stesso valore: con due valori diversi la
+casella verde si fa toccare e poi risponde "quel posto non è più libero" —
+che non è vero, ed è la bugia peggiore perché chi la legge richiama il
+cliente per disdire.
+
+**L'ora corrente nel pannello si legge da `adesso_salone()`**, mai da
+`datetime.now()` nudo. Su Render il processo gira a UTC, due ore indietro:
+"oggi", "la giornata è finita" e la linea dell'ora corrente sarebbero
+sbagliate proprio nelle ore in cui contano. Si passa alla griglia come
+istante **senza fuso** (`.replace(tzinfo=None)`), perché dall'altra parte si
+confronta con le date del database, che sono naive: mischiare i due tipi
+solleva `TypeError`, ed è già successo nel job dei solleciti.
+
 La creazione passa dalle **stesse funzioni del bot** (`find_or_create_client`,
 `create_event`, `create_appointment`, la conferma per email): due strade per
 creare la stessa cosa divergono al primo cambiamento, e una delle due smette

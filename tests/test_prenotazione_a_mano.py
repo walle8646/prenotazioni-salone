@@ -41,7 +41,7 @@ def pannello(monkeypatch):
         fatto["letti"] = fatto.get("letti", []) + [cliente_id]
         return fatto["anagrafica"].get(cliente_id)
 
-    async def finto_slot_libero(slot, cal_id, durata, backends):
+    async def finto_slot_libero(slot, cal_id, durata, backends, anticipo_min=None):
         return fatto["libero"]
 
     async def finto_cliente(phone=None, nome=None, cognome=None, email=None, canale="whatsapp"):
@@ -234,9 +234,10 @@ APERTO = ("09:00", "19:00")
 @pytest.fixture
 def salone(monkeypatch):
     """Salone aperto tutti i giorni, tutti in servizio, Google che risponde."""
-    risposta = {"slot": [], "esplode": False}
+    risposta = {"slot": [], "esplode": False, "anticipo": "mai chiesto"}
 
-    async def finta_disponibilita(self, date_str, cal_id, durata):
+    async def finta_disponibilita(self, date_str, cal_id, durata, anticipo=None):
+        risposta["anticipo"] = anticipo
         if risposta["esplode"]:
             raise RuntimeError("Google irraggiungibile")
         return risposta["slot"]
@@ -324,6 +325,16 @@ async def test_a_salone_chiuso_non_si_spiega_niente(salone, monkeypatch):
     monkeypatch.setattr("services.slots.orari_salone", lambda: {})
 
     assert await admin._dove_c_e_posto(_domani(), _adesso_alle(date.today())) == ({}, None)
+
+
+@pytest.mark.asyncio
+async def test_dal_pannello_si_chiede_senza_anticipo(salone):
+    """L'anticipo minimo e' la regola per chi scrive al bot: da qui il cliente
+    e' al telefono. Con i 120 minuti della configurazione, alle sei di sera la
+    schermata diceva "nessuna mezz'ora libera" con le poltrone vuote."""
+    await admin._dove_c_e_posto(_domani(), _adesso_alle(date.today()))
+
+    assert salone["anticipo"] == 0
 
 
 @pytest.mark.asyncio

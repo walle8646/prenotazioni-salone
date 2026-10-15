@@ -105,15 +105,25 @@ class FakeBackends(Backends):
 
     # --------------------------------------------------------------- calendar
 
-    async def check_availability(self, date_str, parrucchiere_cal_id, durata_min):
+    async def check_availability(
+        self, date_str, parrucchiere_cal_id, durata_min, anticipo_min=None
+    ):
         if date_str in self.giorni_chiusi:
             return []
 
         # Come il calendario vero: niente slot già passati né troppo imminenti.
+        # E come quello, l'anticipo si può azzerare: dal pannello il cliente è
+        # al telefono. Un finto che accetta quello che il vero rifiuta — o che
+        # ignora un parametro che il vero usa — non nasconde un difetto, lo
+        # fabbrica.
         possibili = generate_slots(
             date_str,
             adesso=adesso_salone(),
-            anticipo_minimo_min=settings.min_booking_hours_ahead * 60,
+            anticipo_minimo_min=(
+                settings.min_booking_hours_ahead * 60
+                if anticipo_min is None
+                else anticipo_min
+            ),
         )
         if not possibili:
             return []

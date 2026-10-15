@@ -47,16 +47,30 @@ def _get_service():
 
 
 async def check_availability(
-    date_str: str, parrucchiere_cal_id: str = None, durata_min: int = 30
+    date_str: str,
+    parrucchiere_cal_id: str = None,
+    durata_min: int = 30,
+    anticipo_min: int | None = None,
 ) -> list[dict]:
     """Restituisce gli slot liberi per una data (e opzionalmente un parrucchiere).
     Per servizi da 60 min, verifica automaticamente 2 slot consecutivi.
+
+    `anticipo_min` e' quanto in anticipo si deve prenotare. Lasciato a None
+    vale quello della configurazione, che e' la regola per chi scrive al bot:
+    nessuno deve poter prenotare da solo per fra dieci minuti, con il salone
+    che se lo trova davanti senza saperlo. **Dal pannello invece e' zero**,
+    perche' li' il cliente e' al telefono o gia' sulla porta e chi risponde sa
+    benissimo che ore sono: con l'anticipo del bot, dopo le cinque del
+    pomeriggio la giornata spariva tutta e la schermata diceva "nessuna
+    mezz'ora libera" mentre in salone c'erano le poltrone vuote.
     """
     service = _get_service()
+    if anticipo_min is None:
+        anticipo_min = settings.min_booking_hours_ahead * 60
     possible_slots = _generate_slots(
         date_str,
         adesso=adesso_salone(),
-        anticipo_minimo_min=settings.min_booking_hours_ahead * 60,
+        anticipo_minimo_min=anticipo_min,
     )
 
     if not possible_slots:

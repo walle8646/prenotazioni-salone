@@ -22,7 +22,11 @@ class Backends:
     """Interfaccia verso i servizi esterni."""
 
     async def check_availability(
-        self, date_str: str, parrucchiere_cal_id: str | None, durata_min: int
+        self,
+        date_str: str,
+        parrucchiere_cal_id: str | None,
+        durata_min: int,
+        anticipo_min: int | None = None,
     ) -> list[dict]:
         raise NotImplementedError
 
@@ -164,10 +168,14 @@ class Backends:
 class RealBackends(Backends):
     """I servizi veri: Google Calendar, PostgreSQL, Resend, WhatsApp Cloud API."""
 
-    async def check_availability(self, date_str, parrucchiere_cal_id, durata_min):
+    async def check_availability(
+        self, date_str, parrucchiere_cal_id, durata_min, anticipo_min=None
+    ):
         from services.calendar_service import check_availability
 
-        return await check_availability(date_str, parrucchiere_cal_id, durata_min)
+        return await check_availability(
+            date_str, parrucchiere_cal_id, durata_min, anticipo_min
+        )
 
     async def create_event(
         self, slot, parrucchiere_cal_id, servizi, durata, cliente_nome, descrizione=""

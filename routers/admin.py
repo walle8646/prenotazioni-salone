@@ -1604,7 +1604,13 @@ async def assenze_form(
     )
     operatori = result.scalars().all()
 
-    giorno = datetime.strptime(data, "%Y-%m-%d").date() if data else date.today()
+    from services.slots import adesso_salone
+
+    # L'ora del salone, non quella del server: su Render il processo gira a
+    # UTC, due ore indietro, e "oggi" e "la giornata e' finita" sarebbero
+    # sbagliati proprio nelle ore in cui contano.
+    adesso = adesso_salone().replace(tzinfo=None)
+    giorno = datetime.strptime(data, "%Y-%m-%d").date() if data else adesso.date()
     appuntamenti = (
         await _appuntamenti_da_annullare(db, operatore_id, giorno)
         if operatore_id
@@ -1612,7 +1618,7 @@ async def assenze_form(
     )
     if appuntamenti:
         assente = next((o.nome for o in operatori if o.id == operatore_id), None)
-        await _chi_puo_prenderli(appuntamenti, giorno, datetime.now(), assente)
+        await _chi_puo_prenderli(appuntamenti, giorno, adesso, assente)
 
     return templates.TemplateResponse(
         "assenze.html",
@@ -1687,7 +1693,9 @@ async def assenze_sposta_scegli(
         + f" alle {riga.data_ora.strftime('%H:%M')}",
     }
 
-    adesso = datetime.now()
+    from services.slots import adesso_salone
+
+    adesso = adesso_salone().replace(tzinfo=None)
     giorno = (
         datetime.strptime(data, "%Y-%m-%d").date() if data else riga.data_ora.date()
     )
@@ -1838,7 +1846,9 @@ async def assenze_sposta(
     except ValueError:
         return torna("Non ho capito a che ora spostarlo.", errore=True)
 
-    if not await _slot_ancora_libero(quando, cal_id, durata, backends):
+    if not await _slot_ancora_libero(
+        quando, cal_id, durata, backends, anticipo_min=ANTICIPO_DAL_PANNELLO
+    ):
         return torna(
             f"{nuovo_nome} nel frattempo non e' piu' libero alle "
             f"{nuovo_momento.strftime('%H:%M')}. Ricarica e riprova.",
@@ -2328,6 +2338,15 @@ async def push_iscrizione(request: Request, utente=Depends(utente_del_pannello))
 # ------------------------------------------------- prenotazione dal pannello
 
 
+# Quanto in anticipo si prenota **da qui**: per niente. Quello della
+# configurazione e' la regola per chi scrive al bot — nessuno si prende da
+# solo un posto per fra dieci minuti — ma in questa schermata il cliente e' al
+# telefono o gia' sulla porta, e chi risponde sa che ore sono. Con l'anticipo
+# del bot, dopo le cinque del pomeriggio sparivano tutte le mezz'ore rimaste e
+# la pagina diceva "nessuna mezz'ora libera" con le poltrone vuote: visto il
+# 15 ottobre provando a spostare un appuntamento di oggi.
+ANTICIPO_DAL_PANNELLO = 0
+
 _SPIEGAZIONI = {
     "passato": "Giornata già passata: i posti liberi si segnano da adesso in avanti.",
     "guasto": (
@@ -2402,7 +2421,7 @@ async def _liberi_da_google(
         # fila. Per una prenotazione nuova resta trenta, perche' il servizio
         # si sceglie dopo aver scelto l'ora.
         slot = await RealBackends().check_availability(
-            giorno.isoformat(), cal_id, durata
+            giorno.isoformat(), cal_id, durata, ANTICIPO_DAL_PANNELLO
         )
         # Google dice se l'operatore è occupato, non se quel giorno lavora: lo
         # stesso filtro che sta fra la ricerca e il bot, o il verde comparirebbe
@@ -2534,7 +2553,9 @@ async def appuntamento_a_mano(
 
     # Lo stesso controllo della prenotazione dal bot: fra quando la schermata
     # ha disegnato il verde e quando si conferma possono passare minuti.
-    if not await _slot_ancora_libero(slot, cal_id, durata, backends):
+    if not await _slot_ancora_libero(
+        slot, cal_id, durata, backends, anticipo_min=ANTICIPO_DAL_PANNELLO
+    ):
         return torna("Quell'orario non è più libero: ricarica e riprova.")
 
     try:
