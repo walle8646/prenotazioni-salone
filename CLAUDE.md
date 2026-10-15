@@ -1035,6 +1035,67 @@ può cambiare il comportamento di una vecchia senza che nessuna riga di codice
 nostro cambi, e un guasto che blocca tutto deve **gridare all'avvio** invece di
 sussurrare a ogni prenotazione.
 
+### Il numero del salone, sul telefono e sulla Cloud API
+
+Il salone va online **sul proprio numero**, che resta sull'app WhatsApp
+Business: Meta la chiama coexistence. Il collegamento si fa dalla pagina
+`/admin/collega-whatsapp` (`routers/collegamento.py`), una volta per numero,
+con una persona del salone col telefono in mano — la conferma si tocca
+dall'app e non e' delegabile. I passaggi in fila stanno in
+`COLLEGAMENTO-NUMERO.md`.
+
+Si usa l'app Meta **Qubi Prenotazioni**, intestata a Qubi Lab S.r.l., che e'
+Tech Provider verificato: l'accesso avanzato ai permessi vale **per quella
+app**, non per l'account, e una app nuova nascerebbe con accesso standard.
+Due cose che non servono e che sembrano servire: il nome visualizzato **non va
+riapprovato**, e il numero **non va registrato** — lo e' gia', ed e' tutto il
+punto.
+
+Quattro cose non sono semplificabili.
+
+**Se il salone risponde dall'app, il bot tace** (`smb_message_echoes` nel
+webhook, `registra_risposta_dal_telefono()`). Sul numero dedicato la chat non
+la apriva nessuno; su quello del salone ce l'hanno davanti in due, e chi e' in
+salone vede la notifica arrivare sul telefono. Due risposte diverse alla
+stessa domanda sono peggio di una risposta lenta — la stessa regola del
+passaggio a una persona, solo che qui il passaggio lo chiede il salone col
+fatto stesso di aver scritto. L'eco e' l'unico modo che abbiamo di saperlo:
+quello che parte dal telefono non passa da noi. Si registra come messaggio
+dell'operatore, cosi' la receptionist nel pannello legge quello che e' stato
+detto al cliente — altrimenti vedrebbe la domanda e nessuna risposta, e
+risponderebbe una seconda volta — e ogni risposta sposta avanti le 24 ore
+dopo le quali un passaggio dimenticato torna al bot. Al cliente non si manda
+niente: gli ha appena risposto una persona.
+
+**Fra le eco non deve finire quello che manda il bot**
+(`e_un_nostro_invio()`, memoria degli id in `services/whatsapp_service.py`).
+La documentazione dice che le eco riguardano solo l'app, ma se si sbagliasse
+il bot si zittirebbe da se' al primo messaggio: muto per 24 ore su **ogni**
+conversazione, fino alla riapertura automatica. Un dizionario in memoria costa
+niente e copre un danno che non si vede arrivare.
+
+**Allo stesso endpoint arrivano due numeri** (`_per_il_nostro_numero()`). Il
+numero dedicato sta sull'app `salone-nadia`, quello del salone su
+`Qubi Prenotazioni`, e sono iscritte entrambe allo stesso webhook. Il bot
+risponde pero' sempre e solo dal numero in `META_PHONE_NUMBER_ID`: un
+messaggio arrivato su un altro numero si **ignora**, perche' vedersi
+rispondere da un numero diverso da quello a cui si ha scritto e' peggio che
+non ricevere niente. Senza `META_PHONE_NUMBER_ID` non si filtra nulla, o nei
+test e nel simulatore — dove i payload non portano `metadata` — non si
+elaborerebbe piu' niente.
+
+**Contatti e cronologia si ignorano di proposito** (`history`,
+`smb_app_state_sync`). Arrivano in un'altra forma — `{"event": ..., "data":
+...}` invece di `entry`/`changes` — e si dichiarano ignorati prima della
+lettura del payload, o finirebbero fra gli errori di parsing e sembrerebbero
+un difetto nostro a ogni sincronizzazione. Il bot non tiene la rubrica del
+salone ne' le conversazioni di prima. Da sapere: la sincronizzazione si
+potrebbe chiedere **una volta sola ed entro 24 ore** dal collegamento, quindi
+cambiare idea vuol dire scollegare e rifare.
+
+Il token che il flusso restituisce e' quello del cliente e non scade; la
+pagina lo mostra, ed e' il motivo per cui sta dietro la password del pannello.
+
 ## Sicurezza
 
 `.env` non va mai committato e non deve finire nei log. Le credenziali del

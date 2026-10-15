@@ -1,0 +1,285 @@
+{% extends "base.html" %}
+
+{% block title %}Collega WhatsApp - Acconciature Simone{% endblock %}
+
+{% block content %}
+<style>
+    .collega { max-width: 820px; }
+    .collega h1 { margin-bottom: .3rem; }
+    .collega p.sotto { color: #555; margin-bottom: 1.5rem; }
+    .collega .scheda {
+        background: #f5f5f3; border-radius: 10px; padding: 1rem 1.2rem;
+        margin-bottom: 1.2rem;
+    }
+    .collega .attenzione {
+        background: #fff6e6; border-left: 4px solid var(--arancio, #b35c00);
+        border-radius: 6px; padding: 1rem 1.2rem; margin-bottom: 1.2rem;
+    }
+    .collega .guasto {
+        background: #fdecec; border-left: 4px solid #c0392b;
+        border-radius: 6px; padding: 1rem 1.2rem; margin-bottom: 1.2rem;
+    }
+    .collega ol { margin: .6rem 0 0 1.2rem; }
+    .collega ol li { margin-bottom: .45rem; }
+    .collega .via { margin: 1.5rem 0; }
+    .collega button.avvia {
+        background: var(--arancio, #b35c00); color: #fff; border: 0;
+        border-radius: 8px; padding: .9rem 1.4rem; font-size: 16px;
+        cursor: pointer;
+    }
+    .collega button.avvia[disabled] { opacity: .5; cursor: not-allowed; }
+    .collega .valore {
+        display: flex; gap: .5rem; align-items: center; margin-bottom: .7rem;
+        flex-wrap: wrap;
+    }
+    .collega .valore label { min-width: 190px; font-weight: 600; }
+    .collega .valore input {
+        flex: 1 1 260px; min-width: 0; font-family: monospace; font-size: 16px;
+        padding: .5rem; border: 1px solid #ccc; border-radius: 6px;
+    }
+    .collega .valore button {
+        border: 1px solid #ccc; background: #fff; border-radius: 6px;
+        padding: .5rem .8rem; font-size: 16px; cursor: pointer;
+    }
+    .collega .esito { display: none; }
+    .collega code { background: #ececeb; padding: .1rem .3rem; border-radius: 4px; }
+</style>
+
+<div class="collega">
+    <h1>Collega il numero del salone</h1>
+    <p class="sotto">
+        Il numero resta sul telefono, nell'app WhatsApp Business: il bot
+        risponde sullo stesso numero, e chi e' in salone continua a scrivere
+        dall'app come sempre.
+    </p>
+
+    {% if not configurato %}
+    <div class="guasto">
+        <strong>Non si puo' ancora partire.</strong>
+        Mancano le credenziali dell'app Meta: servono
+        <code>META_APP_ID</code>, <code>META_APP_SECRET</code> e
+        <code>META_ES_CONFIG_ID</code> fra le variabili d'ambiente.
+    </div>
+    {% endif %}
+
+    <div class="attenzione">
+        <strong>Fermati se non vedi la scelta giusta.</strong>
+        Nella finestra che si apre deve comparire l'opzione per
+        <em>collegare un account WhatsApp Business che esiste gia'</em>. Se
+        invece ti propone solo di crearne uno nuovo, <strong>chiudi la
+        finestra</strong>: quella strada registra il numero sulla Cloud API e
+        lo <strong>toglie dal telefono</strong> del salone.
+    </div>
+
+    <div class="scheda">
+        <strong>Come va: tu qui, loro col telefono in mano.</strong>
+        <ol>
+            <li>Controlla che sul telefono WhatsApp Business sia aggiornata
+                (serve almeno la versione 2.24.17).</li>
+            <li>Premi il bottone qui sotto e inserisci il numero del salone.</li>
+            <li>Sul telefono arriva un messaggio da Facebook: devono toccare
+                <strong>Connect</strong>, poi <strong>Connect to the Business
+                Platform</strong>, poi <strong>Confirm</strong>. Il bottone
+                funziona solo nella loro chat: inoltrato non fa niente.</li>
+            <li>Il codice che vedono si scrive qui nella finestra.</li>
+            <li>Non chiudete l'app finche' non ha finito di sincronizzare.</li>
+        </ol>
+        <p style="margin:.8rem 0 0">
+            Un codice sbagliato o richiesto troppe volte <strong>blocca tutto
+            per circa 12 ore</strong>: meglio una volta con calma che tre di
+            corsa.
+        </p>
+    </div>
+
+    <div class="via">
+        <button class="avvia" id="avvia" {% if not configurato %}disabled{% endif %}>
+            Avvia il collegamento
+        </button>
+    </div>
+
+    <div class="guasto" id="guasto" style="display:none"></div>
+
+    <div class="scheda esito" id="esito">
+        <strong>Fatto. Questi due valori vanno su Render.</strong>
+        <p style="margin:.4rem 0 1rem">
+            Si cambiano nelle variabili d'ambiente del servizio web; il
+            servizio riparte da se'. Finche' non li cambi, il bot continua a
+            rispondere dal numero di prima.
+        </p>
+        <div class="valore">
+            <label for="phone_number_id">META_PHONE_NUMBER_ID</label>
+            <input id="phone_number_id" readonly>
+            <button type="button" data-copia="phone_number_id">Copia</button>
+        </div>
+        <div class="valore">
+            <label for="token">META_WA_TOKEN</label>
+            <input id="token" readonly>
+            <button type="button" data-copia="token">Copia</button>
+        </div>
+        <div id="dettagli" style="margin-top:1rem"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+    "use strict";
+
+    var APP_ID = {{ app_id | tojson }};
+    var CONFIG_ID = {{ config_id | tojson }};
+    var VERSIONE = {{ versione_graph | tojson }};
+    var FEATURE_TYPE = {{ feature_type | tojson }};
+
+    // Quello che il flusso racconta mentre va avanti. L'id dell'account
+    // arriva da qui e non dal codice scambiato: senza, non si saprebbe a
+    // quale account iscrivere l'app.
+    var datiFlusso = {};
+
+    var guasto = document.getElementById("guasto");
+    var esito = document.getElementById("esito");
+    var avvia = document.getElementById("avvia");
+
+    function mostraGuasto(testo) {
+        guasto.textContent = testo;
+        guasto.style.display = "block";
+    }
+
+    window.fbAsyncInit = function () {
+        FB.init({ appId: APP_ID, cookie: true, xfbml: false, version: VERSIONE });
+    };
+
+    (function caricaSdk(d, s, id) {
+        var js, primo = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) { return; }
+        js = d.createElement(s); js.id = id;
+        js.src = "https://connect.facebook.net/en_US/sdk.js";
+        primo.parentNode.insertBefore(js, primo);
+    }(document, "script", "facebook-jssdk"));
+
+    // Il flusso parla con la pagina a messaggi: da qui arrivano l'id
+    // dell'account e quello del numero, che il codice scambiato non contiene.
+    window.addEventListener("message", function (evento) {
+        var provenienza;
+        try { provenienza = new URL(evento.origin).hostname; } catch (e) { return; }
+        if (!/(^|\.)facebook\.com$/.test(provenienza)) { return; }
+
+        var dati;
+        try { dati = JSON.parse(evento.data); } catch (e) { return; }
+        if (!dati || dati.type !== "WA_EMBEDDED_SIGNUP") { return; }
+
+        if (dati.event === "ERROR" || dati.event === "CANCEL") {
+            mostraGuasto(
+                "Meta ha interrotto il flusso: " +
+                ((dati.data && (dati.data.error_message || dati.data.current_step)) ||
+                 "nessun dettaglio") +
+                ". Se parla del codice, aspetta prima di riprovare."
+            );
+            return;
+        }
+        if (dati.data) {
+            datiFlusso = Object.assign(datiFlusso, dati.data);
+        }
+    });
+
+    function scambia(codice) {
+        return fetch("/admin/collega-whatsapp/scambia", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                code: codice,
+                waba_id: datiFlusso.waba_id,
+                phone_number_id: datiFlusso.phone_number_id
+            })
+        }).then(function (r) { return r.json(); });
+    }
+
+    function mostraEsito(risposta) {
+        document.getElementById("token").value = risposta.token || "";
+
+        // L'id del numero letto da Meta vince su quello riferito dal flusso:
+        // con l'id sbagliato ogni invio viene rifiutato mentre sembra tutto
+        // configurato.
+        var numeri = risposta.numeri || [];
+        var scelto = numeri.length ? numeri[0] : null;
+        document.getElementById("phone_number_id").value =
+            (scelto && scelto.id) || datiFlusso.phone_number_id || "";
+
+        var righe = [];
+        if (risposta.waba_id) {
+            righe.push("Account WhatsApp Business: " + risposta.waba_id);
+        }
+        numeri.forEach(function (n) {
+            righe.push(
+                "Numero: " + (n.display_phone_number || "?") +
+                " - id " + n.id +
+                (n.platform_type ? " - " + n.platform_type : "")
+            );
+        });
+        if (risposta.app_iscritte) {
+            righe.push("App iscritte all'account: " +
+                (risposta.app_iscritte.join(", ") || "nessuna"));
+        }
+        (risposta.avvisi || []).forEach(function (a) {
+            righe.push("Da guardare: " + a);
+        });
+
+        var dettagli = document.getElementById("dettagli");
+        dettagli.innerHTML = "";
+        righe.forEach(function (riga) {
+            var p = document.createElement("p");
+            p.style.margin = ".2rem 0";
+            // Testo che arriva da Meta: si inserisce come testo, non come HTML.
+            p.textContent = riga;
+            dettagli.appendChild(p);
+        });
+
+        esito.style.display = "block";
+    }
+
+    avvia.addEventListener("click", function () {
+        guasto.style.display = "none";
+        if (typeof FB === "undefined") {
+            mostraGuasto("L'SDK di Facebook non si e' caricato: ricarica la pagina.");
+            return;
+        }
+
+        var extras = { setup: {} };
+        if (FEATURE_TYPE) { extras.featureType = FEATURE_TYPE; }
+
+        FB.login(function (risposta) {
+            var codice = risposta && risposta.authResponse && risposta.authResponse.code;
+            if (!codice) {
+                mostraGuasto(
+                    "Il flusso non ha restituito nessun codice: " +
+                    "probabilmente e' stato chiuso prima della fine."
+                );
+                return;
+            }
+            // Il codice vale 30 secondi: si scambia subito, senza passaggi in mezzo.
+            scambia(codice).then(function (r) {
+                if (r && r.ok) { mostraEsito(r); }
+                else { mostraGuasto((r && r.errore) || "Scambio del codice non riuscito."); }
+            }).catch(function (e) {
+                mostraGuasto("Scambio del codice non riuscito: " + e);
+            });
+        }, {
+            config_id: CONFIG_ID,
+            response_type: "code",
+            override_default_response_type: true,
+            extras: extras
+        });
+    });
+
+    document.querySelectorAll("[data-copia]").forEach(function (bottone) {
+        bottone.addEventListener("click", function () {
+            var campo = document.getElementById(bottone.dataset.copia);
+            campo.select();
+            try { document.execCommand("copy"); } catch (e) { /* pazienza */ }
+            bottone.textContent = "Copiato";
+            setTimeout(function () { bottone.textContent = "Copia"; }, 1500);
+        });
+    });
+}());
+</script>
+{% endblock %}

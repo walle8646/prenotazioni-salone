@@ -1,8 +1,16 @@
 from fastapi import APIRouter, BackgroundTasks, Request, Query, HTTPException
 from fastapi.responses import PlainTextResponse
 from config import settings
-from services.conversation import handle_incoming_message, risponde_una_persona
-from services.whatsapp_service import segna_letto, segna_letto_e_sta_scrivendo
+from services.conversation import (
+    handle_incoming_message,
+    registra_risposta_dal_telefono,
+    risponde_una_persona,
+)
+from services.whatsapp_service import (
+    e_un_nostro_invio,
+    segna_letto,
+    segna_letto_e_sta_scrivendo,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -13,6 +21,11 @@ router = APIRouter(prefix="/webhook")
 # che considera non consegnati, e senza memoria il cliente riceverebbe la
 # stessa risposta due volte.
 MEMORIA_MESSAGGI_SECONDI = 3600
+
+
+def redis_di(request: Request):
+    """La connessione a Redis dell'applicazione, se c'e'."""
+    return getattr(request.app.state, "redis", None)
 
 
 async def _gia_visto(redis, message_id: str) -> bool:
@@ -32,6 +45,59 @@ async def _gia_visto(redis, message_id: str) -> bool:
     except Exception:  # noqa: BLE001 - Redis giù non deve bloccare i messaggi
         logger.exception("Controllo dei messaggi già visti non riuscito")
         return False
+
+
+def _per_il_nostro_numero(value: dict) -> bool:
+    """Se questo messaggio riguarda il numero da cui il bot sa rispondere.
+
+    Allo stesso endpoint arrivano i messaggi di piu' di un numero: quello
+    dedicato di prima e quello del salone, che sono su due app Meta diverse
+    iscritte entrambe qui. Il bot risponde pero' sempre e solo dal numero in
+    `META_PHONE_NUMBER_ID`, quindi un messaggio arrivato su un altro numero
+    riceverebbe la risposta da un numero diverso da quello a cui e' stato
+    scritto: il cliente vede comparire uno sconosciuto che risponde a una cosa
+    detta altrove, ed e' peggio che non ricevere niente.
+
+    Senza `META_PHONE_NUMBER_ID` configurata non si filtra nulla: nei test e
+    nel simulatore i payload non portano `metadata`, e scartarli vorrebbe dire
+    non elaborare piu' niente.
+    """
+    nostro = settings.meta_phone_number_id
+    arrivato = (value.get("metadata") or {}).get("phone_number_id")
+    if not nostro or not arrivato or nostro == arrivato:
+        return True
+
+    logger.warning(
+        "Messaggio per il numero %s ignorato: il bot risponde dal numero %s",
+        arrivato,
+        nostro,
+    )
+    return False
+
+
+def _testo_della_eco(eco: dict) -> str | None:
+    """Che cosa ha scritto il salone dal telefono, per il pannello.
+
+    Nel pannello serve solo a far capire a chi legge cosa e' stato detto al
+    cliente: di una foto o di un vocale basta dire che c'erano, mentre tacere
+    lascia la receptionist a rispondere una seconda volta alla stessa domanda.
+    """
+    tipo = eco.get("type")
+    if tipo == "text":
+        return (eco.get("text") or {}).get("body")
+    contenuto = eco.get(tipo) if isinstance(eco.get(tipo), dict) else {}
+    didascalia = (contenuto or {}).get("caption")
+    if didascalia:
+        return didascalia
+    return f"[{tipo} inviato dal telefono]" if tipo else None
+
+
+async def _registra_eco(phone: str, text: str | None) -> None:
+    """Mette da parte il bot dopo che ha risposto una persona dal telefono."""
+    try:
+        await registra_risposta_dal_telefono(phone=phone, text=text)
+    except Exception:  # noqa: BLE001
+        logger.exception("Eco dell'app WhatsApp non registrata per %s", phone)
 
 
 async def _elabora(redis, message_id: str = None, **argomenti) -> None:
@@ -102,11 +168,46 @@ async def receive_message(request: Request, background: BackgroundTasks):
     """
     body = await request.json()
 
+    # La sincronizzazione dei contatti e della cronologia della coexistence
+    # arriva in un'altra forma — `{"event": ..., "data": ...}` invece di
+    # `entry`/`changes` — e non ci serve: il bot non tiene la rubrica del
+    # salone ne' le conversazioni di prima. Si dichiara ignorata qui perche'
+    # altrimenti finirebbe fra gli errori di lettura del payload, dove
+    # sembrerebbe un difetto nostro ogni volta che Meta sincronizza.
+    if isinstance(body, dict) and "entry" not in body and body.get("event"):
+        logger.info("Evento di coexistence ignorato: %s", body.get("event"))
+        return {"status": "ignored"}
+
     # Estrai il messaggio dal payload Meta
     try:
         entry = body["entry"][0]
         changes = entry["changes"][0]
         value = changes["value"]
+
+        if not _per_il_nostro_numero(value):
+            return {"status": "ignored"}
+
+        # Il salone ha scritto dall'app del telefono. Meta ce lo rimanda
+        # indietro come eco, ed e' l'unico modo che abbiamo di sapere che su
+        # quella conversazione sta rispondendo una persona: il numero e' sul
+        # telefono del salone, e il bot non vede quello che parte da li'.
+        if "message_echoes" in value:
+            for eco in value.get("message_echoes") or ():
+                cliente = eco.get("to")
+                if not cliente:
+                    # Senza il numero del cliente non si sa quale
+                    # conversazione mettere in mano a una persona.
+                    continue
+                # Fra le eco non deve finire quello che ha mandato il bot: si
+                # metterebbe da parte da se' al primo messaggio.
+                if e_un_nostro_invio(eco.get("id")):
+                    continue
+                if await _gia_visto(redis_di(request), eco.get("id")):
+                    continue
+                background.add_task(
+                    _registra_eco, cliente, _testo_della_eco(eco)
+                )
+            return {"status": "ok"}
 
         # Ignora status updates (delivered, read, ecc.)
         if "messages" not in value:
@@ -150,7 +251,7 @@ async def receive_message(request: Request, background: BackgroundTasks):
     except (KeyError, IndexError):
         return {"status": "parse_error"}
 
-    redis = request.app.state.redis
+    redis = redis_di(request)
 
     if await _gia_visto(redis, message.get("id")):
         logger.info("Messaggio %s già elaborato, ignorato", message.get("id"))

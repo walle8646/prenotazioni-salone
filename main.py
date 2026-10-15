@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 import redis.asyncio as aioredis
 from config import settings
 from models.database import engine, create_tables
-from routers import webhook, admin, website, chat_ws
+from routers import webhook, admin, website, chat_ws, collegamento
 from jobs.scheduler import start_scheduler, shutdown_scheduler
 
 # Logging
@@ -117,6 +117,7 @@ app.include_router(webhook.router)
 app.include_router(admin.router)
 app.include_router(website.router)
 app.include_router(chat_ws.router)
+app.include_router(collegamento.router)
 
 
 @app.get("/health")

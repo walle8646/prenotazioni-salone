@@ -138,6 +138,62 @@ async def risponde_una_persona(phone: str, backends=None) -> bool:
     )
 
 
+# Quello che si legge nel pannello come causa del passaggio, quando il
+# passaggio non l'ha chiesto il cliente ma l'ha deciso il salone scrivendo.
+MOTIVO_RISPOSTA_DAL_TELEFONO = "Ha risposto il salone dall'app WhatsApp."
+
+
+async def registra_risposta_dal_telefono(
+    phone: str, text: str | None = None, backends=None
+) -> None:
+    """Il salone ha risposto dall'app del telefono: da adesso il bot tace.
+
+    In coexistence il numero resta sull'app WhatsApp Business del salone,
+    quindi la stessa conversazione ce l'hanno davanti in due: il bot, che
+    risponde in tre secondi, e chi e' in salone, che vede la notifica arrivare
+    sul telefono. Due risposte diverse alla stessa domanda sono peggio di una
+    risposta lenta — e' la ragione per cui esiste il passaggio a una persona, e
+    qui il passaggio lo chiede il salone col fatto stesso di aver scritto.
+
+    Al cliente non si manda niente: gli ha appena risposto una persona, e un
+    "da adesso non ti rispondo piu' io" dopo quella risposta non vorrebbe dire
+    nulla. Non parte nemmeno l'avviso al salone, che e' proprio chi ha scritto:
+    una notifica a chi ha il telefono in mano e' solo rumore.
+
+    L'eco si registra come messaggio dell'operatore, e fa due cose in una. La
+    receptionist nel pannello legge quello che e' stato detto al cliente dal
+    telefono, altrimenti vedrebbe la domanda e nessuna risposta e risponderebbe
+    una seconda volta. E ogni risposta sposta avanti `presa_il`, cioe' le 24
+    ore dopo le quali un passaggio che nessuno segue torna al bot: una
+    conversazione seguita davvero dal telefono non scade mentre e' in corso.
+
+    Se il database non risponde, il bot resta in piedi e si rischia la risposta
+    doppia. E' la stessa scelta di `_in_mano_a_una_persona`, per lo stesso
+    motivo: il silenzio totale e' peggio, perche' il cliente non ha modo di
+    sapere che qualcuno lo sta leggendo.
+    """
+    backends = backends if backends is not None else _backends_reali()
+    testo = (text or "").strip() or "[messaggio dal telefono]"
+
+    try:
+        conversazione = await backends.conversazione_operatore_aperta(phone)
+        if not conversazione:
+            conversazione = await backends.apri_conversazione_operatore(
+                telefono=phone,
+                canale="whatsapp",
+                motivo=MOTIVO_RISPOSTA_DAL_TELEFONO,
+            )
+        await backends.registra_messaggio_conversazione(
+            conversazione["id"], "operatore", testo
+        )
+    except Exception:  # noqa: BLE001
+        logger.exception(
+            "Risposta dal telefono non registrata per %s: il bot resta attivo "
+            "e il cliente rischia due risposte",
+            phone,
+        )
+
+
 async def _in_mano_a_una_persona(phone: str, text: str, backends) -> bool:
     """True se su questo numero deve rispondere una persona e non il bot.
 

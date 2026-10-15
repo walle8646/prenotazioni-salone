@@ -16,6 +16,43 @@ class Settings(BaseSettings):
     meta_verify_token: str = ""
     meta_api_url: str = "https://graph.facebook.com/v21.0"
 
+    # Collegamento del numero di un cliente con Embedded Signup (coexistence):
+    # il numero resta sull'app WhatsApp Business del salone e la Cloud API
+    # risponde sullo stesso numero. Servono solo per quella procedura, che si
+    # fa una volta: senza questi valori la pagina lo dice invece di aprire un
+    # flusso che non puo' funzionare.
+    #
+    # `meta_app_secret` e' la chiave segreta dell'app Meta e serve a scambiare
+    # il codice che il flusso restituisce con un token: lo scambio e' da
+    # server a server proprio perche' quella chiave non deve passare dal
+    # browser.
+    meta_app_id: str = ""
+    meta_app_secret: str = ""
+    meta_es_config_id: str = ""
+    # Il valore che accende nel flusso la scelta "collega un account WhatsApp
+    # Business esistente". Senza, il flusso propone di creare un account nuovo
+    # e registrare il numero, che vorrebbe dire togliere il numero dal
+    # telefono del salone. Si cambia dalla URL della pagina (`?feature=`)
+    # perche' Meta lo ha gia' rinominato una volta, e scoprirlo davanti al
+    # cliente non deve voler dire aspettare un deploy.
+    meta_es_feature_type: str = "whatsapp_business_app_onboarding"
+    # Versione delle API usata dal flusso di collegamento. Separata da
+    # `meta_api_url`, che regge i messaggi e non va toccata: le versioni di
+    # Graph scadono dopo due anni, e aggiornare quella del collegamento non
+    # deve voler dire rischiare l'invio.
+    meta_graph_version: str = "v23.0"
+
+    @property
+    def collegamento_configurato(self) -> bool:
+        """Se la pagina di collegamento ha tutto quello che le serve."""
+        return bool(
+            self.meta_app_id and self.meta_app_secret and self.meta_es_config_id
+        )
+
+    @property
+    def meta_graph_url(self) -> str:
+        return f"https://graph.facebook.com/{self.meta_graph_version}"
+
     # Google Calendar
     google_credentials_json: str = ""
     gcal_salone_id: str = ""

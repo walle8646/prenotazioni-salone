@@ -33,6 +33,69 @@ def _spiegazione(risposta: httpx.Response) -> str:
     return " — ".join(p for p in pezzi if p) or risposta.text[:300]
 
 
+# Gli identificativi dei messaggi che abbiamo mandato noi, con l'istante in cui
+# sono partiti. Serve a una cosa sola: in coexistence Meta ci rimanda indietro,
+# come `smb_message_echoes`, i messaggi che il salone scrive dall'app del
+# telefono — e quell'eco mette il bot da parte, perche' significa che sta
+# rispondendo una persona. Se fra le eco finisse anche quello che ha mandato il
+# bot, il bot si zittirebbe da se' al primo messaggio: muto per 24 ore su ogni
+# conversazione, fino alla riapertura automatica. La documentazione dice che le
+# eco riguardano solo l'app, ma il danno e' troppo grosso per fidarsi di una
+# riga di documentazione, e il controllo costa un dizionario in memoria.
+#
+# Sta in memoria di processo e non su Redis perche' la finestra utile e' di
+# secondi: l'eco, se arriva, arriva subito dopo l'invio. Con piu' worker
+# uvicorn un'eco potrebbe capitare al processo che non ha inviato, e allora si
+# aprirebbe un passaggio di troppo: visibile nel pannello, non silenzioso.
+# Oggi il processo e' uno solo.
+_NOSTRI_INVII: dict[str, float] = {}
+MEMORIA_INVII_SECONDI = 600
+
+
+def _ricorda_invio(risposta: httpx.Response) -> None:
+    """Annota l'id che Meta assegna al messaggio appena partito."""
+    import time
+
+    try:
+        messaggi = risposta.json().get("messages") or []
+        identificativo = messaggi[0].get("id") if messaggi else None
+    except (ValueError, AttributeError, IndexError):
+        return
+    if not identificativo:
+        return
+
+    adesso = time.time()
+    # Pulizia pigra: senza, il dizionario crescerebbe per tutta la vita del
+    # processo. Si fa qui e non con un job perche' gli invii sono l'unico
+    # momento in cui serve che sia in ordine.
+    scaduti = [
+        chiave
+        for chiave, quando in _NOSTRI_INVII.items()
+        if adesso - quando > MEMORIA_INVII_SECONDI
+    ]
+    for chiave in scaduti:
+        _NOSTRI_INVII.pop(chiave, None)
+
+    _NOSTRI_INVII[identificativo] = adesso
+
+
+def e_un_nostro_invio(message_id: str | None) -> bool:
+    """True se questo messaggio l'ha mandato il bot e non una persona.
+
+    Chiamata sulle eco dell'app WhatsApp Business: quelle che corrispondono a
+    un nostro invio non sono una persona che risponde, e non devono mettere da
+    parte il bot.
+    """
+    import time
+
+    if not message_id:
+        return False
+    quando = _NOSTRI_INVII.get(message_id)
+    if quando is None:
+        return False
+    return time.time() - quando <= MEMORIA_INVII_SECONDI
+
+
 async def _invia_con_motivo(payload: dict, descrizione: str) -> tuple[bool, str]:
     """Manda il payload a Meta e restituisce esito e motivo del rifiuto.
 
@@ -54,6 +117,7 @@ async def _invia_con_motivo(payload: dict, descrizione: str) -> tuple[bool, str]
         )
 
     if risposta.is_success:
+        _ricorda_invio(risposta)
         return True, ""
 
     motivo = _spiegazione(risposta)
