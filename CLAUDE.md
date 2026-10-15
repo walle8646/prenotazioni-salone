@@ -1084,11 +1084,15 @@ non ricevere niente. Senza `META_PHONE_NUMBER_ID` non si filtra nulla, o nei
 test e nel simulatore — dove i payload non portano `metadata` — non si
 elaborerebbe piu' niente.
 
-**Contatti e cronologia si ignorano di proposito** (`history`,
-`smb_app_state_sync`). Arrivano in un'altra forma — `{"event": ..., "data":
-...}` invece di `entry`/`changes` — e si dichiarano ignorati prima della
-lettura del payload, o finirebbero fra gli errori di parsing e sembrerebbero
-un difetto nostro a ogni sincronizzazione. Il bot non tiene la rubrica del
+**Contatti e cronologia non si iscrivono nemmeno** (`history`,
+`smb_app_state_sync`). Accenderli vorrebbe dire farsi mandare la rubrica del
+salone e le conversazioni passate su un server che le butta via: e' la stessa
+regola per cui in database finiscono solo le conversazioni passate a una
+persona e non tutte. Il webhook li gestisce lo stesso, perche' un'iscrizione
+puo' comparire per altre strade: arrivano in un'altra forma —
+`{"event": ..., "data": ...}` invece di `entry`/`changes` — e si dichiarano
+ignorati prima della lettura del payload, o finirebbero fra gli errori di
+parsing e sembrerebbero un difetto nostro a ogni sincronizzazione. Il bot non tiene la rubrica del
 salone ne' le conversazioni di prima. Da sapere: la sincronizzazione si
 potrebbe chiedere **una volta sola ed entro 24 ore** dal collegamento, quindi
 cambiare idea vuol dire scollegare e rifare.

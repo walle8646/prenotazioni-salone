@@ -77,13 +77,27 @@ Da `developers.facebook.com/apps`, aperta l'app **Qubi Prenotazioni**.
     o la verifica non passa.
 15. Salva (Meta chiama subito l'indirizzo per verificarlo: deve rispondere
     **Verificato**).
-16. Sempre li', **Gestisci** i campi, e iscrivi questi cinque:
-    - `messages`
-    - `account_update`
-    - `smb_message_echoes` ← e' quello che fa tacere il bot quando risponde
-      Nadia
-    - `history`
-    - `smb_app_state_sync`
+16. Sempre li', nella tabella **Campi del webhook**, servono tre iscrizioni
+    attive. Meta ne accende gia' parecchie da se', fra cui due delle nostre:
+    - `messages` — di solito gia' attivo
+    - `account_update` — di solito gia' attivo
+    - `smb_message_echoes` — **questo va acceso a mano**, ed e' quello che fa
+      tacere il bot quando risponde Nadia
+
+    Attenzione: nell'elenco c'e' anche **`message_echoes`** senza `smb_`.
+    Quello e' di Messenger e non serve: lascialo spento.
+
+    `history` e `smb_app_state_sync` **si lasciano spenti**. Accenderli
+    vorrebbe dire farsi mandare la rubrica del salone e le conversazioni
+    passate su un server che le butta via, perche' il bot non ha dove metterle
+    ne' motivo di tenerle — ed e' la stessa regola per cui in database
+    finiscono solo le conversazioni passate a una persona e non tutte. Il
+    codice le ignora comunque, se un giorno si accendessero.
+
+    Le altre che Meta accende da se' (`calls`, `security`,
+    `phone_number_quality_update`, quelle sui template) si lasciano stare: il
+    webhook le ignora, e `message_template_status_update` tornera' utile
+    quando sbloccheremo i template.
 
 > Configurare la URL e iscrivere i campi sono **due interruttori diversi**: col
 > secondo spento Meta prende in carico i messaggi e non ne inoltra nessuno,
@@ -123,16 +137,44 @@ Da `developers.facebook.com/apps`, aperta l'app **Qubi Prenotazioni**.
     **15 minuti di attesa** prima di andare avanti.
 23. Fatti scrivere da Simone un messaggio in cui dice di procedere: nel flusso
     accetti le condizioni di WhatsApp Business **per conto loro**.
-24. Decidi **in quale portfolio** finisce l'account:
-    - il portfolio del salone, con te invitato come amministratore — la via
-      pulita; oppure
-    - uno che crei tu durante il flusso, intestato al salone **con la loro
-      ragione sociale esatta**.
+24. Decidi **in quale portfolio** finisce l'account del salone.
+
+    Tre cose diverse che si confondono facilmente, e la distinzione cambia
+    cosa chiedere.
+
+    - L'**account sviluppatore** (`developers.facebook.com`) serve solo a chi
+      **crea** le app. E' nostro: il salone non ci mette piede e non crea
+      nessuna app, usa la nostra.
+    - Il **portfolio aziendale** (`business.facebook.com`, prima Business
+      Manager) e' il contenitore che possiede pagina, account WhatsApp ed
+      eventuali account pubblicitari. Si crea da un normale account Facebook,
+      e' gratis e non richiede niente di tecnico. **E' questo che serve qui**,
+      perche' e' dentro al portfolio che nascera' il WABA.
+    - L'**account Facebook personale** e' il login di Simone: se hanno una
+      pagina del salone, ce l'hanno per forza.
+
+    Quindi la domanda da fargli non e' "avete un account sviluppatore", ma:
+    **andate su business.facebook.com, vi si apre un account aziendale del
+    salone?**
+
+    - **Se ce l'hanno:** fatti aggiungere come amministratore. Loro vanno su
+      *Impostazioni aziendali -> Persone -> Aggiungi*, mettono la tua email e
+      danno accesso completo; a te arriva un invito da accettare. Cosi'
+      stasera **loro non devono fare login da nessuna parte**: accedi tu col
+      tuo Facebook e nel flusso scegli il loro portfolio.
+    - **Se non ce l'hanno:** lo crei tu durante il flusso, intestato al salone
+      **con la ragione sociale esatta**. Fattela mandare scritta, insieme alla
+      partita IVA.
 
     Non metterlo in un portfolio intestato a te: la verifica dell'azienda che
     servira' poi per i template — promemoria e avvisi di assenza — si fa su
     quel portfolio con i documenti del salone, e un nome che non combacia viene
     rifiutato.
+
+    Se il portfolio ce l'hanno gia', chiedi anche se e' **verificato**
+    (*Impostazioni aziendali -> Centro sicurezza*): se il salone ha gia' fatto
+    la verifica dell'azienda per altro, i template si sbloccano senza rifare
+    niente.
 
 ### Il collegamento
 
