@@ -225,6 +225,14 @@ Da `developers.facebook.com/apps`, aperta l'app **Qubi Prenotazioni**.
 
 36. **Scrivi al numero del salone dal tuo telefono.** Deve rispondere il bot,
     dal numero del salone.
+
+    Mentre lo fai, **tieni d'occhio il telefono del salone**: in coexistence
+    il messaggio arriva anche li', e il bot lo segna come letto via API. Se il
+    pallino della notifica si spegne da solo quando il bot risponde, siamo a
+    posto. Se resta, Nadia si ritrova notifiche di messaggi gia' gestiti — e
+    il rischio non e' il fastidio, e' che risponda a qualcosa a cui il bot ha
+    gia' risposto. Il codice se ne accorge e si fa da parte, ma a quel punto
+    due risposte sono partite. Rimedio: silenziare quelle chat dall'app.
 37. **Fai rispondere Nadia dall'app, nella stessa conversazione.** Da quel
     momento il bot deve **tacere** su quel numero, e in **Conversazioni** deve
     comparire la riga con dentro quello che ha scritto lei.
@@ -244,7 +252,8 @@ ed e' peggio di una risposta lenta.
 | Errore `3441049` | Il numero e' gia' collegato altrove | Punto 22, poi 15 minuti |
 | Non compare la scelta "account esistente" | Variante non attiva | Punto 27, prova le due URL |
 | Il bot non risponde a niente | Campi non iscritti, o token di verifica diverso | Punti 14 e 16 |
-| Il bot risponde due volte insieme a Nadia | `smb_message_echoes` non iscritto | Punto 16 |
+| Il bot risponde due volte insieme a Nadia | `smb_message_echoes` spento, o acceso `message_echoes` al suo posto | Punto 16 |
+| Il bot dice ai clienti qualcosa di sbagliato | Succede | **Spegni il bot** dal menù del pannello: smette subito, e i messaggi continuano ad arrivare in Conversazioni |
 
 ---
 
