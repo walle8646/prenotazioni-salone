@@ -121,6 +121,10 @@ class Backends:
         """Annota che questo contatto ha accettato questa versione delle condizioni."""
         raise NotImplementedError
 
+    async def chiudi_conversazioni_aperte_dal_bot_spento(self, motivo: str) -> int:
+        """Restituisce al bot le conversazioni nate solo perche' era spento."""
+        raise NotImplementedError
+
     async def conversazione_operatore_aperta(self, telefono: str) -> dict | None:
         """Il passaggio ancora aperto per questo numero, se c'è."""
         raise NotImplementedError
@@ -288,6 +292,11 @@ class RealBackends(Backends):
         from services.db_service import registra_accettazione_condizioni
 
         await registra_accettazione_condizioni(cliente_id, versione)
+
+    async def chiudi_conversazioni_aperte_dal_bot_spento(self, motivo):
+        from services.db_service import chiudi_conversazioni_aperte_dal_bot_spento
+
+        return await chiudi_conversazioni_aperte_dal_bot_spento(motivo)
 
     async def conversazione_operatore_aperta(self, telefono):
         from services.db_service import conversazione_operatore_aperta

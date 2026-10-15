@@ -228,3 +228,77 @@ async def test_col_bot_acceso_e_senza_passaggi_i_puntini_tornano_veri():
     backends = FakeBackends()
 
     assert await risponde_una_persona(CLIENTE, backends=backends) is False
+
+
+# ------------------------------------- riaccendere deve far ripartire davvero
+
+
+@pytest.mark.asyncio
+async def test_riaccendere_restituisce_al_bot_le_conversazioni_aperte_da_spento():
+    """Mentre era spento ogni messaggio ha aperto una conversazione per non
+    perderlo, e finche' restano aperte il bot tace su quei numeri: chi
+    riaccende l'interruttore si trova il bot ancora muto e non capisce
+    perche'. Visto in produzione il 15 ottobre."""
+    from services.conversation import MOTIVO_BOT_SPENTO
+
+    backends = FakeBackends()
+    interruttore.set_bot_attivo_cache(False)
+
+    await handle_incoming_message(
+        redis=FakeRedis(),
+        phone=CLIENTE,
+        text="siete aperti?",
+        msg_type="text",
+        channel=CollectorChannel(),
+        backends=backends,
+        claude=ScriptedClaude([]),
+    )
+    assert await risponde_una_persona(CLIENTE, backends=backends) is True
+
+    interruttore.set_bot_attivo_cache(True)
+    quante = await backends.chiudi_conversazioni_aperte_dal_bot_spento(
+        MOTIVO_BOT_SPENTO
+    )
+
+    assert quante == 1
+    assert await risponde_una_persona(CLIENTE, backends=backends) is False
+
+
+@pytest.mark.asyncio
+async def test_chi_ha_chiesto_una_persona_davvero_non_viene_toccato():
+    """Riaccendere il bot non toglie di mano una conversazione a chi la sta
+    seguendo."""
+    from services.conversation import MOTIVO_BOT_SPENTO
+
+    backends = FakeBackends()
+    await backends.apri_conversazione_operatore(
+        telefono="393339999999", motivo="Ha chiesto di parlare con qualcuno."
+    )
+
+    quante = await backends.chiudi_conversazioni_aperte_dal_bot_spento(
+        MOTIVO_BOT_SPENTO
+    )
+
+    assert quante == 0
+    assert backends.conversazioni_operatore[0]["stato"] == "attesa"
+
+
+@pytest.mark.asyncio
+async def test_una_conversazione_gia_presa_in_mano_resta_aperta():
+    """Se una persona ha davvero risposto, quella conversazione e' sua."""
+    from services.conversation import MOTIVO_BOT_SPENTO
+
+    backends = FakeBackends()
+    conversazione = await backends.apri_conversazione_operatore(
+        telefono=CLIENTE, motivo=MOTIVO_BOT_SPENTO
+    )
+    await backends.registra_messaggio_conversazione(
+        conversazione["id"], "operatore", "Buongiorno, le rispondo io"
+    )
+
+    quante = await backends.chiudi_conversazioni_aperte_dal_bot_spento(
+        MOTIVO_BOT_SPENTO
+    )
+
+    assert quante == 0
+    assert backends.conversazioni_operatore[0]["stato"] == "presa"

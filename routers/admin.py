@@ -127,6 +127,35 @@ async def bot_interruttore(
         "Bot %s da %s", "riattivato" if nuovo_stato else "DISATTIVATO", utente
     )
 
+    # Riaccendere il bot deve farlo ripartire davvero. Mentre era spento ogni
+    # messaggio ha aperto una conversazione nel pannello per non perderlo, e
+    # finche' quelle restano aperte il bot tace su quei numeri: chi riaccende
+    # l'interruttore si trova il bot ancora muto e non capisce perche'.
+    # Visto in produzione il 15 ottobre.
+    #
+    # Si chiudono solo quelle che nessuno ha preso in mano: se una persona ha
+    # davvero risposto, la conversazione resta sua. E non si tocca la memoria
+    # delle sessioni, come fa invece chiudere a mano: li' il bot aveva detto
+    # "da adesso non ti rispondo piu' io" e rileggerlo lo faceva ripetere,
+    # mentre col bot spento al cliente non era stato detto niente.
+    if nuovo_stato:
+        try:
+            from services.backends import RealBackends
+            from services.conversation import MOTIVO_BOT_SPENTO
+
+            quante = await RealBackends().chiudi_conversazioni_aperte_dal_bot_spento(
+                MOTIVO_BOT_SPENTO
+            )
+            if quante:
+                logger.info(
+                    "Riaccensione: restituite al bot %s conversazioni", quante
+                )
+        except Exception:  # noqa: BLE001
+            logger.exception(
+                "Conversazioni aperte col bot spento non restituite: "
+                "vanno chiuse a mano da Conversazioni"
+            )
+
     torna_a = request.headers.get("referer") or "/admin/dashboard"
     return RedirectResponse(torna_a, status_code=303)
 

@@ -312,6 +312,11 @@ def main() -> int:
         print("verifica superata" if atteso else "verifica NON superata")
         return 0 if atteso else 1
 
+    # Meta i numeri li manda in cifre, senza il piu'. Scritto col piu' si
+    # aprirebbe una conversazione sotto una chiave che nessun messaggio vero
+    # usera' mai, e la prova direbbe di essere andata bene senza esserlo.
+    args.phone = args.phone.strip().lstrip("+")
+
     payload = COSTRUTTORI[args.tipo](args.phone, args.messaggio)
 
     if args.dry_run:
@@ -320,7 +325,21 @@ def main() -> int:
 
     resp = httpx.post(endpoint, json=payload, timeout=60)
     print(f"HTTP {resp.status_code} → {resp.text}")
-    print("\nLa risposta del bot arriva su WhatsApp, non qui: guarda i log del server.")
+    if args.tipo == "eco":
+        print(
+            f"\nNon arriva niente su WhatsApp: questo simula il salone che scrive "
+            f"dall'app, non un messaggio verso di te.\n"
+            f"Da controllare nel pannello, in Conversazioni: deve esserci "
+            f"{args.phone} con dentro quel testo, scritto da un operatore. "
+            f"Da adesso il bot su quel numero tace."
+        )
+    elif args.tipo == "rubrica":
+        print(
+            f"\nNon arriva niente su WhatsApp. Da adesso, scrivendo da "
+            f"{args.phone}, il pannello deve mostrare il nome invece del numero."
+        )
+    else:
+        print("\nLa risposta del bot arriva su WhatsApp, non qui: guarda i log del server.")
     return 0 if resp.status_code == 200 else 1
 
 

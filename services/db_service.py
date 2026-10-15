@@ -1208,3 +1208,28 @@ async def conversazioni_in_attesa_da(da, a) -> list[dict]:
             }
             for riga, nome, cognome in righe.all()
         ]
+
+
+async def chiudi_conversazioni_aperte_dal_bot_spento(motivo: str) -> int:
+    """Restituisce al bot le conversazioni nate solo perche' era spento.
+
+    Si chiudono **solo** quelle che nessuno ha preso in mano: se una persona
+    ha davvero risposto, la conversazione e' sua e riaccendere il bot non glie
+    la toglie di mano.
+
+    Il filtro e' il motivo, non la data: cosi' non si tocca nessun passaggio
+    che il cliente aveva chiesto davvero, nemmeno se e' delle stesse ore.
+    """
+    from models.orm import ConversazioneOperatore
+
+    async with async_session() as db:
+        risultato = await db.execute(
+            update(ConversazioneOperatore)
+            .where(
+                ConversazioneOperatore.motivo == motivo,
+                ConversazioneOperatore.stato == "attesa",
+            )
+            .values(stato="chiusa", chiusa_il=datetime.now())
+        )
+        await db.commit()
+        return risultato.rowcount or 0

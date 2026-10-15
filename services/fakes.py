@@ -405,6 +405,15 @@ class FakeBackends(Backends):
     async def registra_accettazione_condizioni(self, cliente_id, versione):
         self.condizioni_accettate[cliente_id] = versione
 
+    async def chiudi_conversazioni_aperte_dal_bot_spento(self, motivo):
+        quante = 0
+        for conversazione in self.conversazioni_operatore:
+            if conversazione["motivo"] == motivo and conversazione["stato"] == "attesa":
+                conversazione["stato"] = "chiusa"
+                conversazione["chiusa_il"] = datetime.now()
+                quante += 1
+        return quante
+
     async def conversazione_operatore_aperta(self, telefono):
         for conversazione in reversed(self.conversazioni_operatore):
             if conversazione["telefono"] == telefono and conversazione["stato"] != "chiusa":

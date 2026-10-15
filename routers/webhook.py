@@ -243,7 +243,13 @@ async def receive_message(request: Request, background: BackgroundTasks):
 
         if "message_echoes" in value:
             for eco in value.get("message_echoes") or ():
-                cliente = eco.get("to")
+                # Senza il piu' davanti: e' come arriva il numero del
+                # mittente nei messaggi veri, ed e' con quella forma che si
+                # cerca la conversazione aperta. Scritto in due modi diversi,
+                # il bot aprirebbe un passaggio su una chiave che nessun
+                # messaggio usa, e continuerebbe a rispondere sopra la persona
+                # senza che niente segnali il perche'.
+                cliente = (eco.get("to") or "").strip().lstrip("+")
                 if not cliente:
                     # Senza il numero del cliente non si sa quale
                     # conversazione mettere in mano a una persona.

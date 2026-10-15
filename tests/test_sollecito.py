@@ -73,18 +73,52 @@ async def test_si_chiede_solo_la_fascia_che_non_e_ancora_stata_sollecitata(
         chiesto["a"] = a
         return []
 
-    adesso = datetime(2026, 10, 21, 11, 0)
+    monkeypatch.setattr(
+        "services.db_service.conversazioni_in_attesa_da", finta_query
+    )
+    monkeypatch.setattr(
+        "services.slots.adesso_salone", lambda: datetime(2026, 10, 21, 11, 0)
+    )
+
+    await sollecito_job.sollecita_conversazioni_in_attesa()
+
+    larghezza = chiesto["a"] - chiesto["da"]
+    assert larghezza == timedelta(minutes=sollecito_job.INTERVALLO_MINUTI)
+    quanto_fa = datetime.now() - chiesto["a"]
+    assert timedelta(minutes=sollecito_job.MINUTI_PRIMA) <= quanto_fa < timedelta(
+        minutes=sollecito_job.MINUTI_PRIMA + 1
+    )
+
+
+@pytest.mark.asyncio
+async def test_la_fascia_si_misura_senza_fuso(salone, monkeypatch):
+    """Due orologi diversi e non e' una svista: se il salone e' aperto lo dice
+    l'ora di Roma, ma da quanto aspetta un cliente si misura con lo stesso
+    orologio che ha scritto la colonna, che il fuso non ce l'ha.
+
+    Con un orario con fuso la query falliva — `can't subtract offset-naive and
+    offset-aware datetimes` — ogni cinque minuti, e la suite non lo vedeva
+    perche' gira sui finti invece che contro Postgres. Visto in produzione il
+    15 ottobre.
+    """
+    chiesto = {}
+
+    async def finta_query(da, a):
+        chiesto["da"] = da
+        chiesto["a"] = a
+        return []
 
     monkeypatch.setattr(
         "services.db_service.conversazioni_in_attesa_da", finta_query
     )
-    monkeypatch.setattr("services.slots.adesso_salone", lambda: adesso)
+    monkeypatch.setattr(
+        "services.slots.adesso_salone", lambda: datetime(2026, 10, 21, 11, 0)
+    )
 
     await sollecito_job.sollecita_conversazioni_in_attesa()
 
-    assert chiesto["a"] == adesso - timedelta(minutes=sollecito_job.MINUTI_PRIMA)
-    larghezza = chiesto["a"] - chiesto["da"]
-    assert larghezza == timedelta(minutes=sollecito_job.INTERVALLO_MINUTI)
+    assert chiesto["da"].tzinfo is None
+    assert chiesto["a"].tzinfo is None
 
 
 @pytest.mark.asyncio

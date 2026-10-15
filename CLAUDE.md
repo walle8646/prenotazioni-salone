@@ -1142,6 +1142,12 @@ risponderebbe una seconda volta — e ogni risposta sposta avanti le 24 ore
 dopo le quali un passaggio dimenticato torna al bot. Al cliente non si manda
 niente: gli ha appena risposto una persona.
 
+**Il numero dell'eco si normalizza** togliendo il `+`: nei messaggi veri il
+mittente arriva in cifre, ed è con quella forma che si cerca la conversazione
+aperta. Scritto in due modi diversi, il passaggio nascerebbe sotto una chiave
+che nessun messaggio userà mai — il bot continuerebbe a rispondere sopra la
+persona, e niente segnalerebbe il perché.
+
 **Fra le eco non deve finire quello che manda il bot**
 (`e_un_nostro_invio()`, memoria degli id in `services/whatsapp_service.py`).
 La documentazione dice che le eco riguardano solo l'app, ma se si sbagliasse
@@ -1236,6 +1242,17 @@ una persona.
 **Quello che arriva mentre è spento non si perde**: la conversazione si apre
 in `conversazioni_operatore` e la notifica parte, o spegnere il bot sarebbe un
 modo di perdere clienti in silenzio.
+
+**Riaccenderlo lo fa ripartire davvero.** Mentre era spento ogni messaggio ha
+aperto una conversazione nel pannello per non perderlo, e finché quelle
+restano aperte il bot tace su quei numeri: chi riaccende l'interruttore si
+trova il bot ancora muto e non capisce perché. Visto in produzione il 15
+ottobre, un'ora dopo averlo scritto. Alla riaccensione si chiudono le
+conversazioni aperte **per quel motivo** e che nessuno ha preso in mano — se
+una persona ha davvero risposto, quella resta sua — e non si tocca la memoria
+delle sessioni, come fa invece chiudere a mano: lì il bot aveva detto "da
+adesso non ti rispondo più io" e rileggerlo lo faceva ripetere, mentre col bot
+spento al cliente non era stato detto niente.
 
 **Lo dice ogni schermata**, con una fascia rossa che non si chiude. Un
 interruttore d'emergenza lasciato giù per dimenticanza costa più del guasto

@@ -354,3 +354,15 @@ def test_la_cronologia_non_sembra_un_difetto_nostro(client):
     assert risposta.json() == {"status": "ignored"}
     assert client.elaborati == []
     assert client.eco == []
+
+
+def test_il_numero_dell_eco_si_normalizza(client):
+    """Nei messaggi veri il mittente arriva in cifre, senza il piu'. Se l'eco
+    lo portasse col piu', il passaggio si aprirebbe sotto una chiave che
+    nessun messaggio usa: il bot continuerebbe a rispondere sopra la persona,
+    e niente segnalerebbe il perche'."""
+    payload = _payload_eco(a="+393331234567")
+
+    client.post("/webhook/whatsapp", json=payload)
+
+    assert client.eco == [(CLIENTE, "Buongiorno, le confermo")]

@@ -53,16 +53,25 @@ def _salone_aperto(adesso) -> bool:
 
 
 async def sollecita_conversazioni_in_attesa() -> int:
-    """Manda una seconda notifica per chi aspetta da un po'. Quanti ne ha trovati."""
-    from datetime import timedelta
+    """Manda una seconda notifica per chi aspetta da un po'. Quanti ne ha trovati.
+
+    Due orologi diversi, e non e' una svista. **Se il salone e' aperto** lo
+    dice l'ora di Roma, perche' gli orari sono quelli della saracinesca.
+    **Da quanto aspetta un cliente** si misura invece con lo stesso orologio
+    che ha scritto la colonna, cioe' `datetime.now()` senza fuso: su Render il
+    container sta a UTC, e confrontare un'ora con fuso contro una colonna
+    senza fa fallire la query — `can't subtract offset-naive and offset-aware
+    datetimes`. Visto in produzione, ogni cinque minuti.
+    """
+    from datetime import datetime, timedelta
 
     from services.db_service import conversazioni_in_attesa_da
     from services.slots import adesso_salone
 
-    adesso = adesso_salone()
-    if not _salone_aperto(adesso):
+    if not _salone_aperto(adesso_salone()):
         return 0
 
+    adesso = datetime.now()
     da = adesso - timedelta(minutes=MINUTI_PRIMA + INTERVALLO_MINUTI)
     a = adesso - timedelta(minutes=MINUTI_PRIMA)
 
