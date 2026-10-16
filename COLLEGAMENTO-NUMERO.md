@@ -279,6 +279,86 @@ ed e' peggio di una risposta lenta.
 
 ---
 
+## F. I calendari degli operatori
+
+Non c'entra con WhatsApp e si puo' fare in un altro giorno, ma la procedura e'
+questa e non si ricorda mai. Ogni operatore ha un calendario Google suo: e' li'
+che il bot scrive gli appuntamenti ed e' da li' che legge se un'ora e' libera.
+Finche' un operatore non ce l'ha, prenotare con lui **fallisce**.
+
+38. Decidi **da quale account Google** nascono i sei calendari, e usane uno solo
+    per tutti. Oggi sono sull'account di prova `parrucchiere.bot.test@gmail.com`;
+    se il salone ne vuole uno suo, si rifanno li' con questa stessa procedura. Al
+    bot non importa di chi sia l'account, gli importa solo di essere invitato.
+
+39. Su `calendar.google.com`, colonna di sinistra, accanto a **Altri calendari**
+    premi **+** -> **Crea nuovo calendario**. Nome: quello dell'operatore, come
+    e' scritto nel pannello. Fuso orario **Europe/Rome**.
+
+40. Passa il mouse sul calendario appena creato -> **tre puntini** ->
+    **Impostazioni e condivisione**. Scendi a **Condividi con persone e gruppi
+    specifici** -> **Aggiungi persone e gruppi**, e incolla l'indirizzo del
+    service account:
+
+    ```
+    salone-nadia-bot@wired-framework-496615-r0.iam.gserviceaccount.com
+    ```
+
+    Autorizzazioni: **Apportare modifiche agli eventi**. Invia.
+
+    Non aspettare nessuna conferma: un service account non ha una casella di
+    posta e non accetta nessun invito. Appena premi *Invia*, funziona.
+
+41. Stessa pagina, scendi a **Integra calendario** e copia l'**ID calendario**:
+    una stringa lunga che finisce per `@group.calendar.google.com`. Non e' il
+    nome del calendario e non e' l'indirizzo dell'account.
+
+42. Pannello -> **Operatori** -> riga di quell'operatore -> campo **Calendario
+    Google** -> incolla -> **Salva**. Finche' manca, il campo e' evidenziato e
+    contiene `da-configurare-...`. Vale **subito**: la schermata ricarica da se'
+    la copia in memoria che legge il bot, senza deploy e senza riavvio.
+
+    In alternativa c'e' `GCAL_PARRUCCHIERE_IDS` su Render (oggetto JSON, nome ->
+    id), ma serve solo a riempire quello che manca: quando in tabella c'e' un
+    calendario vero, a comandare e' il pannello (`sovrascrive_il_calendario()`).
+
+43. Ripeti 39-42 per tutti e sei: Simone Big, Simone Jr, Francesco, Andrea,
+    Giava, Bario.
+
+44. Dallo stesso punto del 40, condividi ogni calendario anche con l'account
+    Google personale di chi lavora in salone, **in sola lettura**: cosi' ognuno
+    vede l'agenda nella sua app senza che nessuno giri una password, e a chi se
+    ne va si toglie la condivisione.
+
+45. **Solo se stai sostituendo calendari gia' in uso**: prima di cambiare l'ID
+    nel pannello, sposta sul calendario nuovo gli **appuntamenti futuri** che
+    stanno sul vecchio. Su Google: apri l'evento -> tre puntini -> **Sposta in**
+    -> calendario nuovo. Spostare non cambia l'identificativo dell'evento,
+    quindi *Disdici* e *Sposta* dal pannello continuano a funzionare.
+
+46. **La prova.** Pannello -> **Prenota**, scegli un giorno: devono comparire
+    caselle verdi per quell'operatore. Prenota una prova, guarda che l'evento
+    compaia sul calendario entro qualche secondo, poi disdiscila da
+    **Appuntamenti** e controlla che sparisca anche li'.
+
+47. Se un operatore **non ha nessuna casella verde** mentre gli altri si', la
+    condivisione e' sbagliata: torna al punto 40 e controlla indirizzo e
+    permesso.
+
+**Il permesso e' la meta' che si sbaglia.** *Apportare modifiche agli eventi*,
+non *Visualizzare tutti i dettagli*: con la sola lettura il bot vede le ore
+libere e le propone, poi fallisce nell'ultimo passaggio, quello in cui scrive —
+il cliente ha gia' scelto servizio, giorno e ora, e si sente dire che c'e' stato
+un problema tecnico.
+
+**Un calendario nuovo e' un calendario vuoto.** Cambiando l'ID di un operatore
+che ha gia' appuntamenti presi, per il bot quelle ore tornano libere: il
+calendario nuovo non sa niente dei vecchi e le rioffre al primo che scrive. Due
+clienti sulla stessa poltrona, e il secondo se ne accorge arrivando in salone.
+E' il motivo per cui il punto 45 viene prima.
+
+---
+
 ## Se qualcosa va storto
 
 | Cosa vedi | Cos'e' | Cosa fare |
@@ -289,6 +369,8 @@ ed e' peggio di una risposta lenta.
 | Non compare la scelta "account esistente" | Variante non attiva | Punto 27, prova le due URL |
 | Il bot non risponde a niente | Campi non iscritti, o token di verifica diverso | Punti 14 e 16 |
 | Il bot risponde due volte insieme a Nadia | `smb_message_echoes` spento, o acceso `message_echoes` al suo posto | Punto 16 |
+| "Problema tecnico" proprio quando conferma | Calendario condiviso in sola lettura | Punto 40, permesso *Apportare modifiche* |
+| Con un operatore non c'e' mai posto | Calendario non condiviso, o ID sbagliato | Punti 40 e 41 |
 | Il bot dice ai clienti qualcosa di sbagliato | Succede | **Spegni il bot** dal menù del pannello: smette subito, e i messaggi continuano ad arrivare in Conversazioni |
 
 ---
